@@ -1,4 +1,4 @@
-const CACHE='phd-review-v7';
+const CACHE='phd-review-v8';
 const APP_FILES=['./','./index.html','./style.css','./app.js','./manifest.webmanifest','./icon.svg'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(APP_FILES)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('phd-review-')&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
