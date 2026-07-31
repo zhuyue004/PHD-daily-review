@@ -1,0 +1,1 @@
+$('#saveHomeGoals').onclick=()=>{let value=$('#homeGoals').value.trim(),index=records.findIndex(r=>r.date===day());if(index<0)records.push({id:crypto.randomUUID(),date:day(),goals:value});else records[index]={...records[index],goals:value};save();home()};
