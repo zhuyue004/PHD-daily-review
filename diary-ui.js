@@ -22,6 +22,11 @@ function renderDiary(){
   bindDiaryRows();
 }
 
+function viewDiary(entry){
+  $('#detail').innerHTML=`<section class="diary-detail"><p class="diary-detail-label">日记 · 只读</p><h2>${fmt(entry.date)}</h2><div class="detail-item"><p>${esc(entry.text).replace(/\n/g,'<br>')}</p></div></section>`;
+  $('#modal').classList.remove('hidden');
+}
+
 function bindDiaryRows(){
   $$('.delete-diary').forEach(button=>button.onclick=()=>{
     let id=button.closest('.diary-swipe').dataset.id;
@@ -33,6 +38,10 @@ function bindDiaryRows(){
   });
   $$('.diary-swipe').forEach(row=>{
     let start=0,delta=0,card=row.querySelector('.diary-row');
+    card.onclick=()=>{
+      if(row.classList.contains('swiped')){row.classList.remove('swiped');return}
+      viewDiary(diaries.find(item=>item.id===row.dataset.id));
+    };
     row.addEventListener('pointerdown',event=>{start=event.clientX;delta=0;row.setPointerCapture?.(event.pointerId)});
     row.addEventListener('pointermove',event=>{
       if(!start)return;
