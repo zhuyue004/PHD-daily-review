@@ -38,10 +38,6 @@ function bindDiaryRows(){
   });
   $$('.diary-swipe').forEach(row=>{
     let start=0,delta=0,card=row.querySelector('.diary-row');
-    card.onclick=()=>{
-      if(row.classList.contains('swiped')){row.classList.remove('swiped');return}
-      viewDiary(diaries.find(item=>item.id===row.dataset.id));
-    };
     row.addEventListener('pointerdown',event=>{start=event.clientX;delta=0;row.setPointerCapture?.(event.pointerId)});
     row.addEventListener('pointermove',event=>{
       if(!start)return;
@@ -51,7 +47,9 @@ function bindDiaryRows(){
     row.addEventListener('pointerup',()=>{
       if(!start)return;
       card.style.transform='';
-      row.classList.toggle('swiped',delta<-42);
+      if(row.classList.contains('swiped')&&delta>-12){row.classList.remove('swiped');start=0;return}
+      if(delta<-42)row.classList.add('swiped');
+      else viewDiary(diaries.find(item=>item.id===row.dataset.id));
       start=0;
     });
     row.addEventListener('pointercancel',()=>{card.style.transform='';start=0});
