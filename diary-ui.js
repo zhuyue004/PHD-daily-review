@@ -67,3 +67,11 @@ $('#saveDiary').onclick=()=>{
   saveDiaries();
   renderDiary();
 };
+
+$('#diaryInput').addEventListener('keydown',event=>{
+  if(event.key!=='Enter'||event.isComposing)return;
+  event.preventDefault();
+  let input=event.currentTarget,start=input.selectionStart,end=input.selectionEnd,before=input.value.slice(0,start),after=input.value.slice(end),insert='\n　　';
+  input.value=before+insert+after;
+  input.selectionStart=input.selectionEnd=start+insert.length;
+});
