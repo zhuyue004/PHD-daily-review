@@ -19,7 +19,7 @@ async function restoreExcel(file){
     if(!window.XLSX)throw new Error('Excel 组件未加载，请联网后重试。');
     let book=XLSX.read(await file.arrayBuffer(),{type:'array'}),sheet=book.Sheets[book.SheetNames[0]],rows=XLSX.utils.sheet_to_json(sheet,{defval:''});
     if(!rows.length)throw new Error('Excel 中没有可恢复的数据。');
-    let imported=[],importedNotes=[],noteDates=new Set();
+    let imported=[],importedNotes=[],importedDiaries=[],noteDates=new Set(),diaryDates=new Set();
     for(let row of rows){
       let date=restoreDate(row['日期']); if(!date)continue;
       let record={id:crypto.randomUUID(),date};
@@ -28,18 +28,20 @@ async function restoreExcel(file){
       if(Object.prototype.hasOwnProperty.call(row,'记录位置'))record.location=(row['记录位置']??'').toString().trim();
       if(Object.keys(record).length>2)imported.push(record);
       if(Object.prototype.hasOwnProperty.call(row,'随手记')){noteDates.add(date);importedNotes.push(...importNotes(row['随手记'],date));}
+      if(Object.prototype.hasOwnProperty.call(row,'日记')){diaryDates.add(date);let text=(row['日记']??'').toString().trim();if(text)importedDiaries.push({id:crypto.randomUUID(),date,text,updatedAt:new Date().toISOString()});}
     }
-    if(!imported.length&&!importedNotes.length)throw new Error('未识别到“博士日课”记录，请确认选择了导出的 Excel。');
+    if(!imported.length&&!importedNotes.length&&!importedDiaries.length)throw new Error('未识别到“博士日课”记录，请确认选择了导出的 Excel。');
     let mode=$('#restoreMode').value,word=mode==='replace'?'完全恢复会清空本机现有记录，确定继续吗？':'合并恢复会用 Excel 中相同日期的内容覆盖本机对应内容，确定继续吗？';
     if(!confirm(word))return;
-    if(mode==='replace'){records=imported;notes=importedNotes}
+    if(mode==='replace'){records=imported;notes=importedNotes;diaries=importedDiaries}
     else{
       let map=new Map(records.map(r=>[r.date,r]));
       for(let record of imported)map.set(record.date,{...(map.get(record.date)||{}),...record,id:map.get(record.date)?.id||record.id});
       records=[...map.values()];
       if(noteDates.size)notes=notes.filter(note=>!noteDates.has(note.date)).concat(importedNotes);
+      if(diaryDates.size)diaries=diaries.filter(item=>!diaryDates.has(item.date)).concat(importedDiaries);
     }
-    save();saveNotes();page('home');restoreStatus(`恢复完成：${imported.length} 天复盘，${importedNotes.length} 条随手记。`);
+    save();saveNotes();saveDiaries();page('home');restoreStatus(`恢复完成：${imported.length} 天复盘，${importedNotes.length} 条随手记，${importedDiaries.length} 篇日记。`);
   }catch(error){restoreStatus(`恢复失败：${error.message}`)}
 }
 
