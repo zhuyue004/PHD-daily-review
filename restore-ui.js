@@ -7,11 +7,9 @@ function restoreDate(value){
 }
 
 function importNotes(value,date,times){
-  let timeRows=(times??'').toString().split(/\r?\n/).map(line=>line.trim());
-  return (value??'').toString().split(/\r?\n/).map(line=>line.trim()).filter(Boolean).map((line,index)=>{
-    let match=line.match(/^(\d{1,2}:\d{2})\s+(.+)$/),timeMatch=timeRows[index]?.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/),time=timeMatch?`${timeMatch[1].padStart(2,'0')}:${timeMatch[2]}:${timeMatch[3]||'00'}`:match?`${match[1]}:00`:'12:00:00',text=match?match[2]:line;
-    return {id:crypto.randomUUID(),date,createdAt:new Date(`${date}T${time}`).toISOString(),text};
-  });
+  let timeRows=(times??'').toString().split(/\r?\n/).map(line=>line.trim()).filter(Boolean),items=[],current=null,fallback=0,add=()=>{if(current&&current.text.trim())items.push(current)};
+  for(let raw of (value??'').toString().split(/\r?\n/)){let line=raw.trim(),bracket=line.match(/^【(\d{1,2}:\d{2}(?::\d{2})?)】$/),inline=line.match(/^(\d{1,2}:\d{2}(?::\d{2})?)\s+(.+)$/),time=bracket?.[1]||inline?.[1];if(time){add();let parts=time.split(':');current={time:`${parts[0].padStart(2,'0')}:${parts[1]}:${parts[2]||'00'}`,text:inline?.[2]||''};fallback++;continue}if(!line)continue;if(!current){let match=timeRows[fallback]?.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/),time=match?`${match[1].padStart(2,'0')}:${match[2]}:${match[3]||'00'}`:'12:00:00';current={time,text:''};fallback++}current.text+=`${current.text?'\n':''}${line}`}
+  add();return items.map(item=>({id:crypto.randomUUID(),date,createdAt:new Date(`${date}T${item.time}`).toISOString(),text:item.text}));
 }
 
 async function restoreExcel(file){
