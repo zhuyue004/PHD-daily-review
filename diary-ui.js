@@ -12,15 +12,23 @@ function quoteForToday(){
 const saveDiaries=()=>localStorage.setItem('phd-diary-records',JSON.stringify(diaries));
 const basePage=page;
 page=id=>{basePage(id);if(id==='diary')renderDiary()};
+let diaryHistoryDate=day();
+function diaryParagraphs(text){return indentDiary(text).split(/\r?\n/).filter(line=>line.trim()).map(line=>`<p>${esc(line.trim().replace(/^　　/,''))}</p>`).join('')}
+let diaryPickerMonth=new Date();
+function renderDiaryCalendar(){let panel=$('#diaryCalendar'),year=diaryPickerMonth.getFullYear(),month=diaryPickerMonth.getMonth(),first=(new Date(year,month,1).getDay()+6)%7,total=new Date(year,month+1,0).getDate(),dates=new Set(diaries.map(item=>item.date)),cells=[];for(let index=0;index<first;index++)cells.push('<button class="blank" disabled></button>');for(let date=1;date<=total;date++){let value=localDay(new Date(year,month,date));cells.push(`<button class="${dates.has(value)?'has-diary':''}" data-diary-date="${value}" type="button">${date}</button>`)}panel.innerHTML=`<div class="calendar-head"><button id="diaryPrevMonth" type="button">‹</button><b>${year} 年 ${month+1} 月</b><button id="diaryNextMonth" type="button">›</button></div><div class="calendar-week"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div><div class="calendar-grid">${cells.join('')}</div><p class="calendar-legend"><i></i>有日记</p>`;$('#diaryPrevMonth').onclick=()=>{diaryPickerMonth=new Date(year,month-1,1);renderDiaryCalendar()};$('#diaryNextMonth').onclick=()=>{diaryPickerMonth=new Date(year,month+1,1);renderDiaryCalendar()};$$('[data-diary-date]').forEach(button=>button.onclick=()=>{let value=button.dataset.diaryDate,entry=diaries.find(item=>item.date===value);$('#diaryCalendar').classList.add('hidden');if(entry)viewDiary(entry);else alert('这一天还没有日记。')})}
+function ensureDiaryHistory(){if($('#diaryHistory'))return;let section=document.createElement('section');section.id='diaryHistory';section.className='diary-history';section.innerHTML='<div class="archive-date-control"><span>按日期查看</span><button id="diaryDateButton" class="plain" type="button"></button></div><div id="diaryCalendar" class="archive-calendar diary-calendar hidden"></div>';let editor=$('.diary-editor');editor.insertAdjacentElement('afterend',section);$('#diaryDateButton').onclick=()=>{let panel=$('#diaryCalendar');panel.classList.toggle('hidden');if(!panel.classList.contains('hidden')){diaryPickerMonth=new Date();renderDiaryCalendar()}}}
 
 function renderDiary(){
+  ensureDiaryHistory();
   let quote=quoteForToday();
   let today=diaries.find(item=>item.date===day());
   $('#quoteText').textContent=quote.text;
   $('#quoteSource').textContent=quote.source.replace(/（[^）]*）/g,'');
   $('#diaryDate').textContent=fmt(day());
   $('#diaryInput').value=today?indentDiary(today.text):INDENT;
-  let recent=diaries.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,14);
+  $('#diaryDateButton').textContent=fmt(day());
+  $('#diary > h2').textContent='最近 7 天日记';
+  let cutoff=new Date();cutoff.setDate(cutoff.getDate()-6);let recent=diaries.filter(item=>item.date>=localDay(cutoff)).sort((a,b)=>b.date.localeCompare(a.date));
   $('#diaryList').innerHTML=recent.length?recent.map(item=>`<div class="swipe-row diary-swipe" data-id="${item.id}"><button class="delete-record delete-diary" aria-label="删除 ${fmt(item.date)} 的日记">删除</button><div class="diary-row"><time>${fmt(item.date)}</time><p>${esc(diaryPreview(item.text))}</p></div></div>`).join(''):'<p class="empty">还没有日记。从今天开始写下值得记住的事。</p>';
   bindDiaryRows();
 }
