@@ -17,7 +17,7 @@ function renderDiary(){
   let quote=quoteForToday();
   let today=diaries.find(item=>item.date===day());
   $('#quoteText').textContent=quote.text;
-  $('#quoteSource').textContent=quote.source;
+  $('#quoteSource').textContent=quote.source.replace(/（[^）]*）/g,'');
   $('#diaryDate').textContent=fmt(day());
   $('#diaryInput').value=today?indentDiary(today.text):INDENT;
   let recent=diaries.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,14);
