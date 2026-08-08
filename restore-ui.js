@@ -6,10 +6,11 @@ function restoreDate(value){
   return match?`${match[1]}-${match[2]}-${match[3]}`:'';
 }
 
-function importNotes(value,date){
-  return (value??'').toString().split(/\r?\n/).map(line=>line.trim()).filter(Boolean).map(line=>{
-    let match=line.match(/^(\d{1,2}:\d{2})\s+(.+)$/),time=match?match[1]:'12:00',text=match?match[2]:line;
-    return {id:crypto.randomUUID(),date,createdAt:new Date(`${date}T${time}:00`).toISOString(),text};
+function importNotes(value,date,times){
+  let timeRows=(times??'').toString().split(/\r?\n/).map(line=>line.trim());
+  return (value??'').toString().split(/\r?\n/).map(line=>line.trim()).filter(Boolean).map((line,index)=>{
+    let match=line.match(/^(\d{1,2}:\d{2})\s+(.+)$/),timeMatch=timeRows[index]?.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/),time=timeMatch?`${timeMatch[1].padStart(2,'0')}:${timeMatch[2]}:${timeMatch[3]||'00'}`:match?`${match[1]}:00`:'12:00:00',text=match?match[2]:line;
+    return {id:crypto.randomUUID(),date,createdAt:new Date(`${date}T${time}`).toISOString(),text};
   });
 }
 
@@ -27,7 +28,7 @@ async function restoreExcel(file){
       for(let q of Q)if(Object.prototype.hasOwnProperty.call(row,q[1]))record[q[0]]=restoreText(row[q[1]]);
       if(Object.prototype.hasOwnProperty.call(row,'记录位置'))record.location=(row['记录位置']??'').toString().trim();
       if(Object.keys(record).length>2)imported.push(record);
-      if(Object.prototype.hasOwnProperty.call(row,'随手记')){noteDates.add(date);importedNotes.push(...importNotes(row['随手记'],date));}
+      if(Object.prototype.hasOwnProperty.call(row,'随手记')){noteDates.add(date);importedNotes.push(...importNotes(row['随手记'],date,row['随手记记录时间']));}
       if(Object.prototype.hasOwnProperty.call(row,'日记')){diaryDates.add(date);let text=(row['日记']??'').toString().trim();if(text)importedDiaries.push({id:crypto.randomUUID(),date,text,updatedAt:new Date().toISOString()});}
     }
     if(!imported.length&&!importedNotes.length&&!importedDiaries.length)throw new Error('未识别到“博士日课”记录，请确认选择了导出的 Excel。');
@@ -46,4 +47,4 @@ async function restoreExcel(file){
 }
 
 $('#restoreExcel').onclick=()=>$('#restoreFile').click();
-$('#restoreFile').onchange=event=>{restoreExcel(event.target.files[0]);event.target.value=''};
+$('#restoreFile').onchange=async event=>{let file=event.target.files[0];try{if(file&&/\.zip$/i.test(file.name))await restoreFullBackup(file);else await restoreExcel(file)}catch(error){restoreStatus(`恢复失败：${error.message}`)}event.target.value=''};
