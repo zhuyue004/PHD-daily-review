@@ -29,7 +29,7 @@ async function restoreExcel(file){
       if(Object.prototype.hasOwnProperty.call(row,'记录位置'))record.location=(row['记录位置']??'').toString().trim();
       if(Object.keys(record).length>2)imported.push(record);
       if(Object.prototype.hasOwnProperty.call(row,'随手记')){noteDates.add(date);importedNotes.push(...importNotes(row['随手记'],date,row['随手记记录时间']));}
-      if(Object.prototype.hasOwnProperty.call(row,'日记')){diaryDates.add(date);let text=(row['日记']??'').toString().trim();if(text)importedDiaries.push({id:crypto.randomUUID(),date,text,updatedAt:new Date().toISOString()});}
+      if(Object.prototype.hasOwnProperty.call(row,'日记')){diaryDates.add(date);let text=(row['日记']??'').toString().trim(),place=(row['日记地点']??'').toString().trim();if(text)importedDiaries.push({id:crypto.randomUUID(),date,text,place,updatedAt:new Date().toISOString()});}
     }
     if(!imported.length&&!importedNotes.length&&!importedDiaries.length)throw new Error('未识别到“博士日课”记录，请确认选择了导出的 Excel。');
     let mode=$('#restoreMode').value,word=mode==='replace'?'完全恢复会清空本机现有记录，确定继续吗？':'合并恢复会用 Excel 中相同日期的内容覆盖本机对应内容，确定继续吗？';
