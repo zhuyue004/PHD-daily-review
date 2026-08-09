@@ -28,8 +28,12 @@
   <circle cx="90" cy="90" r="5" fill="#7DCCFF"/>
   <circle cx="139" cy="43" r="3.6" fill="#DCEBFF" opacity=".9"/>
   <circle cx="107" cy="30" r="2" fill="#8FC8FF" opacity=".78"/>
+  <circle cx="82" cy="25" r="2.5" fill="#DCEBFF" opacity=".68"/>
   <circle cx="42" cy="58" r="2.8" fill="#EAF3FF" opacity=".72"/>
+  <circle cx="156" cy="75" r="1.5" fill="#9BD0FF" opacity=".82"/>
   <circle cx="149" cy="112" r="2.3" fill="#9BD0FF" opacity=".82"/>
+  <circle cx="118" cy="150" r="3" fill="#DCEBFF" opacity=".7"/>
   <circle cx="64" cy="143" r="3.1" fill="#DCEBFF" opacity=".76"/>
   <circle cx="38" cy="120" r="1.7" fill="#8FC8FF" opacity=".78"/>
+  <circle cx="26" cy="90" r="2.1" fill="#EAF3FF" opacity=".72"/>
 </svg>
