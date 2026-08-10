@@ -1,6 +1,6 @@
 {
   "name": "phd-daily-review",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "博士日课 Windows 桌面版",
   "main": "electron-main.js",
   "private": true,
@@ -16,7 +16,7 @@
     "appId": "com.phddaily.review",
     "productName": "博士日课",
     "directories": {
-      "output": "release-1.0.9"
+      "output": "release-1.0.10"
     },
     "files": [
       "**/*",
@@ -31,6 +31,7 @@
       "!release-1.0.7{,/**}",
       "!release-1.0.8{,/**}",
       "!release-1.0.9{,/**}",
+      "!release-1.0.10{,/**}",
       "!node_modules{,/**}/**/*.{md,map}",
       "!build-*.log",
       "!launch-*.log",

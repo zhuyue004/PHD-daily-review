@@ -58,12 +58,20 @@ function openScreenCropper(blob,fileLabel='裁剪截图'){
   stage.addEventListener('pointermove',event=>{if(start)draw(event)});
   stage.addEventListener('pointerup',event=>{if(start)draw(event);start=null});
   modal.querySelector('.plain').onclick=close;
-  modal.querySelector('.confirm-crop').onclick=async()=>{
+  modal.querySelector('.confirm-crop').onclick=async event=>{
     if(!crop||crop.width<4||crop.height<4)return alert('请先拖动选择一个截取区域。');
-    let rect=stage.getBoundingClientRect(),canvas=document.createElement('canvas'),scaleX=image.naturalWidth/rect.width,scaleY=image.naturalHeight/rect.height;
-    canvas.width=Math.round(crop.width*scaleX);canvas.height=Math.round(crop.height*scaleY);
-    canvas.getContext('2d').drawImage(image,crop.x*scaleX,crop.y*scaleY,crop.width*scaleX,crop.height*scaleY,0,0,canvas.width,canvas.height);
-    let result=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(result)addPendingNoteImages([new File([result],`${fileLabel}_${imageStamp(new Date())}.png`,{type:'image/png'})]);close();
+    let button=event.currentTarget,originalText=button.textContent;button.disabled=true;button.textContent='正在添加…';
+    try{
+      let rect=stage.getBoundingClientRect(),canvas=document.createElement('canvas'),scaleX=image.naturalWidth/rect.width,scaleY=image.naturalHeight/rect.height;
+      canvas.width=Math.max(1,Math.round(crop.width*scaleX));canvas.height=Math.max(1,Math.round(crop.height*scaleY));
+      let context=canvas.getContext('2d');if(!context)throw new Error('无法创建图片画布');
+      context.drawImage(image,crop.x*scaleX,crop.y*scaleY,crop.width*scaleX,crop.height*scaleY,0,0,canvas.width,canvas.height);
+      let result=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
+      if(!result)throw new Error('未能生成裁剪图片');
+      let d=new Date(),p=n=>String(n).padStart(2,'0'),stamp=`${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+      addPendingNoteImages([new File([result],`${fileLabel}_${stamp}.png`,{type:'image/png'})]);
+      close();
+    }catch(error){button.disabled=false;button.textContent=originalText;alert(`添加裁剪区域失败：${error.message||'请重试。'}`)}
   };
 }
 ensureScreenCaptureButton();
