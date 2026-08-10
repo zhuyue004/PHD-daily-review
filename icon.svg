@@ -17,8 +17,8 @@
       <feDropShadow dx="0" dy="6" stdDeviation="7" flood-color="#020611" flood-opacity=".32"/>
     </filter>
   </defs>
-  <rect width="180" height="180" fill="url(#ground)"/>
-  <path d="M0 23C53 8 119 18 180 0v38C116 55 53 42 0 60V23Z" fill="#BED7FF" opacity=".06"/>
+  <rect x="6" y="6" width="168" height="168" rx="40" fill="url(#ground)"/>
+  <path d="M6 29C55 14 119 24 174 6v38C116 61 55 48 6 66V29Z" fill="#BED7FF" opacity=".06"/>
   <circle cx="90" cy="90" r="51" fill="url(#glow)"/>
   <g filter="url(#soft)" fill="none" stroke="url(#glyph)" stroke-linecap="round">
     <circle cx="90" cy="90" r="45" stroke-width="7" opacity=".9"/>

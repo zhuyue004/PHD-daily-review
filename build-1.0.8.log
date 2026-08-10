@@ -1,0 +1,18 @@
+
+> phd-daily-review@1.0.8 dist:win
+> electron-builder --win nsis --x64
+
+  • electron-builder  version=26.15.3 os=10.0.19045
+  • loaded configuration  file=package.json ("build" field)
+  • author is missed in the package.json  appPackageFile=C:\Users\ZhuYue\Documents\寻找科研方向\phd-daily-review\package.json
+  • executing @electron/rebuild  electronVersion=37.10.3 arch=x64 buildFromSource=false workspaceRoot=C:\Users\ZhuYue\Documents\寻找科研方向\phd-daily-review projectDir=./ appDir=./
+  • installing native dependencies  arch=x64
+  • completed installing native dependencies
+  • packaging       platform=win32 arch=x64 electron=37.10.3 appOutDir=release-1.0.8\win-unpacked
+  • downloaded      label=electron progress=100%
+  • downloaded electron zip extracted successfully  output=C:\Users\ZhuYue\Documents\寻找科研方向\phd-daily-review\release-1.0.8\win-unpacked
+  • searching for node modules  pm=npm searchDir=C:\Users\ZhuYue\Documents\寻找科研方向\phd-daily-review
+  • searching for node modules  pm=traversal searchDir=C:\Users\ZhuYue\Documents\寻找科研方向\phd-daily-review
+  • using manual traversal of node_modules to build dependency tree
+  • no node modules returned while searching directories  searchDirectories=[""]
+  • updating asar integrity executable resource  executablePath=release-1.0.8\win-unpacked\博士日课.exe

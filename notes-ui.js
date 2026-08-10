@@ -27,8 +27,15 @@ function renderNoteTemplates(){let holder=$('#noteTemplates'),example=$('#noteTe
 function resetNoteTemplate(){selectedNoteTemplate='';renderNoteTemplates()}
 function ensureNoteTemplates(){if($('#noteTemplates'))return;let holder=document.createElement('div');holder.id='noteTemplates';holder.className='note-templates';let example=document.createElement('div');example.id='noteTemplateExample';example.className='note-template-example';let hint=document.createElement('p');hint.className='note-template-hint';hint.textContent='选择一个分类模板；每条随手记只记录一个可追溯的研究线索。';noteInput.before(hint);noteInput.before(example);noteInput.before(holder);renderNoteTemplates()}
 ensureNoteTemplates();
-function ensureScreenCaptureButton(){if($('#captureNoteScreen'))return;let screenButton=document.createElement('button'),cropButton=document.createElement('button');screenButton.id='captureNoteScreen';screenButton.className='plain';screenButton.type='button';screenButton.textContent='截取屏幕';cropButton.id='cropNoteImage';cropButton.className='plain';cropButton.type='button';cropButton.textContent='裁剪后添加';$('#chooseNoteImage').after(cropButton);cropButton.after(screenButton);screenButton.onclick=captureNoteScreen;cropButton.onclick=()=>{cropSelectedImage=true;noteImagesInput.click()}}
+function ensureScreenCaptureButton(){if($('#captureNoteScreen'))return;let screenButton=document.createElement('button');screenButton.id='captureNoteScreen';screenButton.className='plain';screenButton.type='button';screenButton.textContent='截取屏幕（桌面版）';$('#chooseNoteImage').after(screenButton);screenButton.onclick=captureNoteScreen}
 async function captureNoteScreen(){
+  if(window.phdDesktop?.captureScreen){
+    try{
+      let dataUrl=await window.phdDesktop.captureScreen(),blob=await (await fetch(dataUrl)).blob();
+      if(blob)openScreenCropper(blob,'屏幕截图');
+    }catch(error){alert(`未能截取屏幕：${error.message||'请重试。'}`)}
+    return;
+  }
   if(!navigator.mediaDevices?.getDisplayMedia){alert('iPhone 网页无法直接调用系统截屏。请按“侧边键＋音量加”截屏，返回后点“添加截图”从照片中选择。');return}
   try{
     let stream=await navigator.mediaDevices.getDisplayMedia({video:true,audio:false}),video=document.createElement('video');
