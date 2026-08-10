@@ -9,7 +9,7 @@ function quoteForToday(){
   if(new Date(year,1,29).getMonth()===1&&month>1)index--;
   return YEAR_QUOTES[index];
 }
-const saveDiaries=()=>localStorage.setItem('phd-diary-records',JSON.stringify(diaries));
+const saveDiaries=()=>{localStorage.setItem('phd-diary-records',JSON.stringify(diaries));window.scheduleCloudSync?.()};
 const basePage=page;
 page=id=>{basePage(id);if(id==='diary')renderDiary()};
 let diaryHistoryDate=day();
