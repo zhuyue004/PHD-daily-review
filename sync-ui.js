@@ -1,8 +1,11 @@
-const CLOUD_CONFIG_KEY='phd-cloud-config',CLOUD_IMAGE_BUCKET='phd-note-images';
+const CLOUD_CONFIG_KEY='phd-cloud-config',CLOUD_IMAGE_BUCKET='phd-note-images',CLOUD_IMAGE_MODE_KEY='phd-cloud-image-mode',CLOUD_IMAGE_LIMIT=500*1024;
 let cloudClient=null,cloudUser=null,cloudTimer=null,cloudSyncing=false;
 
 function cloudConfig(){try{return JSON.parse(localStorage.getItem(CLOUD_CONFIG_KEY)||'{}')}catch{return {}}}
+function cloudImageMode(){return localStorage.getItem(CLOUD_IMAGE_MODE_KEY)||'compressed'}
 function cloudStatus(text){let target=$('#cloudStatus');if(target)target.textContent=text}
+function cloudSizeText(bytes){return `${(bytes/1024/1024).toFixed(bytes<1024*1024?2:1)} MB`}
+function cloudTransferSize(bytes=null){let target=$('#cloudTransferSize');if(target)target.textContent=bytes===null?'（本次同步待开始）':`（本次同步 ${cloudSizeText(bytes)}）`}
 function cloudHasContent(){return records.length||notes.length||diaries.length}
 function cloudStamp(item){return new Date(item?.updatedAt||item?.createdAt||0).getTime()||0}
 function mergeCloudList(local,remote,key){let output=new Map(local.map(item=>[item[key],item]));for(let item of remote||[]){let existing=output.get(item[key]);if(!existing||cloudStamp(item)>=cloudStamp(existing))output.set(item[key],item)}return [...output.values()]}
@@ -11,6 +14,7 @@ function renderCloudSettings(){
   let config=cloudConfig(),connected=!!cloudUser;
   $('#cloudUrl').value=config.url||'';
   $('#cloudKey').value=config.key||'';
+  $('#cloudImageMode').value=cloudImageMode();
   $('#cloudEmail').value=cloudUser?.email||'';
   $('#cloudEmail').disabled=connected;
   $('#cloudPassword').disabled=connected;
@@ -20,15 +24,18 @@ function renderCloudSettings(){
   $('#cloudSyncNow').hidden=!connected;
   $('#cloudSignOut').hidden=!connected;
   $('#cloudStatus').textContent=connected?`已登录 ${cloudUser.email}，记录会自动同步。`:config.url?'请填写邮箱并发送登录链接。':'请先填写 Supabase 项目地址和匿名密钥。';
+  cloudTransferSize();
 }
 
 function ensureCloudSettings(){
   if($('#cloudSettings'))return;
   let section=document.createElement('article');
   section.id='cloudSettings';
-  section.innerHTML='<h2>多端自动同步</h2><p>使用同一账号登录后，iPhone 网页版与 Windows 桌面版会自动同步复盘、随手记、日记和图片。</p><input id="cloudUrl" type="url" placeholder="Supabase Project URL"><input id="cloudKey" type="password" placeholder="Supabase anon public key"><button id="cloudConnect" type="button">保存云端配置</button><input id="cloudEmail" type="email" placeholder="登录邮箱"><input id="cloudPassword" type="password" placeholder="密码（Windows 与 iPhone 使用同一密码）"><button id="cloudPasswordLogin" type="button">邮箱密码登录</button><button id="cloudRegister" class="plain" type="button">首次注册账号</button><button id="cloudLogin" class="plain" type="button">或发送登录链接</button><button id="cloudSyncNow" type="button">立即同步</button><button id="cloudSignOut" class="plain" type="button">退出登录</button><p id="cloudStatus" class="status"></p>';
+  section.innerHTML='<h2>多端自动同步</h2><label class="cloud-image-mode" style="display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;margin:8px 0 12px"><span>图片同步方式</span><select id="cloudImageMode" style="width:auto;max-width:62vw;margin:0"><option value="compressed">自动压缩至 500 KB（推荐）</option><option value="original">保留原图</option></select></label><p>使用同一账号登录后，iPhone 网页版与 Windows 桌面版会自动同步复盘、随手记、日记和图片。</p><input id="cloudUrl" class="cloud-field" type="url" placeholder="Supabase Project URL"><input id="cloudKey" class="cloud-field" type="password" placeholder="Supabase anon public key"><button id="cloudConnect" type="button">保存云端配置</button><div class="cloud-credentials" style="display:grid;gap:10px;margin:12px 0 4px"><input id="cloudEmail" class="cloud-field" style="width:100%;box-sizing:border-box;border:0;border-radius:11px;padding:12px;background:#e5e5ea;color:#1c1c1e;font:inherit;margin:0" type="email" placeholder="登录邮箱"><input id="cloudPassword" class="cloud-field" style="width:100%;box-sizing:border-box;border:0;border-radius:11px;padding:12px;background:#e5e5ea;color:#1c1c1e;font:inherit;margin:0" type="password" placeholder="密码（Windows 与 iPhone 使用同一密码）"></div><button id="cloudPasswordLogin" type="button">邮箱密码登录</button><button id="cloudRegister" class="plain" type="button">首次注册账号</button><button id="cloudLogin" class="plain" type="button">或发送登录链接</button><button id="cloudSyncNow" type="button">立即同步</button><button id="cloudSignOut" class="plain" type="button">退出登录</button><p id="cloudStatus" class="status"></p>';
+  let transferSize=document.createElement('small');transferSize.id='cloudTransferSize';transferSize.style.cssText='font-size:13px;font-weight:400;color:#8e8e93';section.querySelector('h2').append(' ',transferSize);
   $('#preferences').prepend(section);
   $('#cloudConnect').onclick=connectCloud;
+  $('#cloudImageMode').onchange=event=>{localStorage.setItem(CLOUD_IMAGE_MODE_KEY,event.target.value);cloudStatus(event.target.value==='original'?'下次同步将上传原图。':'下次同步将把图片压缩至 500 KB。');window.scheduleCloudSync?.()};
   $('#cloudPasswordLogin').onclick=()=>passwordCloudLogin(false);
   $('#cloudRegister').onclick=()=>passwordCloudLogin(true);
   $('#cloudLogin').onclick=sendCloudLogin;
@@ -70,17 +77,36 @@ async function signOutCloud(){
   cloudUser=null;renderCloudSettings();cloudStatus('已退出登录。本机记录仍会保留。');
 }
 
-async function cloudSnapshot(){
+async function cloudSnapshot(cloudImageTypes=new Map()){
   let images=await allNoteImages();
-  return {version:1,records,notes,diaries,images:images.map(({id,noteId,name,type})=>({id,noteId,name,type}))};
+  return {version:1,records,notes,diaries,images:images.map(({id,noteId,name,type})=>({id,noteId,name,type:cloudImageTypes.get(id)||type}))};
 }
 
+async function decodeCloudImage(blob){
+  if(window.createImageBitmap)return createImageBitmap(blob);
+  return new Promise((resolve,reject)=>{let url=URL.createObjectURL(blob),image=new Image();image.onload=()=>{URL.revokeObjectURL(url);resolve(image)};image.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('图片无法读取'))};image.src=url});
+}
+async function compressCloudImage(image){
+  if(cloudImageMode()==='original'||image.blob.size<=CLOUD_IMAGE_LIMIT)return {blob:image.blob,type:image.type||image.blob.type||'image/jpeg'};
+  let source=await decodeCloudImage(image.blob);try{
+    let originalWidth=source.width,originalHeight=source.height,initialScale=Math.min(1,2200/Math.max(originalWidth,originalHeight)),last;
+    for(let scale=initialScale;scale>=.12;scale*=.72){
+      let canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(originalWidth*scale));canvas.height=Math.max(1,Math.round(originalHeight*scale));canvas.getContext('2d').drawImage(source,0,0,canvas.width,canvas.height);
+      for(let quality of [.88,.78,.68,.58,.48,.38]){let result=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',quality));if(!result)continue;last=result;if(result.size<=CLOUD_IMAGE_LIMIT)return {blob:result,type:'image/jpeg'}}
+    }
+    return {blob:last||image.blob,type:last?'image/jpeg':image.type||image.blob.type||'image/jpeg'};
+  }finally{source.close?.()}
+}
 async function uploadCloudImages(images){
+  let cloudImageTypes=new Map(),uploadedBytes=0;
   for(let image of images){
-    let path=`${cloudUser.id}/${image.id}`;
-    let {error}=await cloudClient.storage.from(CLOUD_IMAGE_BUCKET).upload(path,image.blob,{upsert:true,contentType:image.type||'image/jpeg'});
+    let path=`${cloudUser.id}/${image.id}`,upload=await compressCloudImage(image);
+    let {error}=await cloudClient.storage.from(CLOUD_IMAGE_BUCKET).upload(path,upload.blob,{upsert:true,contentType:upload.type});
     if(error)throw error;
+    cloudImageTypes.set(image.id,upload.type);
+    uploadedBytes+=upload.blob.size;
   }
+  return {cloudImageTypes,uploadedBytes};
 }
 
 async function downloadCloudImages(images){
@@ -111,16 +137,17 @@ async function pullCloudData(){
 
 async function pushCloudData(){
   let images=await allNoteImages();
-  await uploadCloudImages(images);
-  let payload=await cloudSnapshot();
+  let {cloudImageTypes,uploadedBytes}=await uploadCloudImages(images);
+  let payload=await cloudSnapshot(cloudImageTypes);
   let {error}=await cloudClient.from('phd_sync_data').upsert({user_id:cloudUser.id,payload,updated_at:new Date().toISOString()});
   if(error)throw error;
+  return uploadedBytes+new Blob([JSON.stringify(payload)]).size;
 }
 
 async function syncCloud(pullFirst=false){
   if(!cloudClient||!cloudUser||cloudSyncing)return;
-  cloudSyncing=true;cloudStatus('正在同步…');
-  try{if(pullFirst)await pullCloudData();await pushCloudData();cloudStatus(`已同步：${new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}`)}catch(error){cloudStatus(`同步失败：${error.message}`)}finally{cloudSyncing=false}
+  cloudSyncing=true;cloudStatus('正在同步…');cloudTransferSize(null);
+  try{if(pullFirst)await pullCloudData();let uploadedBytes=await pushCloudData();cloudTransferSize(uploadedBytes);cloudStatus(`已同步：${new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}`)}catch(error){cloudStatus(`同步失败：${error.message}`)}finally{cloudSyncing=false}
 }
 
 window.scheduleCloudSync=()=>{

@@ -1,5 +1,5 @@
 const noteModal=$('#noteModal'),noteInput=$('#noteInput'),noteImagesInput=$('#noteImages'),noteCameraInput=$('#noteCamera'),notePreview=$('#noteImagePreview');
-let pendingNoteImages=[];
+let pendingNoteImages=[],cropSelectedImage=false;
 const noteTemplates={
   '问题':'【问题】\n现象：\n我猜：\n下一步：',
   '小循环':'【小循环】\n问题：\n尝试：\n结果：\n不确定：\n下一步：',
@@ -27,6 +27,39 @@ function renderNoteTemplates(){let holder=$('#noteTemplates'),example=$('#noteTe
 function resetNoteTemplate(){selectedNoteTemplate='';renderNoteTemplates()}
 function ensureNoteTemplates(){if($('#noteTemplates'))return;let holder=document.createElement('div');holder.id='noteTemplates';holder.className='note-templates';let example=document.createElement('div');example.id='noteTemplateExample';example.className='note-template-example';let hint=document.createElement('p');hint.className='note-template-hint';hint.textContent='选择一个分类模板；每条随手记只记录一个可追溯的研究线索。';noteInput.before(hint);noteInput.before(example);noteInput.before(holder);renderNoteTemplates()}
 ensureNoteTemplates();
+function ensureScreenCaptureButton(){if($('#captureNoteScreen'))return;let screenButton=document.createElement('button'),cropButton=document.createElement('button');screenButton.id='captureNoteScreen';screenButton.className='plain';screenButton.type='button';screenButton.textContent='截取屏幕';cropButton.id='cropNoteImage';cropButton.className='plain';cropButton.type='button';cropButton.textContent='裁剪后添加';$('#chooseNoteImage').after(cropButton);cropButton.after(screenButton);screenButton.onclick=captureNoteScreen;cropButton.onclick=()=>{cropSelectedImage=true;noteImagesInput.click()}}
+async function captureNoteScreen(){
+  if(!navigator.mediaDevices?.getDisplayMedia){alert('iPhone 网页无法直接调用系统截屏。请按“侧边键＋音量加”截屏，返回后点“添加截图”从照片中选择。');return}
+  try{
+    let stream=await navigator.mediaDevices.getDisplayMedia({video:true,audio:false}),video=document.createElement('video');
+    video.muted=true;video.srcObject=stream;await video.play();await new Promise(resolve=>requestAnimationFrame(resolve));
+    let canvas=document.createElement('canvas');canvas.width=video.videoWidth;canvas.height=video.videoHeight;canvas.getContext('2d').drawImage(video,0,0);stream.getTracks().forEach(track=>track.stop());
+    let blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
+    if(blob)openScreenCropper(blob,'屏幕截图');
+  }catch(error){if(error.name!=='AbortError')alert('未能截取屏幕，请重试或使用“添加截图”。')}
+}
+function openScreenCropper(blob,fileLabel='裁剪截图'){
+  let url=URL.createObjectURL(blob),modal=document.createElement('div');
+  modal.className='modal screen-crop-modal';
+  modal.innerHTML=`<div><section class="screen-crop-dialog"><h2>裁剪图片区域</h2><p>在图片上拖动，框选要保存的区域。</p><div class="screen-crop-stage"><img src="${url}" alt="图片裁剪预览"><i></i></div><div class="screen-crop-actions"><button class="plain" type="button">取消</button><button class="confirm-crop" type="button">添加选中区域</button></div></section></div>`;
+  document.body.append(modal);
+  let stage=$('.screen-crop-stage'),image=stage.querySelector('img'),selection=stage.querySelector('i'),start=null,crop=null;
+  const point=event=>{let rect=stage.getBoundingClientRect();return {x:Math.max(0,Math.min(rect.width,event.clientX-rect.left)),y:Math.max(0,Math.min(rect.height,event.clientY-rect.top))}};
+  const draw=event=>{let end=point(event);crop={x:Math.min(start.x,end.x),y:Math.min(start.y,end.y),width:Math.abs(end.x-start.x),height:Math.abs(end.y-start.y)};Object.assign(selection.style,{left:`${crop.x}px`,top:`${crop.y}px`,width:`${crop.width}px`,height:`${crop.height}px`})};
+  const close=()=>{URL.revokeObjectURL(url);modal.remove()};
+  stage.addEventListener('pointerdown',event=>{start=point(event);crop=null;Object.assign(selection.style,{left:`${start.x}px`,top:`${start.y}px`,width:'0px',height:'0px'});stage.setPointerCapture?.(event.pointerId)});
+  stage.addEventListener('pointermove',event=>{if(start)draw(event)});
+  stage.addEventListener('pointerup',event=>{if(start)draw(event);start=null});
+  modal.querySelector('.plain').onclick=close;
+  modal.querySelector('.confirm-crop').onclick=async()=>{
+    if(!crop||crop.width<4||crop.height<4)return alert('请先拖动选择一个截取区域。');
+    let rect=stage.getBoundingClientRect(),canvas=document.createElement('canvas'),scaleX=image.naturalWidth/rect.width,scaleY=image.naturalHeight/rect.height;
+    canvas.width=Math.round(crop.width*scaleX);canvas.height=Math.round(crop.height*scaleY);
+    canvas.getContext('2d').drawImage(image,crop.x*scaleX,crop.y*scaleY,crop.width*scaleX,crop.height*scaleY,0,0,canvas.width,canvas.height);
+    let result=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(result)addPendingNoteImages([new File([result],`${fileLabel}_${imageStamp(new Date())}.png`,{type:'image/png'})]);close();
+  };
+}
+ensureScreenCaptureButton();
 noteInput.addEventListener('keydown',event=>{if(event.key!=='Enter'||event.isComposing)return;event.preventDefault();let start=noteInput.selectionStart,end=noteInput.selectionEnd,before=noteInput.value.slice(0,start),after=noteInput.value.slice(end),line=before.slice(before.lastIndexOf('\n')+1),leading=(line.match(/^　*/)||[''])[0],field=line.match(/^(　*)[^：:\n]+[：:]/),indent=field?'　'.repeat([...field[0]].length):leading,insert=`\n${indent}`;noteInput.value=before+insert+after;noteInput.selectionStart=noteInput.selectionEnd=start+insert.length});
 function renderPendingNoteImages(){notePreview.innerHTML=pendingNoteImages.map((file,index)=>`<div><img src="${URL.createObjectURL(file)}" alt="待上传图片 ${index+1}"><button data-index="${index}" aria-label="移除图片">×</button></div>`).join('');$$('#noteImagePreview button').forEach(button=>button.onclick=()=>{pendingNoteImages.splice(+button.dataset.index,1);renderPendingNoteImages()})}
 function addPendingNoteImages(files){pendingNoteImages.push(...[...files].filter(file=>file.type.startsWith('image/')));renderPendingNoteImages()}
@@ -36,5 +69,5 @@ noteModal.onclick=e=>{if(e.target===noteModal)noteModal.classList.add('hidden')}
 $('#takeNotePhoto').onclick=()=>noteCameraInput.click();
 $('#chooseNoteImage').onclick=()=>noteImagesInput.click();
 noteCameraInput.onchange=event=>{addPendingNoteImages(event.target.files);event.target.value=''};
-noteImagesInput.onchange=event=>{addPendingNoteImages(event.target.files);event.target.value=''};
+noteImagesInput.onchange=event=>{let files=[...event.target.files];event.target.value='';if(cropSelectedImage){cropSelectedImage=false;if(files[0])openScreenCropper(files[0],'裁剪截图');return}addPendingNoteImages(files)};
 $('#saveNote').onclick=async()=>{let text=noteInput.value.trim();if(!text&&!pendingNoteImages.length)return noteInput.focus();let now=new Date(),id=crypto.randomUUID(),imageIds=await saveNoteImages(id,pendingNoteImages,now);notes.push({id,date:day(),createdAt:now.toISOString(),text,images:imageIds});saveNotes();noteModal.classList.add('hidden');renderNotes()};

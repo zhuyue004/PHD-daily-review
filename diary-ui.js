@@ -30,7 +30,7 @@ function renderDiary(){
   $('#diaryDate').textContent=fmt(day());
   $('#diaryInput').value=today?indentDiary(today.text):INDENT;
   $('#diaryDateButton').textContent=fmt(day());
-  $('#diary > h2').textContent='最近 7 天日记';
+  $('#diary > h2').textContent='最近的日记';
   let cutoff=new Date();cutoff.setDate(cutoff.getDate()-6);let recent=diaries.filter(item=>item.date>=localDay(cutoff)).sort((a,b)=>b.date.localeCompare(a.date));
   $('#diaryList').innerHTML=recent.length?recent.map(item=>`<div class="swipe-row diary-swipe" data-id="${item.id}"><button class="delete-record delete-diary" aria-label="删除 ${fmt(item.date)} 的日记">删除</button><div class="diary-row"><time>${fmt(item.date)}</time><p>${esc(diaryPreview(item.text))}</p></div></div>`).join(''):'<p class="empty">还没有日记。从今天开始写下值得记住的事。</p>';
   bindDiaryRows();

@@ -1,10 +1,9 @@
 {
   "name": "phd-daily-review",
-  "version": "1.0.0",
+  "version": "1.0.6",
   "description": "博士日课 Windows 桌面版",
   "main": "electron-main.js",
-  "author": "",
-  "license": "MIT",
+  "private": true,
   "scripts": {
     "start": "electron .",
     "dist:win": "electron-builder --win nsis --x64"
@@ -17,13 +16,21 @@
     "appId": "com.phddaily.review",
     "productName": "博士日课",
     "directories": {
-      "output": "release"
+      "output": "release-1.0.6"
     },
     "files": [
       "**/*",
       "!release{,/**}",
+      "!release-1.0.1{,/**}",
+      "!release-1.0.2{,/**}",
+      "!release-1.0.3{,/**}",
+      "!release-1.0.3-build{,/**}",
+      "!release-1.0.4{,/**}",
+      "!release-1.0.5{,/**}",
+      "!release-1.0.6{,/**}",
       "!node_modules{,/**}/**/*.{md,map}",
-      "!README.md"
+      "!README.md",
+      "!supabase-schema.sql"
     ],
     "nsis": {
       "oneClick": false,
@@ -32,5 +39,9 @@
       "createStartMenuShortcut": true,
       "shortcutName": "博士日课"
     }
+  },
+  "allowScripts": {
+    "electron@37.10.3": true,
+    "electron-winstaller@5.4.0": true
   }
 }
