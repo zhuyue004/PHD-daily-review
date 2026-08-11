@@ -1,8 +1,9 @@
-const CLOUD_CONFIG_KEY='phd-cloud-config',CLOUD_IMAGE_BUCKET='phd-note-images',CLOUD_IMAGE_MODE_KEY='phd-cloud-image-mode',CLOUD_IMAGE_LIMIT=500*1024;
+const CLOUD_CONFIG_KEY='phd-cloud-config',CLOUD_IMAGE_BUCKET='phd-note-images',CLOUD_IMAGE_MODE_KEY='phd-cloud-image-mode',CLOUD_EMAIL_KEY='phd-cloud-email',CLOUD_IMAGE_LIMIT=500*1024;
 let cloudClient=null,cloudUser=null,cloudTimer=null,cloudSyncing=false;
 
 function cloudConfig(){try{return JSON.parse(localStorage.getItem(CLOUD_CONFIG_KEY)||'{}')}catch{return {}}}
 function cloudImageMode(){return localStorage.getItem(CLOUD_IMAGE_MODE_KEY)||'compressed'}
+function saveDesktopSyncSettings(){return window.phdDesktop?.saveSyncSettings?.({config:cloudConfig(),email:localStorage.getItem(CLOUD_EMAIL_KEY)||'',imageMode:cloudImageMode()})?.catch?.(()=>{})}
 function cloudStatus(text){let target=$('#cloudStatus');if(target)target.textContent=text}
 function cloudSizeText(bytes){return `${(bytes/1024/1024).toFixed(bytes<1024*1024?2:1)} MB`}
 function cloudTransferSize(bytes=null){let target=$('#cloudTransferSize');if(target)target.textContent=bytes===null?'（本次同步待开始）':`（本次同步 ${cloudSizeText(bytes)}）`}
@@ -15,7 +16,7 @@ function renderCloudSettings(){
   $('#cloudUrl').value=config.url||'';
   $('#cloudKey').value=config.key||'';
   $('#cloudImageMode').value=cloudImageMode();
-  $('#cloudEmail').value=cloudUser?.email||'';
+  $('#cloudEmail').value=cloudUser?.email||localStorage.getItem(CLOUD_EMAIL_KEY)||'';
   $('#cloudEmail').disabled=connected;
   $('#cloudPassword').disabled=connected;
   $('#cloudPasswordLogin').hidden=connected;
@@ -35,7 +36,7 @@ function ensureCloudSettings(){
   let transferSize=document.createElement('small');transferSize.id='cloudTransferSize';transferSize.style.cssText='font-size:13px;font-weight:400;color:#8e8e93';section.querySelector('h2').append(' ',transferSize);
   $('#preferences').prepend(section);
   $('#cloudConnect').onclick=connectCloud;
-  $('#cloudImageMode').onchange=event=>{localStorage.setItem(CLOUD_IMAGE_MODE_KEY,event.target.value);cloudStatus(event.target.value==='original'?'下次同步将上传原图。':'下次同步将把图片压缩至 500 KB。');window.scheduleCloudSync?.()};
+  $('#cloudImageMode').onchange=event=>{localStorage.setItem(CLOUD_IMAGE_MODE_KEY,event.target.value);saveDesktopSyncSettings();cloudStatus(event.target.value==='original'?'下次同步将上传原图。':'下次同步将把图片压缩至 500 KB。');window.scheduleCloudSync?.()};
   $('#cloudPasswordLogin').onclick=()=>passwordCloudLogin(false);
   $('#cloudRegister').onclick=()=>passwordCloudLogin(true);
   $('#cloudLogin').onclick=sendCloudLogin;
@@ -48,6 +49,7 @@ async function connectCloud(){
   if(!/^https:\/\/.+\.supabase\.co$/i.test(url)||!key)return cloudStatus('请填写正确的 Supabase Project URL 和 anon public key。');
   if(!window.supabase)return cloudStatus('同步组件未加载，请检查网络后重试。');
   localStorage.setItem(CLOUD_CONFIG_KEY,JSON.stringify({url,key}));
+  saveDesktopSyncSettings();
   cloudClient=window.supabase.createClient(url,key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
   cloudClient.auth.onAuthStateChange((_event,session)=>{cloudUser=session?.user||null;renderCloudSettings();if(cloudUser)syncCloud(true)});
   let {data:{session}}=await cloudClient.auth.getSession();cloudUser=session?.user||null;
@@ -56,7 +58,7 @@ async function connectCloud(){
 
 async function sendCloudLogin(){
   if(!cloudClient)return cloudStatus('请先保存云端配置。');
-  let email=$('#cloudEmail').value.trim();if(!email)return cloudStatus('请输入登录邮箱。');
+  let email=$('#cloudEmail').value.trim();if(!email)return cloudStatus('请输入登录邮箱。');localStorage.setItem(CLOUD_EMAIL_KEY,email);saveDesktopSyncSettings();
   cloudStatus('正在发送登录链接…');
   let {error}=await cloudClient.auth.signInWithOtp({email,options:{emailRedirectTo:location.href.split('#')[0]}});
   cloudStatus(error?`发送失败：${error.message}`:'登录链接已发送，请在此设备的邮箱中打开链接。');
@@ -66,6 +68,7 @@ async function passwordCloudLogin(register){
   if(!cloudClient)return cloudStatus('请先保存云端配置。');
   let email=$('#cloudEmail').value.trim(),password=$('#cloudPassword').value;
   if(!email||password.length<6)return cloudStatus('请输入邮箱和至少 6 位的密码。');
+  localStorage.setItem(CLOUD_EMAIL_KEY,email);saveDesktopSyncSettings();
   cloudStatus(register?'正在注册…':'正在登录…');
   let result=register?await cloudClient.auth.signUp({email,password,options:{emailRedirectTo:location.href.split('#')[0]}}):await cloudClient.auth.signInWithPassword({email,password});
   if(result.error)return cloudStatus(`${register?'注册':'登录'}失败：${result.error.message}`);
@@ -158,6 +161,27 @@ window.scheduleCloudSync=()=>{
 ensureCloudSettings();
 let savedCloud=cloudConfig();
 if(savedCloud.url&&savedCloud.key)connectCloud();else renderCloudSettings();
+async function restoreDesktopSyncSettings(){try{let saved=await window.phdDesktop?.loadSyncSettings?.();if(!saved)return;if(saved.config?.url&&saved.config?.key)localStorage.setItem(CLOUD_CONFIG_KEY,JSON.stringify(saved.config));if(saved.email)localStorage.setItem(CLOUD_EMAIL_KEY,saved.email);if(saved.imageMode)localStorage.setItem(CLOUD_IMAGE_MODE_KEY,saved.imageMode);renderCloudSettings();let config=cloudConfig();if(config.url&&config.key&&!cloudClient)connectCloud()}catch{}}
+restoreDesktopSyncSettings();
 window.addEventListener('online',()=>syncCloud(true));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncCloud(true)});
 setInterval(()=>syncCloud(true),300000);
+
+// iOS Safari can occasionally discard Local Storage while keeping IndexedDB.
+// Keep a second, local-only copy of the non-sensitive sync settings so that
+// reopening the web app does not require entering the project settings again.
+const CLOUD_WEB_SETTINGS_DB='phd-daily-review-settings',CLOUD_WEB_SETTINGS_STORE='settings',CLOUD_WEB_SETTINGS_ID='cloud-sync';
+function openCloudWebSettings(){return new Promise((resolve,reject)=>{if(!window.indexedDB)return resolve(null);let request=indexedDB.open(CLOUD_WEB_SETTINGS_DB,1);request.onupgradeneeded=()=>request.result.createObjectStore(CLOUD_WEB_SETTINGS_STORE,{keyPath:'id'});request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)})}
+async function saveCloudWebSettings(){try{let db=await openCloudWebSettings();if(!db)return;let config={url:$('#cloudUrl')?.value.trim().replace(/\/$/,'')||cloudConfig().url||'',key:$('#cloudKey')?.value.trim()||cloudConfig().key||''},value={id:CLOUD_WEB_SETTINGS_ID,config,email:$('#cloudEmail')?.value.trim()||localStorage.getItem(CLOUD_EMAIL_KEY)||'',imageMode:$('#cloudImageMode')?.value||cloudImageMode()};await new Promise((resolve,reject)=>{let request=db.transaction(CLOUD_WEB_SETTINGS_STORE,'readwrite').objectStore(CLOUD_WEB_SETTINGS_STORE).put(value);request.onsuccess=resolve;request.onerror=()=>reject(request.error)});db.close()}catch{}}
+async function restoreCloudWebSettings(){try{let db=await openCloudWebSettings();if(!db)return;let saved=await new Promise((resolve,reject)=>{let request=db.transaction(CLOUD_WEB_SETTINGS_STORE,'readonly').objectStore(CLOUD_WEB_SETTINGS_STORE).get(CLOUD_WEB_SETTINGS_ID);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});db.close();if(!saved)return;let current=cloudConfig(),config=current.url&&current.key?current:saved.config||{};if(config.url&&config.key)localStorage.setItem(CLOUD_CONFIG_KEY,JSON.stringify(config));if(!localStorage.getItem(CLOUD_EMAIL_KEY)&&saved.email)localStorage.setItem(CLOUD_EMAIL_KEY,saved.email);if(!localStorage.getItem(CLOUD_IMAGE_MODE_KEY)&&saved.imageMode)localStorage.setItem(CLOUD_IMAGE_MODE_KEY,saved.imageMode);renderCloudSettings();if(config.url&&config.key&&!cloudClient)connectCloud()}catch{}}
+let cloudSettingsSaveTimer=null;
+document.addEventListener('input',event=>{if(!event.target.matches('#cloudUrl,#cloudKey,#cloudEmail'))return;clearTimeout(cloudSettingsSaveTimer);cloudSettingsSaveTimer=setTimeout(saveCloudWebSettings,300)});
+document.addEventListener('change',event=>{if(event.target.matches('#cloudImageMode'))saveCloudWebSettings()});
+window.addEventListener('pagehide',saveCloudWebSettings);
+saveCloudWebSettings();
+restoreCloudWebSettings();
+// Let iPhone's system password manager offer the saved credential securely.
+$('#cloudEmail').autocomplete='email';
+$('#cloudEmail').name='cloud-email';
+$('#cloudPassword').autocomplete='current-password';
+$('#cloudPassword').name='cloud-password';
