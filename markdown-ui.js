@@ -37,13 +37,14 @@ if(/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel
     tabs.querySelectorAll('button').forEach(button=>button.onclick=()=>setMarkdownMode(button.dataset.markdownMode));
     noteInput.addEventListener('input',refreshMarkdownPreview);
   }
-  ensureMarkdownPreview();
+  // Preview controls are only needed after opening the note editor. Avoid doing
+  // extra DOM work while the iPhone home screen is still starting up.
   const originalOpenArchiveNoteEditorMarkdown=openArchiveNoteEditor;
-  openArchiveNoteEditor=async function(note){await originalOpenArchiveNoteEditorMarkdown(note);setMarkdownMode('edit');};
+  openArchiveNoteEditor=async function(note){ensureMarkdownPreview();await originalOpenArchiveNoteEditorMarkdown(note);setMarkdownMode('edit');};
   const resetNoteEditorMarkdown=()=>setMarkdownMode('edit');
-  $('#quickNote').addEventListener('click',resetNoteEditorMarkdown);
+  $('#quickNote').addEventListener('click',()=>{ensureMarkdownPreview();resetNoteEditorMarkdown()});
   $('#closeNote').addEventListener('click',resetNoteEditorMarkdown);
   noteModal.addEventListener('click',event=>{if(event.target===noteModal)resetNoteEditorMarkdown()});
-  // Existing renderer functions read noteContent at call time; refresh the current view once.
-  let active=$('.page.active')?.id;if(active==='home')renderNotes();if(active==='archive')archive();
+  // Do not re-render today's notes on startup: image thumbnails can make the
+  // initial iPhone launch noticeably slower. Future page renders use Markdown.
 }
