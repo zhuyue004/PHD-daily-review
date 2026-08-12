@@ -159,8 +159,10 @@ window.scheduleCloudSync=()=>{
 };
 
 ensureCloudSettings();
-let savedCloud=cloudConfig();
-if(savedCloud.url&&savedCloud.key)connectCloud();else renderCloudSettings();
+renderCloudSettings();
+function startCloudClient(){let savedCloud=cloudConfig();if(savedCloud.url&&savedCloud.key&&window.supabase&&!cloudClient)connectCloud();}
+if(window.supabase)startCloudClient();
+window.addEventListener('phd-supabase-ready',startCloudClient);
 async function restoreDesktopSyncSettings(){try{let saved=await window.phdDesktop?.loadSyncSettings?.();if(!saved)return;if(saved.config?.url&&saved.config?.key)localStorage.setItem(CLOUD_CONFIG_KEY,JSON.stringify(saved.config));if(saved.email)localStorage.setItem(CLOUD_EMAIL_KEY,saved.email);if(saved.imageMode)localStorage.setItem(CLOUD_IMAGE_MODE_KEY,saved.imageMode);renderCloudSettings();let config=cloudConfig();if(config.url&&config.key&&!cloudClient)connectCloud()}catch{}}
 restoreDesktopSyncSettings();
 window.addEventListener('online',()=>syncCloud(true));

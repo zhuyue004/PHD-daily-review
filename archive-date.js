@@ -50,9 +50,161 @@ $('#saveProgress').onclick=()=>{persist();draft.location=coords;let index=record
 const systemTheme=window.matchMedia('(prefers-color-scheme: dark)');
 function syncThemeColor(){document.querySelector('meta[name="theme-color"]')?.setAttribute('content',systemTheme.matches?'#000000':'#f2f2f7')}
 syncThemeColor();systemTheme.addEventListener?.('change',syncThemeColor);
+$('#records').addEventListener('click',event=>{let button=event.target.closest('.record');if(!button)return;let row=button.closest('.swipe-row');if(row?.classList.contains('swiped')){row.classList.remove('swiped');return}let record=records.find(item=>item.id===button.dataset.id)||records.find(item=>item.date===button.dataset.date);if(!record)return;event.preventDefault();event.stopImmediatePropagation();detail(record)},true);
 locate=async()=>{let location=$('#location');if(!location)return;location.textContent='正在获取记录地点…';let place=await diaryPlace();if(place){coords=place;location.textContent=`已记录地点：${place}`}else{location.textContent='未能识别地点；仍可正常复盘。'}};
 $('#refreshLocation').onclick=locate;
 $('#locate').onclick=locate;
-(()=>{let sdk=document.createElement('script');sdk.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';sdk.onload=()=>{let sync=document.createElement('script');sync.src='sync-ui.js';document.body.append(sync)};document.head.append(sdk)})();
+
+// Desktop uses the familiar right-click delete action. Touch swipe remains iPhone-only.
+if(window.phdDesktop){
+  // Existing mobile handlers are attached by the shared UI. Stop their drag gesture
+  // before it reaches the rows, while keeping ordinary left-clicks available.
+  document.addEventListener('pointerdown',event=>{
+    if(event.target.closest('.note-swipe,.diary-swipe,.swipe-row:has(.record)'))event.stopPropagation();
+  },true);
+  document.addEventListener('click',event=>{
+    let row=event.target.closest('.diary-swipe');
+    if(!row)return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    viewDiary(diaries.find(entry=>entry.id===row.dataset.id));
+  },true);
+  document.addEventListener('contextmenu',async event=>{
+    let target=event.target.closest('.note-swipe,.diary-swipe,.swipe-row:has(.record),.archive-note[data-note-id],.archive-note[data-diary-id]');
+    if(!target)return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if(target.classList.contains('note-swipe')){
+      showDesktopNoteMenu(target.dataset.id,event.clientX,event.clientY,renderNotes);
+      return;
+      let id=target.dataset.id;
+      if(!confirm('删除这条随手记吗？此操作无法撤销。'))return;
+      await deleteNoteImages([id]);
+      notes=notes.filter(note=>note.id!==id);
+      saveNotes();
+      renderNotes();
+      return;
+    }
+    if(target.classList.contains('diary-swipe')){
+      showDesktopDiaryMenu(target.dataset.id,event.clientX,event.clientY,renderDiary);
+      return;
+      let id=target.dataset.id;
+      if(!confirm('删除这篇日记吗？此操作无法撤销。'))return;
+      diaries=diaries.filter(entry=>entry.id!==id);
+      saveDiaries();
+      renderDiary();
+      return;
+    }
+    if(target.matches('.archive-note[data-note-id]')){
+      showDesktopNoteMenu(target.dataset.noteId,event.clientX,event.clientY);
+      return;
+      let id=target.dataset.noteId;
+      if(!confirm('删除这条随手记吗？此操作无法撤销。'))return;
+      await deleteNoteImages([id]);
+      notes=notes.filter(note=>note.id!==id);
+      saveNotes();
+      archive();
+      return;
+    }
+    if(target.matches('.archive-note[data-diary-id]')){
+      showDesktopDiaryMenu(target.dataset.diaryId,event.clientX,event.clientY,archive);
+      return;
+      let id=target.dataset.diaryId;
+      if(!confirm('删除这篇日记吗？此操作无法撤销。'))return;
+      diaries=diaries.filter(entry=>entry.id!==id);
+      saveDiaries();
+      archive();
+      return;
+    }
+    let id=target.dataset.id,date=target.dataset.date;
+    if(!confirm(`删除 ${fmt(date)} 的复盘记录吗？此操作无法撤销。`))return;
+    records=records.filter(record=>id?record.id!==id:record.date!==date);
+    save();
+    archive();
+  },true);
+}
+if(window.phdDesktop){
+  document.documentElement.classList.add('desktop-app');
+  $('#amapSettings')?.remove();
+  [...$('#preferences').querySelectorAll('article')].find(article=>article.querySelector('h2')?.textContent.includes('隐私'))?.remove();
+  locate=async()=>{coords='';let location=$('#location');if(location)location.textContent='桌面版不记录地点';};
+
+  // Replace the remaining touch-swipe binders after the first desktop render.
+  // New renders use only ordinary left click and right click.
+  bindNotes=function(){
+    $$('.note-swipe').forEach(row=>row.oncontextmenu=async event=>{
+      event.preventDefault();
+      let id=row.dataset.id;
+      if(!confirm('删除这条随手记吗？此操作无法撤销。'))return;
+      await deleteNoteImages([id]);notes=notes.filter(note=>note.id!==id);saveNotes();renderNotes();
+    });
+  };
+  bindDiaryRows=function(){
+    $$('.diary-swipe').forEach(row=>{
+      row.onclick=()=>viewDiary(diaries.find(entry=>entry.id===row.dataset.id));
+      row.oncontextmenu=event=>{event.preventDefault();let id=row.dataset.id;if(confirm('删除这篇日记吗？此操作无法撤销。')){diaries=diaries.filter(entry=>entry.id!==id);saveDiaries();renderDiary()}};
+    });
+  };
+
+  // Goals use native desktop drag-and-drop after the page is rendered again.
+  enableGoalSorting=function(button){
+    button.draggable=true;
+    button.title='拖动可调整目标顺序';
+    button.addEventListener('dragstart',event=>{window.__draggingGoal=button;button.classList.add('sorting');event.dataTransfer.effectAllowed='move'});
+    button.addEventListener('dragover',event=>{event.preventDefault();let dragging=window.__draggingGoal;if(!dragging||dragging===button)return;let rect=button.getBoundingClientRect();if(event.clientY<rect.top+rect.height/2)goalList.insertBefore(dragging,button);else goalList.insertBefore(dragging,button.nextElementSibling)});
+    button.addEventListener('dragend',()=>{button.classList.remove('sorting');window.__draggingGoal=null;saveGoalOrder()});
+  };
+  renderGoalList();
+}
+function showDesktopNoteMenu(noteId,x,y,onDelete=archive){
+  document.querySelector('#desktopNoteMenu')?.remove();
+  let note=notes.find(item=>item.id===noteId);if(!note)return;
+  let menu=document.createElement('div');
+  menu.id='desktopNoteMenu';menu.className='desktop-note-menu';
+  menu.innerHTML='<button type="button" data-action="edit">编辑</button><button type="button" data-action="delete">删除</button>';
+  document.body.append(menu);
+  let left=Math.min(x,window.innerWidth-menu.offsetWidth-12),top=Math.min(y,window.innerHeight-menu.offsetHeight-12);
+  menu.style.left=`${Math.max(12,left)}px`;menu.style.top=`${Math.max(12,top)}px`;
+  menu.querySelector('[data-action="edit"]').onclick=()=>{menu.remove();openArchiveNoteEditor(note)};
+  menu.querySelector('[data-action="delete"]').onclick=async()=>{menu.remove();if(!confirm('删除这条随手记吗？此操作无法撤销。'))return;await deleteNoteImages([noteId]);notes=notes.filter(item=>item.id!==noteId);saveNotes();onDelete()};
+  setTimeout(()=>document.addEventListener('pointerdown',event=>{if(!event.target.closest('#desktopNoteMenu'))menu.remove()},{once:true,capture:true}),0);
+}
+function showDesktopDiaryMenu(diaryId,x,y,onDelete=archive){
+  document.querySelector('#desktopNoteMenu')?.remove();
+  let diary=diaries.find(item=>item.id===diaryId);if(!diary)return;
+  let menu=document.createElement('div');
+  menu.id='desktopNoteMenu';menu.className='desktop-note-menu';
+  menu.innerHTML='<button type="button" data-action="view">查看</button><button type="button" data-action="delete">删除</button>';
+  document.body.append(menu);
+  let left=Math.min(x,window.innerWidth-menu.offsetWidth-12),top=Math.min(y,window.innerHeight-menu.offsetHeight-12);
+  menu.style.left=`${Math.max(12,left)}px`;menu.style.top=`${Math.max(12,top)}px`;
+  menu.querySelector('[data-action="view"]').onclick=()=>{menu.remove();viewDiary(diary)};
+  menu.querySelector('[data-action="delete"]').onclick=()=>{menu.remove();if(!confirm('删除这篇日记吗？此操作无法撤销。'))return;diaries=diaries.filter(item=>item.id!==diaryId);saveDiaries();onDelete()};
+  setTimeout(()=>document.addEventListener('pointerdown',event=>{if(!event.target.closest('#desktopNoteMenu'))menu.remove()},{once:true,capture:true}),0);
+}
+if(window.phdDesktop){
+  // A text selection should be copyable and must not open the editor on mouse-up.
+  document.addEventListener('click',event=>{
+    if(!event.target.closest('.archive-note[data-note-id]')||event.target.closest('.archive-note-images button'))return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  },true);
+  // Insight items already have an explicit Edit button. On desktop, preserve
+  // normal click-and-drag text selection everywhere else in the item.
+  document.addEventListener('click',event=>{
+    let item=event.target.closest('.summary-item');
+    if(!item||event.target.closest('.edit-summary,.save-summary,.delete-summary'))return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  },true);
+}
+(()=>{
+  // Always render the sync settings first. The Supabase SDK is only required
+  // when the user actually connects, so a slow CDN must not hide the setting.
+  let sync=document.createElement('script');sync.src='sync-ui.js';document.body.append(sync);
+  let sdk=document.createElement('script');sdk.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+  sdk.onload=()=>window.dispatchEvent(new Event('phd-supabase-ready'));
+  document.head.append(sdk);
+})();
 (()=>{let styledXlsx=document.createElement('script');styledXlsx.src='https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';styledXlsx.onload=()=>window.__styledXlsxReady=true;document.head.append(styledXlsx)})();
 detail=function(record){if(!record)return;let isCoordinate=/^-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?$/.test(record.location||''),location=record.location?`<div class="detail-item"><h3>记录地点</h3>${isCoordinate?`<a target="_blank" href="https://maps.apple.com/?ll=${encodeURIComponent(record.location)}">${esc(record.location)}</a>`:`<span>${esc(record.location)}</span>`}</div>`:'';$('#detail').innerHTML=`<h2>${fmt(record.date)} · 每日复盘</h2>${location}${Q.map(question=>`<div class="detail-item"><h3>${question[1]}</h3>${list(record[question[0]])}</div>`).join('')}`;$('#modal').classList.remove('hidden')};
