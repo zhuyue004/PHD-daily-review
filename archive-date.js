@@ -199,21 +199,17 @@ if(window.phdDesktop){
   },true);
 }
 (()=>{
-  // Always render settings first. Fall back to a second CDN when a mobile
-  // network cannot reach the first provider reliably.
+  // The Supabase browser SDK is bundled with the app so syncing never needs
+  // to fetch executable code from a third-party CDN at runtime.
   let sync=document.createElement('script');sync.src='sync-ui.js';document.body.append(sync);
   let loading=null;
   window.loadSupabaseSdk=()=>{
     if(window.supabase)return Promise.resolve(window.supabase);
     if(loading)return loading;
-    let sources=['https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2','https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js'];
     loading=new Promise((resolve,reject)=>{
-      let next=()=>{
-        let source=sources.shift();if(!source){reject(new Error('SDK unavailable'));return}
-        let sdk=document.createElement('script');sdk.src=source;sdk.async=true;
-        sdk.onload=()=>{if(window.supabase){window.dispatchEvent(new Event('phd-supabase-ready'));resolve(window.supabase)}else next()};
-        sdk.onerror=next;document.head.append(sdk);
-      };next();
+      let sdk=document.createElement('script');sdk.src='supabase-js.min.js';sdk.async=true;
+      sdk.onload=()=>{if(window.supabase){window.dispatchEvent(new Event('phd-supabase-ready'));resolve(window.supabase)}else reject(new Error('SDK unavailable'))};
+      sdk.onerror=()=>reject(new Error('SDK unavailable'));document.head.append(sdk);
     }).finally(()=>loading=null);
     return loading;
   };
