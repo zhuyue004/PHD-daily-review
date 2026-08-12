@@ -8,6 +8,11 @@ notesTimelineReadingStyle.textContent=`
 .timeline-card .note-lines{margin:0;padding-left:1.35em;line-height:1.76;letter-spacing:.01em;text-align:justify;text-justify:inter-ideograph}.timeline-card .note-lines li{margin:5px 0;padding-left:3px;text-align:justify;text-justify:inter-ideograph}.timeline-card .note-lines li::marker{color:#8e8e93;font-size:.82em}.timeline-card .note-lines li.timeline-category{list-style:none;margin:0 0 9px;padding:4px 8px;border-radius:7px;background:#eaf3ff;color:#007aff;font-size:12px;font-weight:600;letter-spacing:0;text-align:left}.timeline-card .note-lines:has(.timeline-category){padding-left:0}.timeline-card .note-lines:has(.timeline-category) li:not(.timeline-category){margin-left:1.35em}@media (prefers-color-scheme:dark){.timeline-card .note-lines li::marker{color:#98989d}.timeline-card .note-lines li.timeline-category{background:#12395c;color:#8fc9ff}}
 `;
 document.head.append(notesTimelineReadingStyle);
+const notesTimelineWidthStyle=document.createElement('style');
+notesTimelineWidthStyle.textContent=`
+.notes-timeline-list::before{left:58px}.timeline-entry{grid-template-columns:48px 20px minmax(0,1fr)}.timeline-stamp{padding-right:4px}.timeline-stamp b,.timeline-stamp span,.timeline-stamp time{font-size:11px}.timeline-dot{width:9px;height:9px}
+`;
+document.head.append(notesTimelineWidthStyle);
 const timelineDate=iso=>new Date(iso).toLocaleDateString('zh-CN',{month:'long',day:'numeric'});
 const timelineWeekday=iso=>new Date(iso).toLocaleDateString('zh-CN',{weekday:'short'});
 const timelineTime=iso=>new Date(iso).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
