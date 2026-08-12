@@ -47,7 +47,11 @@ function ensureCloudSettings(){
 async function connectCloud(){
   let url=$('#cloudUrl').value.trim().replace(/\/$/,''),key=$('#cloudKey').value.trim();
   if(!/^https:\/\/.+\.supabase\.co$/i.test(url)||!key)return cloudStatus('请填写正确的 Supabase Project URL 和 anon public key。');
-  if(!window.supabase)return cloudStatus('同步组件未加载，请检查网络后重试。');
+  if(!window.supabase){
+    cloudStatus('正在加载同步组件…');
+    try{await window.loadSupabaseSdk?.();}catch{return cloudStatus('同步组件未加载。请检查网络后重试。')}
+    if(!window.supabase)return cloudStatus('同步组件未加载。请检查网络后重试。');
+  }
   localStorage.setItem(CLOUD_CONFIG_KEY,JSON.stringify({url,key}));
   saveDesktopSyncSettings();
   cloudClient=window.supabase.createClient(url,key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
