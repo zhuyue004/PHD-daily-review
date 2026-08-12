@@ -106,3 +106,23 @@ $('#preferences article:last-child p').textContent='记录保存在本设备浏�
 let migratingLegacyLocations=false;
 async function migrateLegacyReviewLocations(){if(migratingLegacyLocations||!localStorage.getItem('phd-amap-key'))return;migratingLegacyLocations=true;try{let legacy=records.filter(record=>/^-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?$/.test(record.location||''));for(let record of legacy){let [latitude,longitude]=record.location.split(',').map(Number),place=await placeFromCoordinates(latitude,longitude);if(place){record.location=place;save()}await new Promise(resolve=>setTimeout(resolve,1100))}}finally{migratingLegacyLocations=false}}
 setTimeout(migrateLegacyReviewLocations,1200);
+
+// iPhone diary writing feedback: count visible text, excluding spaces and line breaks.
+if(/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1)){
+  const originalRenderDiaryForWordCount=renderDiary;
+  const originalViewDiaryForWordCount=viewDiary;
+  const diaryWordCount=text=>[...(text||'').replace(/\s/g,'')].length;
+  function updateDiaryWordCount(){let counter=$('#diaryWordCount');if(counter)counter.textContent=`已写 ${diaryWordCount($('#diaryInput').value)} 字`;}
+  function ensureDiaryWordCount(){
+    if($('#diaryWordCount'))return;
+    let counter=document.createElement('p');
+    counter.id='diaryWordCount';counter.className='diary-word-count';
+    $('#diaryInput').insertAdjacentElement('afterend',counter);
+  }
+  renderDiary=function(){originalRenderDiaryForWordCount();ensureDiaryWordCount();updateDiaryWordCount();};
+  viewDiary=function(entry){
+    originalViewDiaryForWordCount(entry);
+    $('.diary-detail h2')?.insertAdjacentHTML('afterend',`<p class="diary-detail-word-count">共 ${diaryWordCount(entry.text)} 字</p>`);
+  };
+  $('#diaryInput').addEventListener('input',updateDiaryWordCount);
+}
