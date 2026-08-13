@@ -10,6 +10,15 @@ function quoteForToday(){
   return YEAR_QUOTES[index];
 }
 const saveDiaries=()=>{localStorage.setItem('phd-diary-records',JSON.stringify(diaries));window.scheduleCloudSync?.()};
+const DIARY_DRAFTS_KEY='phd-diary-drafts';
+let diaryDraftTimer;
+let diaryDraftStatusTimer;
+function showDiaryDraftStatus(text,settled=false){let status=$('#diaryDraftStatus');if(!status){status=document.createElement('p');status.id='diaryDraftStatus';status.className='local-draft-status';$('#diaryInput').insertAdjacentElement('afterend',status)}clearTimeout(diaryDraftStatusTimer);status.textContent=text;status.classList.toggle('settled',settled);if(settled)diaryDraftStatusTimer=setTimeout(()=>{status.textContent=''},1600)}
+function diaryDrafts(){try{return JSON.parse(localStorage.getItem(DIARY_DRAFTS_KEY)||'{}')}catch{return {}}}
+function diaryDraftFor(date=day()){return diaryDrafts()[date]}
+function saveDiaryDraftNow(){let input=$('#diaryInput');if(!input)return;let drafts=diaryDrafts();drafts[day()]={text:input.value,updatedAt:new Date().toISOString()};localStorage.setItem(DIARY_DRAFTS_KEY,JSON.stringify(drafts));showDiaryDraftStatus('草稿已保存到本机',true)}
+function queueDiaryDraft(){clearTimeout(diaryDraftTimer);showDiaryDraftStatus('正在自动保存本地…');diaryDraftTimer=setTimeout(saveDiaryDraftNow,350)}
+function clearDiaryDraft(date=day()){clearTimeout(diaryDraftTimer);let drafts=diaryDrafts();if(!(date in drafts))return;delete drafts[date];localStorage.setItem(DIARY_DRAFTS_KEY,JSON.stringify(drafts))}
 const basePage=page;
 page=id=>{basePage(id);if(id==='diary')renderDiary()};
 let diaryHistoryDate=day();
@@ -25,10 +34,11 @@ function renderDiary(){
   ensureDiaryHistory();
   let quote=quoteForToday();
   let today=diaries.find(item=>item.date===day());
+  let savedDraft=diaryDraftFor();
   $('#quoteText').textContent=quote.text;
   $('#quoteSource').textContent=quote.source.replace(/（[^）]*）/g,'');
   $('#diaryDate').textContent=fmt(day());
-  $('#diaryInput').value=today?indentDiary(today.text):INDENT;
+  $('#diaryInput').value=savedDraft?savedDraft.text:(today?indentDiary(today.text):INDENT);
   $('#diaryDateButton').textContent=fmt(day());
   $('#diary > h2').textContent='最近的日记';
   let cutoff=new Date();cutoff.setDate(cutoff.getDate()-6);let recent=diaries.filter(item=>item.date>=localDay(cutoff)).sort((a,b)=>b.date.localeCompare(a.date));
@@ -74,13 +84,14 @@ function bindDiaryRows(){
 $('#saveDiary').onclick=async()=>{
   let raw=$('#diaryInput').value,index=diaries.findIndex(item=>item.date===day());
   if(!raw.replace(/　/g,'').trim()){
-    if(index>=0){diaries.splice(index,1);saveDiaries();renderDiary()}
+    if(index>=0){diaries.splice(index,1);saveDiaries();clearDiaryDraft();renderDiary()}
     return;
   }
   let button=$('#saveDiary'),oldText=button.textContent;button.disabled=true;button.textContent='正在记录地点…';let text=indentDiary(raw).replace(/\n+$/,''),place=await diaryPlace()||(index>=0?diaries[index].place||'':'');button.disabled=false;button.textContent=oldText;
   let entry={id:index>=0?diaries[index].id:crypto.randomUUID(),date:day(),text,place,updatedAt:new Date().toISOString()};
   if(index>=0)diaries[index]=entry;else diaries.push(entry);
   saveDiaries();
+  clearDiaryDraft();
   renderDiary();
 };
 
@@ -100,6 +111,10 @@ $('#diaryInput').addEventListener('focus',event=>{
   }
 });
 
+$('#diaryInput').addEventListener('input',queueDiaryDraft);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)saveDiaryDraftNow()});
+window.addEventListener('pagehide',saveDiaryDraftNow);
+
 function ensureAmapSettings(){if($('#amapSettings'))return;let section=document.createElement('article');section.id='amapSettings';section.innerHTML='<h2>高德地点解析</h2><p>粘贴你的高德 Web 服务 Key。Key 仅保存在这台设备浏览器中，用于将定位转换为地点名称。</p><input id="amapKey" type="password" placeholder="粘贴高德 Web 服务 Key"><button id="saveAmapKey">保存 Key</button><p id="amapKeyStatus" class="status"></p>';let privacy=$('#preferences article:last-child');privacy.before(section);$('#amapKey').value=localStorage.getItem('phd-amap-key')||'';$('#amapKeyStatus').textContent=$('#amapKey').value?'已保存本机 Key。':'尚未设置 Key。';$('#saveAmapKey').onclick=()=>{let key=$('#amapKey').value.trim();if(!key){localStorage.removeItem('phd-amap-key');$('#amapKeyStatus').textContent='已清除 Key。';return}localStorage.setItem('phd-amap-key',key);$('#amapKeyStatus').textContent='已保存。之后的地点记录将使用高德解析。';migrateLegacyReviewLocations()}}
 ensureAmapSettings();
 $('#preferences article:last-child p').textContent='记录保存在本设备浏览器内。保存日记或每日复盘时可请求定位，并仅保存高德解析后的地点名称，不保存经纬度。';
@@ -107,8 +122,8 @@ let migratingLegacyLocations=false;
 async function migrateLegacyReviewLocations(){if(migratingLegacyLocations||!localStorage.getItem('phd-amap-key'))return;migratingLegacyLocations=true;try{let legacy=records.filter(record=>/^-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?$/.test(record.location||''));for(let record of legacy){let [latitude,longitude]=record.location.split(',').map(Number),place=await placeFromCoordinates(latitude,longitude);if(place){record.location=place;save()}await new Promise(resolve=>setTimeout(resolve,1100))}}finally{migratingLegacyLocations=false}}
 setTimeout(migrateLegacyReviewLocations,1200);
 
-// iPhone diary writing feedback: count visible text, excluding spaces and line breaks.
-if(/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1)){
+// Diary writing feedback: count visible text, excluding spaces and line breaks.
+if(true){
   const originalRenderDiaryForWordCount=renderDiary;
   const originalViewDiaryForWordCount=viewDiary;
   const diaryWordCount=text=>[...(text||'').replace(/\s/g,'')].length;
@@ -119,7 +134,7 @@ if(/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel
     counter.id='diaryWordCount';counter.className='diary-word-count';
     $('#diaryInput').insertAdjacentElement('afterend',counter);
   }
-  renderDiary=function(){originalRenderDiaryForWordCount();ensureDiaryWordCount();updateDiaryWordCount();};
+  renderDiary=function(){originalRenderDiaryForWordCount();ensureDiaryWordCount();updateDiaryWordCount();updateHeaderStat?.('diary');};
   viewDiary=function(entry){
     originalViewDiaryForWordCount(entry);
     $('.diary-detail h2')?.insertAdjacentHTML('afterend',`<p class="diary-detail-word-count">共 ${diaryWordCount(entry.text)} 字</p>`);

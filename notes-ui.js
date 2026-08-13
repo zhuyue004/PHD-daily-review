@@ -1,5 +1,15 @@
 const noteModal=$('#noteModal'),noteInput=$('#noteInput'),noteImagesInput=$('#noteImages'),noteCameraInput=$('#noteCamera'),notePreview=$('#noteImagePreview');
 let pendingNoteImages=[],cropSelectedImage=false;
+const NOTE_DRAFTS_KEY='phd-quick-note-drafts';
+let noteDraftTimer;
+let noteDraftStatusTimer;
+function showNoteDraftStatus(text,settled=false){let status=$('#noteDraftStatus');if(!status){status=document.createElement('p');status.id='noteDraftStatus';status.className='local-draft-status';noteInput.insertAdjacentElement('afterend',status)}clearTimeout(noteDraftStatusTimer);status.textContent=text;status.classList.toggle('settled',settled);if(settled)noteDraftStatusTimer=setTimeout(()=>{status.textContent=''},1600)}
+function noteDrafts(){try{return JSON.parse(localStorage.getItem(NOTE_DRAFTS_KEY)||'{}')}catch{return {}}}
+function noteDraftKey(noteId=''){return noteId?`edit:${noteId}`:'new'}
+function saveNoteDraftNow(key=noteDraftKey(typeof archiveEditingNote==='undefined'?'':archiveEditingNote?.id)){if(noteModal.classList.contains('hidden'))return;let drafts=noteDrafts();drafts[key]={text:noteInput.value,template:selectedNoteTemplate||'',updatedAt:new Date().toISOString()};localStorage.setItem(NOTE_DRAFTS_KEY,JSON.stringify(drafts));showNoteDraftStatus('草稿已保存到本机',true)}
+function queueNoteDraft(key=noteDraftKey(typeof archiveEditingNote==='undefined'?'':archiveEditingNote?.id)){clearTimeout(noteDraftTimer);showNoteDraftStatus('正在自动保存本地…');noteDraftTimer=setTimeout(()=>saveNoteDraftNow(key),350)}
+function restoreNoteDraft(key='new'){let saved=noteDrafts()[key];if(!saved)return false;noteInput.value=saved.text||'';selectedNoteTemplate=saved.template||'';renderNoteTemplates();return true}
+function clearNoteDraft(key=noteDraftKey(typeof archiveEditingNote==='undefined'?'':archiveEditingNote?.id)){clearTimeout(noteDraftTimer);let drafts=noteDrafts();if(!(key in drafts))return;delete drafts[key];localStorage.setItem(NOTE_DRAFTS_KEY,JSON.stringify(drafts))}
 const noteTemplates={
   '问题':'【问题】\n现象：\n我猜：\n下一步：',
   '小循环':'【小循环】\n问题：\n尝试：\n结果：\n不确定：\n下一步：',
@@ -23,7 +33,7 @@ const noteExamples={
   '决策':'【决策】\n要做的选择：先扩充数据还是先调模型。\n考虑因素：当前误差主要来自样本不足。\n当前决定：先扩充数据。\n之后验证：比较扩充前后的稳定性。'
 };
 let selectedNoteTemplate='';
-function renderNoteTemplates(){let holder=$('#noteTemplates'),example=$('#noteTemplateExample');if(!holder||!example)return;holder.innerHTML=Object.keys(noteTemplates).map(name=>`<button class="${selectedNoteTemplate===name?'selected':''}" data-template="${name}" type="button">${name}</button>`).join('');example.innerHTML=selectedNoteTemplate?`<p>示例</p><pre>${esc(noteExamples[selectedNoteTemplate])}</pre>`:'';$$('#noteTemplates button').forEach(button=>button.onclick=()=>{let name=button.dataset.template,onlyTag=/^【[^】]+】\s*$/.test(noteInput.value);if(noteInput.value.trim()&&!onlyTag&&!confirm('切换分类会覆盖当前内容，继续吗？'))return;selectedNoteTemplate=name;noteInput.value=noteTemplates[name];renderNoteTemplates();noteInput.focus()})}
+function renderNoteTemplates(){let holder=$('#noteTemplates'),example=$('#noteTemplateExample');if(!holder||!example)return;holder.innerHTML=Object.keys(noteTemplates).map(name=>`<button class="${selectedNoteTemplate===name?'selected':''}" data-template="${name}" type="button">${name}</button>`).join('');example.innerHTML=selectedNoteTemplate?`<p>示例</p><pre>${esc(noteExamples[selectedNoteTemplate])}</pre>`:'';$$('#noteTemplates button').forEach(button=>button.onclick=()=>{let name=button.dataset.template,onlyTag=/^【[^】]+】\s*$/.test(noteInput.value);if(noteInput.value.trim()&&!onlyTag&&!confirm('切换分类会覆盖当前内容，继续吗？'))return;selectedNoteTemplate=name;noteInput.value=noteTemplates[name];renderNoteTemplates();queueNoteDraft();noteInput.focus()})}
 function resetNoteTemplate(){selectedNoteTemplate='';renderNoteTemplates()}
 function ensureNoteTemplates(){if($('#noteTemplates'))return;let holder=document.createElement('div');holder.id='noteTemplates';holder.className='note-templates';let example=document.createElement('div');example.id='noteTemplateExample';example.className='note-template-example';let hint=document.createElement('p');hint.className='note-template-hint';hint.textContent='选择一个分类模板；每条随手记只记录一个可追溯的研究线索。';noteInput.before(hint);noteInput.before(example);noteInput.before(holder);renderNoteTemplates()}
 ensureNoteTemplates();
@@ -50,13 +60,21 @@ function openScreenCropper(blob,fileLabel='裁剪截图'){
   modal.className='modal screen-crop-modal';
   modal.innerHTML=`<div><section class="screen-crop-dialog"><h2>裁剪图片区域</h2><p>在图片上拖动，框选要保存的区域。</p><div class="screen-crop-stage"><img src="${url}" alt="图片裁剪预览"><i></i></div><div class="screen-crop-actions"><button class="plain" type="button">取消</button><button class="confirm-crop" type="button">添加选中区域</button></div></section></div>`;
   document.body.append(modal);
-  let stage=$('.screen-crop-stage'),image=stage.querySelector('img'),selection=stage.querySelector('i'),start=null,crop=null;
+  let stage=$('.screen-crop-stage'),image=stage.querySelector('img'),selection=stage.querySelector('i'),start=null,crop=null,usingPointer=false;
+  Object.assign(selection.style,{position:'absolute',display:'block',pointerEvents:'none',boxSizing:'border-box',zIndex:'2'});
   const point=event=>{let rect=stage.getBoundingClientRect();return {x:Math.max(0,Math.min(rect.width,event.clientX-rect.left)),y:Math.max(0,Math.min(rect.height,event.clientY-rect.top))}};
-  const draw=event=>{let end=point(event);crop={x:Math.min(start.x,end.x),y:Math.min(start.y,end.y),width:Math.abs(end.x-start.x),height:Math.abs(end.y-start.y)};Object.assign(selection.style,{left:`${crop.x}px`,top:`${crop.y}px`,width:`${crop.width}px`,height:`${crop.height}px`})};
+  const draw=event=>{if(!start)return;let end=point(event);crop={x:Math.min(start.x,end.x),y:Math.min(start.y,end.y),width:Math.abs(end.x-start.x),height:Math.abs(end.y-start.y)};Object.assign(selection.style,{left:`${crop.x}px`,top:`${crop.y}px`,width:`${crop.width}px`,height:`${crop.height}px`})};
   const close=()=>{URL.revokeObjectURL(url);modal.remove()};
-  stage.addEventListener('pointerdown',event=>{start=point(event);crop=null;Object.assign(selection.style,{left:`${start.x}px`,top:`${start.y}px`,width:'0px',height:'0px'});stage.setPointerCapture?.(event.pointerId)});
-  stage.addEventListener('pointermove',event=>{if(start)draw(event)});
-  stage.addEventListener('pointerup',event=>{if(start)draw(event);start=null});
+  const begin=event=>{if(event.button!==undefined&&event.button!==0)return;event.preventDefault();start=point(event);crop=null;Object.assign(selection.style,{left:`${start.x}px`,top:`${start.y}px`,width:'0px',height:'0px'});stage.style.cursor='crosshair'};
+  const move=event=>{if(start){event.preventDefault();draw(event)}};
+  const finish=event=>{if(!start)return;draw(event);start=null;stage.style.cursor='crosshair'};
+  stage.addEventListener('pointerdown',event=>{usingPointer=true;begin(event)});
+  window.addEventListener('pointermove',event=>{if(usingPointer)move(event)},true);
+  window.addEventListener('pointerup',event=>{if(usingPointer){finish(event);usingPointer=false}},true);
+  window.addEventListener('pointercancel',event=>{if(usingPointer){finish(event);usingPointer=false}},true);
+  stage.addEventListener('mousedown',event=>{if(!usingPointer)begin(event)});
+  window.addEventListener('mousemove',event=>{if(!usingPointer)move(event)},true);
+  window.addEventListener('mouseup',event=>{if(!usingPointer)finish(event)},true);
   modal.querySelector('.plain').onclick=close;
   modal.querySelector('.confirm-crop').onclick=async event=>{
     if(!crop||crop.width<4||crop.height<4)return alert('请先拖动选择一个截取区域。');
@@ -78,11 +96,14 @@ ensureScreenCaptureButton();
 noteInput.addEventListener('keydown',event=>{if(event.key!=='Enter'||event.isComposing)return;event.preventDefault();let start=noteInput.selectionStart,end=noteInput.selectionEnd,before=noteInput.value.slice(0,start),after=noteInput.value.slice(end),line=before.slice(before.lastIndexOf('\n')+1),leading=(line.match(/^　*/)||[''])[0],field=line.match(/^(　*)[^：:\n]+[：:]/),indent=field?'　'.repeat([...field[0]].length):leading,insert=`\n${indent}`;noteInput.value=before+insert+after;noteInput.selectionStart=noteInput.selectionEnd=start+insert.length});
 function renderPendingNoteImages(){notePreview.innerHTML=pendingNoteImages.map((file,index)=>`<div><img src="${URL.createObjectURL(file)}" alt="待上传图片 ${index+1}"><button data-index="${index}" aria-label="移除图片">×</button></div>`).join('');$$('#noteImagePreview button').forEach(button=>button.onclick=()=>{pendingNoteImages.splice(+button.dataset.index,1);renderPendingNoteImages()})}
 function addPendingNoteImages(files){pendingNoteImages.push(...[...files].filter(file=>file.type.startsWith('image/')));renderPendingNoteImages()}
-$('#quickNote').onclick=()=>{noteInput.value='';pendingNoteImages=[];resetNoteTemplate();renderPendingNoteImages();noteModal.classList.remove('hidden');setTimeout(()=>noteInput.focus(),50)};
+$('#quickNote').onclick=()=>{noteInput.value='';pendingNoteImages=[];resetNoteTemplate();restoreNoteDraft();renderPendingNoteImages();noteModal.classList.remove('hidden');setTimeout(()=>noteInput.focus(),50)};
 $('#closeNote').onclick=()=>noteModal.classList.add('hidden');
 noteModal.onclick=e=>{if(e.target===noteModal)noteModal.classList.add('hidden')};
 $('#takeNotePhoto').onclick=()=>noteCameraInput.click();
 $('#chooseNoteImage').onclick=()=>noteImagesInput.click();
 noteCameraInput.onchange=event=>{addPendingNoteImages(event.target.files);event.target.value=''};
 noteImagesInput.onchange=event=>{let files=[...event.target.files];event.target.value='';if(cropSelectedImage){cropSelectedImage=false;if(files[0])openScreenCropper(files[0],'裁剪截图');return}addPendingNoteImages(files)};
-$('#saveNote').onclick=async()=>{let text=noteInput.value.trim();if(!text&&!pendingNoteImages.length)return noteInput.focus();let now=new Date(),id=crypto.randomUUID(),imageIds=await saveNoteImages(id,pendingNoteImages,now);notes.push({id,date:day(),createdAt:now.toISOString(),text,images:imageIds});saveNotes();noteModal.classList.add('hidden');renderNotes()};
+noteInput.addEventListener('input',()=>queueNoteDraft());
+document.addEventListener('visibilitychange',()=>{if(document.hidden)saveNoteDraftNow()});
+window.addEventListener('pagehide',()=>saveNoteDraftNow());
+$('#saveNote').onclick=async()=>{let text=noteInput.value.trim();if(!text&&!pendingNoteImages.length)return noteInput.focus();let now=new Date(),id=crypto.randomUUID(),imageIds=await saveNoteImages(id,pendingNoteImages,now);notes.push({id,date:day(),createdAt:now.toISOString(),text,images:imageIds});saveNotes();clearNoteDraft('new');noteModal.classList.add('hidden');renderNotes()};
