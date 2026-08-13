@@ -215,5 +215,5 @@ if(window.phdDesktop){
   };
   window.loadSupabaseSdk().catch(()=>{});
 })();
-(()=>{let styledXlsx=document.createElement('script');styledXlsx.src='https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';styledXlsx.onload=()=>window.__styledXlsxReady=true;document.head.append(styledXlsx)})();
+(()=>{let styledXlsx=document.createElement('script');styledXlsx.src='xlsx.bundle.js';styledXlsx.onload=()=>window.__styledXlsxReady=true;document.head.append(styledXlsx)})();
 detail=function(record){if(!record)return;let isCoordinate=/^-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?$/.test(record.location||''),location=record.location?`<div class="detail-item"><h3>记录地点</h3>${isCoordinate?`<a target="_blank" href="https://maps.apple.com/?ll=${encodeURIComponent(record.location)}">${esc(record.location)}</a>`:`<span>${esc(record.location)}</span>`}</div>`:'';$('#detail').innerHTML=`<h2>${fmt(record.date)} · 每日复盘</h2>${location}${Q.map(question=>`<div class="detail-item"><h3>${question[1]}</h3>${list(record[question[0]])}</div>`).join('')}`;$('#modal').classList.remove('hidden')};

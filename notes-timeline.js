@@ -23,6 +23,22 @@ notesTimelineContinuousLineStyle.textContent=`
 #notesTimeline .notes-timeline-list::before{display:none}#notesTimeline .timeline-entry::after{content:'';position:absolute;z-index:0;left:57.5px;top:13px;bottom:-14px;width:1px;background:#c7c7cc}#notesTimeline .timeline-entry:last-child::after{display:none}@media (prefers-color-scheme:dark){#notesTimeline .timeline-entry::after{background:#a1a1a6!important}}
 `;
 document.head.append(notesTimelineContinuousLineStyle);
+const notesTimelineScrollStyle=document.createElement('style');
+notesTimelineScrollStyle.textContent=`
+body.notes-timeline-active{overflow:hidden}body.notes-timeline-active header{position:relative;z-index:5;background:#f2f2f7}#notesTimeline.active{position:fixed;z-index:1;top:76px;bottom:54px;left:50%;display:flex;width:min(680px,calc(100vw - 32px));min-height:0;transform:translateX(-50%);flex-direction:column}.notes-timeline-tools{flex:0 0 auto;margin:0;padding:2px 0 12px;background:#f2f2f7}.notes-timeline-list{min-height:0;flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;padding:0 0 16px}@media (prefers-color-scheme:dark){body.notes-timeline-active header,.notes-timeline-tools{background:#000}}@media (min-width:700px){#notesTimeline.active{top:82px;bottom:56px}.desktop-app #notesTimeline.active{width:min(680px,calc(100vw - 32px))}}
+`;
+document.head.append(notesTimelineScrollStyle);
+const timelineTools=$('.notes-timeline-tools');
+if(timelineTools&&!timelineTools.querySelector('h2')){
+  let title=document.createElement('h2');title.textContent='随手记';timelineTools.prepend(title);
+}
+if(window.phdDesktop){
+  const desktopBottomNavStyle=document.createElement('style');
+  desktopBottomNavStyle.textContent=`
+  .desktop-app nav{position:fixed!important;left:0!important;right:0!important;width:100%!important;min-width:0!important;max-width:none!important;margin:0!important;transform:none!important;padding:6px 12px!important;border-radius:0;border-left:0;border-right:0}.desktop-app nav button{width:20%;flex:1 1 20%;min-width:0;padding:2px 0!important}.desktop-app nav button svg{width:20px;height:20px}.desktop-app nav button span{font-size:10px;overflow:hidden;text-overflow:ellipsis}@media (prefers-color-scheme:dark){.desktop-app nav{border-left-color:#38383a;border-right-color:#38383a}}
+  `;
+  document.head.append(desktopBottomNavStyle);
+}
 const notesTimelineParagraphStyle=document.createElement('style');
 notesTimelineParagraphStyle.textContent=`
 .timeline-card .note-paragraph{margin:0 0 7px!important;color:#111!important;font-size:14px;line-height:1.76;text-indent:2em;text-align:justify!important;text-justify:inter-ideograph}.timeline-card .note-paragraph:last-of-type{margin-bottom:0!important}.timeline-card:has(.note-paragraph).timeline-collapsed{max-height:232px;overflow:hidden;position:relative}.timeline-card:has(.note-paragraph).timeline-collapsed::after{content:'';position:absolute;right:0;bottom:0;width:100%;height:48px;background:linear-gradient(transparent,#fff 80%);pointer-events:none}@media (prefers-color-scheme:dark){.timeline-card .note-paragraph{color:#f2f2f7!important}.timeline-card:has(.note-paragraph).timeline-collapsed::after{background:linear-gradient(transparent,#1c1c1e 80%)}}
