@@ -34,7 +34,13 @@ document.head.append(compactHeaderTitleStyle);
 const compactMobileNavStyle=document.createElement('style');
 compactMobileNavStyle.textContent=`@media (max-width:699px){nav{padding-left:0!important;padding-right:0!important}nav button{letter-spacing:-.45px}nav button svg{width:19px;height:19px}nav button span{font-size:9px!important}}`;
 document.head.append(compactMobileNavStyle);
-window.updateNotesTimelineLayout=()=>{let header=document.querySelector('header'),page=document.querySelector('#notesTimeline');if(!header||!page)return;page.style.setProperty('--notes-timeline-top',`${Math.ceil(header.getBoundingClientRect().bottom)+8}px`)};
+const compactPageTopSpacingStyle=document.createElement('style');
+compactPageTopSpacingStyle.textContent=`#diary.active>.quote-card{margin-top:4px}#notesTimeline.active .notes-timeline-tools{padding-top:0}`;
+document.head.append(compactPageTopSpacingStyle);
+const headerStatStyle=document.createElement('style');
+headerStatStyle.textContent=`header{position:relative}#headerStat{position:absolute;right:auto;bottom:20px;color:#8e8e93;font-size:12px;line-height:1;font-weight:400;white-space:nowrap}@media (prefers-color-scheme:dark){#headerStat{color:#98989d}}`;
+document.head.append(headerStatStyle);
+window.updateNotesTimelineLayout=()=>{let header=document.querySelector('header'),page=document.querySelector('#notesTimeline');if(!header||!page)return;page.style.setProperty('--notes-timeline-top',`${Math.ceil(header.getBoundingClientRect().bottom)+4}px`)};
 window.addEventListener('resize',()=>{if(document.body.classList.contains('notes-timeline-active'))window.updateNotesTimelineLayout()});
 if(window.phdDesktop){
   const desktopBottomNavStyle=document.createElement('style');
@@ -63,6 +69,7 @@ async function renderTimelineImages(note,holder){
   holder.querySelectorAll('button').forEach(button=>button.onclick=()=>openNoteImage(images[+button.dataset.index].blob));
 }
 window.renderNotesTimeline=async function(){
+  updateHeaderStat?.('notesTimeline');
   let input=$('#notesTimelineSearch'),term=(input?.value||'').trim().toLowerCase();
   let list=notes.slice().sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).filter(note=>!term||`${note.text||''} ${(note.template||'')}`.toLowerCase().includes(term));
   let root=$('#notesTimelineList');
