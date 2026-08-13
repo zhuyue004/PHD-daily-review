@@ -45,13 +45,14 @@ window.renderNotesTimeline=async function(){
   root.innerHTML=list.map(note=>`<article class="timeline-entry" data-note-id="${note.id}"><div class="timeline-stamp"><b>${timelineDate(note.createdAt)}</b><span>${timelineWeekday(note.createdAt)}</span><time>${timelineTime(note.createdAt)}</time></div><i class="timeline-dot" aria-hidden="true"></i><div class="timeline-card">${timelineText(note.text)}<div class="timeline-images"></div></div></article>`).join('');
   for(let note of list){
     let entry=root.querySelector(`.timeline-entry[data-note-id="${note.id}"]`),holder=entry.querySelector('.timeline-images'),textBlock=entry.querySelector('.timeline-text');
-    let lines=(note.text||'').split(/\r?\n/).filter(line=>line.trim()).length;
-    if(textBlock&&((note.text||'').length>220||lines>8)){
+    // Measure after layout: a single long paragraph needs collapsing too.
+    requestAnimationFrame(()=>{
+      if(!textBlock?.isConnected||textBlock.scrollHeight<=175)return;
       textBlock.classList.add('timeline-collapsed');
       let expand=document.createElement('button');expand.type='button';expand.className='timeline-expand';expand.textContent='展开全文';
       expand.onclick=()=>{let collapsed=textBlock.classList.toggle('timeline-collapsed');expand.textContent=collapsed?'展开全文':'收起';};
       textBlock.after(expand);
-    }
+    });
     renderTimelineImages(note,holder);
   }
 };
