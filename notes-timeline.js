@@ -18,6 +18,11 @@ notesTimelineDarkContrastStyle.textContent=`
 @media (prefers-color-scheme:dark){#notesTimeline .notes-timeline-list::before{background:#a1a1a6!important;opacity:1!important}#notesTimeline .timeline-stamp{color:#f2f2f7!important}#notesTimeline .timeline-dot{display:block!important;background:#0a84ff!important;border-color:#1c1c1e!important;box-shadow:0 0 0 1px #64b5ff!important}}
 `;
 document.head.append(notesTimelineDarkContrastStyle);
+const notesTimelineContinuousLineStyle=document.createElement('style');
+notesTimelineContinuousLineStyle.textContent=`
+#notesTimeline .notes-timeline-list::before{display:none}#notesTimeline .timeline-entry::after{content:'';position:absolute;z-index:0;left:57.5px;top:13px;bottom:-14px;width:1px;background:#c7c7cc}#notesTimeline .timeline-entry:last-child::after{display:none}@media (prefers-color-scheme:dark){#notesTimeline .timeline-entry::after{background:#a1a1a6!important}}
+`;
+document.head.append(notesTimelineContinuousLineStyle);
 const notesTimelineParagraphStyle=document.createElement('style');
 notesTimelineParagraphStyle.textContent=`
 .timeline-card .note-paragraph{margin:0 0 7px!important;color:#111!important;font-size:14px;line-height:1.76;text-indent:2em;text-align:justify!important;text-justify:inter-ideograph}.timeline-card .note-paragraph:last-of-type{margin-bottom:0!important}.timeline-card:has(.note-paragraph).timeline-collapsed{max-height:232px;overflow:hidden;position:relative}.timeline-card:has(.note-paragraph).timeline-collapsed::after{content:'';position:absolute;right:0;bottom:0;width:100%;height:48px;background:linear-gradient(transparent,#fff 80%);pointer-events:none}@media (prefers-color-scheme:dark){.timeline-card .note-paragraph{color:#f2f2f7!important}.timeline-card:has(.note-paragraph).timeline-collapsed::after{background:linear-gradient(transparent,#1c1c1e 80%)}}
@@ -26,12 +31,12 @@ document.head.append(notesTimelineParagraphStyle);
 // This renderer deliberately does not call noteContent(): archive-date.js
 // replaces that shared helper with paragraph markup after this file loads.
 const notesTimelineOwnContentStyle=document.createElement('style');
-notesTimelineOwnContentStyle.textContent=`.timeline-text{color:#111;font-size:14px;line-height:1.76;letter-spacing:.01em;text-align:justify;text-justify:inter-ideograph}.timeline-text p{margin:0 0 8px;text-indent:2em;text-align:justify;text-justify:inter-ideograph}.timeline-text p:last-child{margin-bottom:0}.timeline-text .timeline-category{margin:0 0 10px;padding:4px 8px;border-radius:7px;background:#eaf3ff;color:#007aff;font-size:12px;font-weight:600;letter-spacing:0;text-align:left;text-indent:0}.timeline-text.timeline-collapsed{max-height:7.05em;overflow:hidden}@media (prefers-color-scheme:dark){.timeline-text{color:#f2f2f7}.timeline-text .timeline-category{background:#12395c;color:#8fc9ff}}`;
+notesTimelineOwnContentStyle.textContent=`.timeline-text{color:#000;font-size:14px;line-height:1.76;letter-spacing:.01em;text-align:left}.timeline-text .timeline-category{margin:0 0 10px;padding:4px 8px;border-radius:7px;background:#eaf3ff;color:#007aff;font-size:12px;font-weight:600;letter-spacing:0;text-align:left}.timeline-text .timeline-body{white-space:pre-wrap;overflow-wrap:anywhere}.timeline-text .timeline-body.timeline-collapsed{display:-webkit-box;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:4;white-space:pre-wrap}@media (prefers-color-scheme:dark){.timeline-text{color:#f2f2f7}.timeline-text .timeline-category{background:#12395c;color:#8fc9ff}}`;
 document.head.append(notesTimelineOwnContentStyle);
 const timelineDate=iso=>new Date(iso).toLocaleDateString('zh-CN',{month:'long',day:'numeric'});
 const timelineWeekday=iso=>new Date(iso).toLocaleDateString('zh-CN',{weekday:'short'});
 const timelineTime=iso=>new Date(iso).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
-const timelineText=text=>{let lines=(text||'').split(/\r?\n/).map(line=>line.trim()).filter(Boolean);return `<div class="timeline-text">${lines.map((line,index)=>`<p class="${index===0&&/^【[^】]+】$/.test(line)?'timeline-category':''}">${esc(line)}</p>`).join('')}</div>`};
+const timelineText=text=>{let lines=(text||'').split(/\r?\n/).map(line=>line.trim()).filter(Boolean),category=/^【[^】]+】$/.test(lines[0]||'')?lines.shift():'';return `<div class="timeline-text">${category?`<div class="timeline-category">${esc(category)}</div>`:''}<div class="timeline-body">${esc(lines.join('\n'))}</div></div>`};
 async function renderTimelineImages(note,holder){
   let images=await getNoteImages(note.id);if(!holder.isConnected||!images.length)return;
   holder.innerHTML=images.map((image,index)=>`<button type="button" data-index="${index}" aria-label="查看原图"><img src="${URL.createObjectURL(image.blob)}" alt="随手记图片 ${index+1}"></button>`).join('');
@@ -44,7 +49,7 @@ window.renderNotesTimeline=async function(){
   if(!list.length){root.innerHTML=`<p class="empty">${term?'没有匹配的随手记。':'还没有随手记。'}</p>`;return}
   root.innerHTML=list.map(note=>`<article class="timeline-entry" data-note-id="${note.id}"><div class="timeline-stamp"><b>${timelineDate(note.createdAt)}</b><span>${timelineWeekday(note.createdAt)}</span><time>${timelineTime(note.createdAt)}</time></div><i class="timeline-dot" aria-hidden="true"></i><div class="timeline-card">${timelineText(note.text)}<div class="timeline-images"></div></div></article>`).join('');
   for(let note of list){
-    let entry=root.querySelector(`.timeline-entry[data-note-id="${note.id}"]`),holder=entry.querySelector('.timeline-images'),textBlock=entry.querySelector('.timeline-text');
+    let entry=root.querySelector(`.timeline-entry[data-note-id="${note.id}"]`),holder=entry.querySelector('.timeline-images'),textBlock=entry.querySelector('.timeline-body');
     // Measure after layout: a single long paragraph needs collapsing too.
     requestAnimationFrame(()=>{
       if(!textBlock?.isConnected||textBlock.scrollHeight<=99)return;
