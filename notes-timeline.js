@@ -15,9 +15,14 @@ notesTimelineWidthStyle.textContent=`
 document.head.append(notesTimelineWidthStyle);
 const notesTimelineDarkContrastStyle=document.createElement('style');
 notesTimelineDarkContrastStyle.textContent=`
-@media (prefers-color-scheme:dark){.notes-timeline-list::before{background:#8e8e93!important}.timeline-stamp{color:#d1d1d6!important}.timeline-dot{background:#0a84ff!important;border-color:#1c1c1e!important;box-shadow:0 0 0 1px #64b5ff!important}}
+@media (prefers-color-scheme:dark){#notesTimeline .notes-timeline-list::before{background:#a1a1a6!important;opacity:1!important}#notesTimeline .timeline-stamp{color:#f2f2f7!important}#notesTimeline .timeline-dot{display:block!important;background:#0a84ff!important;border-color:#1c1c1e!important;box-shadow:0 0 0 1px #64b5ff!important}}
 `;
 document.head.append(notesTimelineDarkContrastStyle);
+const notesTimelineParagraphStyle=document.createElement('style');
+notesTimelineParagraphStyle.textContent=`
+.timeline-card .note-paragraph{margin:0 0 7px!important;color:#111!important;font-size:14px;line-height:1.76;text-indent:2em;text-align:justify!important;text-justify:inter-ideograph}.timeline-card .note-paragraph:last-of-type{margin-bottom:0!important}.timeline-card:has(.note-paragraph).timeline-collapsed{max-height:232px;overflow:hidden;position:relative}.timeline-card:has(.note-paragraph).timeline-collapsed::after{content:'';position:absolute;right:0;bottom:0;width:100%;height:48px;background:linear-gradient(transparent,#fff 80%);pointer-events:none}@media (prefers-color-scheme:dark){.timeline-card .note-paragraph{color:#f2f2f7!important}.timeline-card:has(.note-paragraph).timeline-collapsed::after{background:linear-gradient(transparent,#1c1c1e 80%)}}
+`;
+document.head.append(notesTimelineParagraphStyle);
 const timelineDate=iso=>new Date(iso).toLocaleDateString('zh-CN',{month:'long',day:'numeric'});
 const timelineWeekday=iso=>new Date(iso).toLocaleDateString('zh-CN',{weekday:'short'});
 const timelineTime=iso=>new Date(iso).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
@@ -33,13 +38,14 @@ window.renderNotesTimeline=async function(){
   if(!list.length){root.innerHTML=`<p class="empty">${term?'没有匹配的随手记。':'还没有随手记。'}</p>`;return}
   root.innerHTML=list.map(note=>`<article class="timeline-entry" data-note-id="${note.id}"><div class="timeline-stamp"><b>${timelineDate(note.createdAt)}</b><span>${timelineWeekday(note.createdAt)}</span><time>${timelineTime(note.createdAt)}</time></div><i class="timeline-dot" aria-hidden="true"></i><div class="timeline-card">${noteContent(note.text)}<div class="timeline-images"></div></div></article>`).join('');
   for(let note of list){
-    let entry=root.querySelector(`.timeline-entry[data-note-id="${note.id}"]`),content=entry.querySelector('.note-lines'),holder=entry.querySelector('.timeline-images');
+    let entry=root.querySelector(`.timeline-entry[data-note-id="${note.id}"]`),content=entry.querySelector('.note-lines')||entry.querySelector('.note-paragraph'),holder=entry.querySelector('.timeline-images');
     let firstLine=content?.querySelector('li');if(firstLine&&/^【[^】]+】$/.test(firstLine.textContent.trim()))firstLine.classList.add('timeline-category');
-    if(content&&content.scrollHeight>205){
-      content.classList.add('timeline-collapsed');
+    let textBlock=entry.querySelector('.note-lines')||entry.querySelector('.note-paragraph')?.parentElement;
+    if(textBlock&&textBlock.scrollHeight>205){
+      textBlock.classList.add('timeline-collapsed');
       let expand=document.createElement('button');expand.type='button';expand.className='timeline-expand';expand.textContent='展开全文';
-      expand.onclick=()=>{let collapsed=content.classList.toggle('timeline-collapsed');expand.textContent=collapsed?'展开全文':'收起';};
-      content.after(expand);
+      expand.onclick=()=>{let collapsed=textBlock.classList.toggle('timeline-collapsed');expand.textContent=collapsed?'展开全文':'收起';};
+      textBlock.after(expand);
     }
     renderTimelineImages(note,holder);
   }
