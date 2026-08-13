@@ -26,7 +26,7 @@ document.head.append(notesTimelineParagraphStyle);
 // This renderer deliberately does not call noteContent(): archive-date.js
 // replaces that shared helper with paragraph markup after this file loads.
 const notesTimelineOwnContentStyle=document.createElement('style');
-notesTimelineOwnContentStyle.textContent=`.timeline-text{color:#111;font-size:14px;line-height:1.76;letter-spacing:.01em;text-align:justify;text-justify:inter-ideograph}.timeline-text p{margin:0 0 8px;text-indent:2em;text-align:justify;text-justify:inter-ideograph}.timeline-text p:last-child{margin-bottom:0}.timeline-text .timeline-category{margin:0 0 10px;padding:4px 8px;border-radius:7px;background:#eaf3ff;color:#007aff;font-size:12px;font-weight:600;letter-spacing:0;text-align:left;text-indent:0}.timeline-text.timeline-collapsed{max-height:14.2em;overflow:hidden;position:relative}.timeline-text.timeline-collapsed::after{content:'';position:absolute;right:0;bottom:0;width:100%;height:48px;background:linear-gradient(90deg,transparent,#fff 78%);pointer-events:none}@media (prefers-color-scheme:dark){.timeline-text{color:#f2f2f7}.timeline-text .timeline-category{background:#12395c;color:#8fc9ff}.timeline-text.timeline-collapsed::after{background:linear-gradient(90deg,transparent,#1c1c1e 78%)}}`;
+notesTimelineOwnContentStyle.textContent=`.timeline-text{color:#111;font-size:14px;line-height:1.76;letter-spacing:.01em;text-align:justify;text-justify:inter-ideograph}.timeline-text p{margin:0 0 8px;text-indent:2em;text-align:justify;text-justify:inter-ideograph}.timeline-text p:last-child{margin-bottom:0}.timeline-text .timeline-category{margin:0 0 10px;padding:4px 8px;border-radius:7px;background:#eaf3ff;color:#007aff;font-size:12px;font-weight:600;letter-spacing:0;text-align:left;text-indent:0}.timeline-text.timeline-collapsed{max-height:7.05em;overflow:hidden}@media (prefers-color-scheme:dark){.timeline-text{color:#f2f2f7}.timeline-text .timeline-category{background:#12395c;color:#8fc9ff}}`;
 document.head.append(notesTimelineOwnContentStyle);
 const timelineDate=iso=>new Date(iso).toLocaleDateString('zh-CN',{month:'long',day:'numeric'});
 const timelineWeekday=iso=>new Date(iso).toLocaleDateString('zh-CN',{weekday:'short'});
@@ -47,7 +47,7 @@ window.renderNotesTimeline=async function(){
     let entry=root.querySelector(`.timeline-entry[data-note-id="${note.id}"]`),holder=entry.querySelector('.timeline-images'),textBlock=entry.querySelector('.timeline-text');
     // Measure after layout: a single long paragraph needs collapsing too.
     requestAnimationFrame(()=>{
-      if(!textBlock?.isConnected||textBlock.scrollHeight<=175)return;
+      if(!textBlock?.isConnected||textBlock.scrollHeight<=99)return;
       textBlock.classList.add('timeline-collapsed');
       let expand=document.createElement('button');expand.type='button';expand.className='timeline-expand';expand.textContent='展开全文';
       expand.onclick=()=>{let collapsed=textBlock.classList.toggle('timeline-collapsed');expand.textContent=collapsed?'展开全文':'收起';};
