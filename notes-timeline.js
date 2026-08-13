@@ -23,9 +23,15 @@ notesTimelineParagraphStyle.textContent=`
 .timeline-card .note-paragraph{margin:0 0 7px!important;color:#111!important;font-size:14px;line-height:1.76;text-indent:2em;text-align:justify!important;text-justify:inter-ideograph}.timeline-card .note-paragraph:last-of-type{margin-bottom:0!important}.timeline-card:has(.note-paragraph).timeline-collapsed{max-height:232px;overflow:hidden;position:relative}.timeline-card:has(.note-paragraph).timeline-collapsed::after{content:'';position:absolute;right:0;bottom:0;width:100%;height:48px;background:linear-gradient(transparent,#fff 80%);pointer-events:none}@media (prefers-color-scheme:dark){.timeline-card .note-paragraph{color:#f2f2f7!important}.timeline-card:has(.note-paragraph).timeline-collapsed::after{background:linear-gradient(transparent,#1c1c1e 80%)}}
 `;
 document.head.append(notesTimelineParagraphStyle);
+// This renderer deliberately does not call noteContent(): archive-date.js
+// replaces that shared helper with paragraph markup after this file loads.
+const notesTimelineOwnContentStyle=document.createElement('style');
+notesTimelineOwnContentStyle.textContent=`.timeline-text{color:#111;font-size:14px;line-height:1.76;letter-spacing:.01em;text-align:justify;text-justify:inter-ideograph}.timeline-text p{margin:0 0 8px;text-indent:2em;text-align:justify;text-justify:inter-ideograph}.timeline-text p:last-child{margin-bottom:0}.timeline-text .timeline-category{margin:0 0 10px;padding:4px 8px;border-radius:7px;background:#eaf3ff;color:#007aff;font-size:12px;font-weight:600;letter-spacing:0;text-align:left;text-indent:0}.timeline-text.timeline-collapsed{max-height:14.2em;overflow:hidden;position:relative}.timeline-text.timeline-collapsed::after{content:'';position:absolute;right:0;bottom:0;width:100%;height:48px;background:linear-gradient(90deg,transparent,#fff 78%);pointer-events:none}@media (prefers-color-scheme:dark){.timeline-text{color:#f2f2f7}.timeline-text .timeline-category{background:#12395c;color:#8fc9ff}.timeline-text.timeline-collapsed::after{background:linear-gradient(90deg,transparent,#1c1c1e 78%)}}`;
+document.head.append(notesTimelineOwnContentStyle);
 const timelineDate=iso=>new Date(iso).toLocaleDateString('zh-CN',{month:'long',day:'numeric'});
 const timelineWeekday=iso=>new Date(iso).toLocaleDateString('zh-CN',{weekday:'short'});
 const timelineTime=iso=>new Date(iso).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
+const timelineText=text=>{let lines=(text||'').split(/\r?\n/).map(line=>line.trim()).filter(Boolean);return `<div class="timeline-text">${lines.map((line,index)=>`<p class="${index===0&&/^【[^】]+】$/.test(line)?'timeline-category':''}">${esc(line)}</p>`).join('')}</div>`};
 async function renderTimelineImages(note,holder){
   let images=await getNoteImages(note.id);if(!holder.isConnected||!images.length)return;
   holder.innerHTML=images.map((image,index)=>`<button type="button" data-index="${index}" aria-label="查看原图"><img src="${URL.createObjectURL(image.blob)}" alt="随手记图片 ${index+1}"></button>`).join('');
@@ -36,12 +42,11 @@ window.renderNotesTimeline=async function(){
   let list=notes.slice().sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).filter(note=>!term||`${note.text||''} ${(note.template||'')}`.toLowerCase().includes(term));
   let root=$('#notesTimelineList');
   if(!list.length){root.innerHTML=`<p class="empty">${term?'没有匹配的随手记。':'还没有随手记。'}</p>`;return}
-  root.innerHTML=list.map(note=>`<article class="timeline-entry" data-note-id="${note.id}"><div class="timeline-stamp"><b>${timelineDate(note.createdAt)}</b><span>${timelineWeekday(note.createdAt)}</span><time>${timelineTime(note.createdAt)}</time></div><i class="timeline-dot" aria-hidden="true"></i><div class="timeline-card">${noteContent(note.text)}<div class="timeline-images"></div></div></article>`).join('');
+  root.innerHTML=list.map(note=>`<article class="timeline-entry" data-note-id="${note.id}"><div class="timeline-stamp"><b>${timelineDate(note.createdAt)}</b><span>${timelineWeekday(note.createdAt)}</span><time>${timelineTime(note.createdAt)}</time></div><i class="timeline-dot" aria-hidden="true"></i><div class="timeline-card">${timelineText(note.text)}<div class="timeline-images"></div></div></article>`).join('');
   for(let note of list){
-    let entry=root.querySelector(`.timeline-entry[data-note-id="${note.id}"]`),content=entry.querySelector('.note-lines')||entry.querySelector('.note-paragraph'),holder=entry.querySelector('.timeline-images');
-    let firstLine=content?.querySelector('li');if(firstLine&&/^【[^】]+】$/.test(firstLine.textContent.trim()))firstLine.classList.add('timeline-category');
-    let textBlock=entry.querySelector('.note-lines')||entry.querySelector('.note-paragraph')?.parentElement;
-    if(textBlock&&textBlock.scrollHeight>205){
+    let entry=root.querySelector(`.timeline-entry[data-note-id="${note.id}"]`),holder=entry.querySelector('.timeline-images'),textBlock=entry.querySelector('.timeline-text');
+    let lines=(note.text||'').split(/\r?\n/).filter(line=>line.trim()).length;
+    if(textBlock&&((note.text||'').length>220||lines>8)){
       textBlock.classList.add('timeline-collapsed');
       let expand=document.createElement('button');expand.type='button';expand.className='timeline-expand';expand.textContent='展开全文';
       expand.onclick=()=>{let collapsed=textBlock.classList.toggle('timeline-collapsed');expand.textContent=collapsed?'展开全文':'收起';};
