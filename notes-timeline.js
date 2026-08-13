@@ -25,13 +25,17 @@ notesTimelineContinuousLineStyle.textContent=`
 document.head.append(notesTimelineContinuousLineStyle);
 const notesTimelineScrollStyle=document.createElement('style');
 notesTimelineScrollStyle.textContent=`
-body.notes-timeline-active{overflow:hidden}body.notes-timeline-active header{position:relative;z-index:5;background:#f2f2f7}#notesTimeline.active{position:fixed;z-index:1;top:76px;bottom:54px;left:50%;display:flex;width:min(680px,calc(100vw - 32px));min-height:0;transform:translateX(-50%);flex-direction:column}.notes-timeline-tools{flex:0 0 auto;margin:0;padding:2px 0 12px;background:#f2f2f7}.notes-timeline-list{min-height:0;flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;padding:0 0 16px}@media (prefers-color-scheme:dark){body.notes-timeline-active header,.notes-timeline-tools{background:#000}}@media (min-width:700px){#notesTimeline.active{top:82px;bottom:56px}.desktop-app #notesTimeline.active{width:min(680px,calc(100vw - 32px))}}
+body.notes-timeline-active{overflow:hidden}body.notes-timeline-active header{position:relative;z-index:5;background:#f2f2f7}#notesTimeline.active{position:fixed;z-index:1;top:var(--notes-timeline-top,112px);bottom:54px;left:50%;display:flex;width:min(680px,calc(100vw - 32px));min-height:0;transform:translateX(-50%);flex-direction:column}.notes-timeline-tools{flex:0 0 auto;margin:0;padding:2px 0 12px;background:#f2f2f7}.notes-timeline-list{min-height:0;flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;padding:0 0 16px}@media (prefers-color-scheme:dark){body.notes-timeline-active header,.notes-timeline-tools{background:#000}}@media (min-width:700px){#notesTimeline.active{bottom:56px}.desktop-app #notesTimeline.active{width:min(680px,calc(100vw - 32px))}}
 `;
 document.head.append(notesTimelineScrollStyle);
-const timelineTools=$('.notes-timeline-tools');
-if(timelineTools&&!timelineTools.querySelector('h2')){
-  let title=document.createElement('h2');title.textContent='随手记';timelineTools.prepend(title);
-}
+const compactHeaderTitleStyle=document.createElement('style');
+compactHeaderTitleStyle.textContent=`header h1{font-size:28px!important;letter-spacing:-.6px!important}`;
+document.head.append(compactHeaderTitleStyle);
+const compactMobileNavStyle=document.createElement('style');
+compactMobileNavStyle.textContent=`@media (max-width:699px){nav{padding-left:0!important;padding-right:0!important}nav button{letter-spacing:-.45px}nav button svg{width:19px;height:19px}nav button span{font-size:9px!important}}`;
+document.head.append(compactMobileNavStyle);
+window.updateNotesTimelineLayout=()=>{let header=document.querySelector('header'),page=document.querySelector('#notesTimeline');if(!header||!page)return;page.style.setProperty('--notes-timeline-top',`${Math.ceil(header.getBoundingClientRect().bottom)+8}px`)};
+window.addEventListener('resize',()=>{if(document.body.classList.contains('notes-timeline-active'))window.updateNotesTimelineLayout()});
 if(window.phdDesktop){
   const desktopBottomNavStyle=document.createElement('style');
   desktopBottomNavStyle.textContent=`
