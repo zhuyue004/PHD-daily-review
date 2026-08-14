@@ -32,7 +32,7 @@ const compactHeaderTitleStyle=document.createElement('style');
 compactHeaderTitleStyle.textContent=`header h1{font-size:28px!important;letter-spacing:-.6px!important}`;
 document.head.append(compactHeaderTitleStyle);
 const compactMobileNavStyle=document.createElement('style');
-compactMobileNavStyle.textContent=`@media (max-width:699px){nav{justify-content:center!important;gap:4px!important;padding-left:0!important;padding-right:0!important}nav button{flex:0 0 56px!important;width:56px!important;letter-spacing:-.45px}nav button svg{width:19px;height:19px}nav button span{font-size:9px!important}}`;
+compactMobileNavStyle.textContent=`@media (max-width:699px){nav{justify-content:center!important;gap:4px!important;padding-left:0!important;padding-right:0!important}nav button{flex:0 0 48px!important;width:48px!important;letter-spacing:-.45px}nav button svg{width:19px;height:19px}nav button span{font-size:9px!important}}`;
 document.head.append(compactMobileNavStyle);
 const compactPageTopSpacingStyle=document.createElement('style');
 compactPageTopSpacingStyle.textContent=`#diary.active>.quote-card{margin-top:4px}#notesTimeline.active .notes-timeline-tools{padding-top:0}`;
