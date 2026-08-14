@@ -1,4 +1,4 @@
-const CLOUD_CONFIG_KEY='phd-cloud-config',CLOUD_IMAGE_BUCKET='phd-note-images',CLOUD_IMAGE_MODE_KEY='phd-cloud-image-mode',CLOUD_EMAIL_KEY='phd-cloud-email',CLOUD_IMAGE_LIMIT=500*1024;
+const CLOUD_CONFIG_KEY='phd-cloud-config',CLOUD_IMAGE_BUCKET='phd-note-images',CLOUD_IMAGE_MODE_KEY='phd-cloud-image-mode',CLOUD_EMAIL_KEY='phd-cloud-email',CLOUD_IMAGE_LIMIT=500*1024,CLOUD_DELETIONS_KEY='phd-cloud-deletions';
 let cloudClient=null,cloudUser=null,cloudTimer=null,cloudSyncing=false;
 
 function cloudConfig(){try{return JSON.parse(localStorage.getItem(CLOUD_CONFIG_KEY)||'{}')}catch{return {}}}
@@ -10,6 +10,25 @@ function cloudTransferSize(bytes=null){let target=$('#cloudTransferSize');if(tar
 function cloudHasContent(){return records.length||notes.length||diaries.length}
 function cloudStamp(item){return new Date(item?.updatedAt||item?.createdAt||0).getTime()||0}
 function mergeCloudList(local,remote,key){let output=new Map(local.map(item=>[item[key],item]));for(let item of remote||[]){let existing=output.get(item[key]);if(!existing||cloudStamp(item)>=cloudStamp(existing))output.set(item[key],item)}return [...output.values()]}
+function cloudDeletions(){try{return JSON.parse(localStorage.getItem(CLOUD_DELETIONS_KEY)||'[]').filter(item=>item?.kind&&item?.id)}catch{return []}}
+function saveCloudDeletions(items){let latest=new Map();for(let item of items||[]){let key=`${item.kind}:${item.id}`,existing=latest.get(key);if(!existing||new Date(item.deletedAt||0)>=new Date(existing.deletedAt||0))latest.set(key,{kind:item.kind,id:item.id,deletedAt:item.deletedAt||new Date().toISOString()})}localStorage.setItem(CLOUD_DELETIONS_KEY,JSON.stringify([...latest.values()]));return [...latest.values()]}
+function rememberCloudDeletion(kind,id){if(!id)return;saveCloudDeletions([...cloudDeletions(),{kind,id,deletedAt:new Date().toISOString()}])}
+function deletionSet(items=cloudDeletions()){return new Set(items.map(item=>`${item.kind}:${item.id}`))}
+async function applyCloudDeletions(items=cloudDeletions()){
+  let removed=deletionSet(items),noteIds=notes.filter(item=>removed.has(`note:${item.id}`)).map(item=>item.id),diaryIds=diaries.filter(item=>removed.has(`diary:${item.id}`)).map(item=>item.id);
+  if(noteIds.length)await deleteNoteImages(noteIds);
+  if(diaryIds.length)await deleteDiaryImages(diaryIds);
+  notes=notes.filter(item=>!removed.has(`note:${item.id}`));
+  diaries=diaries.filter(item=>!removed.has(`diary:${item.id}`));
+}
+let knownCloudNoteIds=new Set(notes.map(item=>item.id)),knownCloudDiaryIds=new Set(diaries.map(item=>item.id));
+function watchCloudDeletes(){
+  let currentNotes=new Set(notes.map(item=>item.id)),currentDiaries=new Set(diaries.map(item=>item.id));
+  for(let id of knownCloudNoteIds)if(!currentNotes.has(id))rememberCloudDeletion('note',id);
+  for(let id of knownCloudDiaryIds)if(!currentDiaries.has(id))rememberCloudDeletion('diary',id);
+  knownCloudNoteIds=currentNotes;knownCloudDiaryIds=currentDiaries;
+}
+function refreshCloudDeleteWatch(){knownCloudNoteIds=new Set(notes.map(item=>item.id));knownCloudDiaryIds=new Set(diaries.map(item=>item.id))}
 
 function renderCloudSettings(){
   let config=cloudConfig(),connected=!!cloudUser;
@@ -86,7 +105,7 @@ async function signOutCloud(){
 
 async function cloudSnapshot(cloudImageTypes=new Map()){
   let images=await allNoteImages();
-  return {version:1,records,notes,diaries,images:images.map(({id,noteId,name,type})=>({id,noteId,name,type:cloudImageTypes.get(id)||type}))};
+  return {version:2,records,notes,diaries,deleted:cloudDeletions(),images:images.map(({id,noteId,name,type})=>({id,noteId,name,type:cloudImageTypes.get(id)||type}))};
 }
 
 async function decodeCloudImage(blob){
@@ -130,14 +149,17 @@ async function pullCloudData(){
   let {data,error}=await cloudClient.from('phd_sync_data').select('payload').eq('user_id',cloudUser.id).maybeSingle();
   if(error)throw error;
   if(!data?.payload)return false;
-  let remote=data.payload;
+  let remote=data.payload,deleted=saveCloudDeletions([...cloudDeletions(),...(remote.deleted||[])]);
   records=mergeCloudList(records,remote.records||[],'date');
   notes=mergeCloudList(notes,remote.notes||[],'id');
   diaries=mergeCloudList(diaries,remote.diaries||[],'date');
+  await applyCloudDeletions(deleted);
   localStorage.setItem('phd-review-records',JSON.stringify(records));
   localStorage.setItem('phd-quick-notes',JSON.stringify(notes));
   localStorage.setItem('phd-diary-records',JSON.stringify(diaries));
-  await downloadCloudImages(remote.images||[]);
+  refreshCloudDeleteWatch();
+  let deletedIds=deletionSet(deleted);
+  await downloadCloudImages((remote.images||[]).filter(image=>!deletedIds.has(`note:${image.noteId}`)&&!deletedIds.has(`diary:${image.noteId}`)));
   let active=$('.page.active')?.id;if(active)page(active);
   return true;
 }
@@ -158,8 +180,9 @@ async function syncCloud(pullFirst=false){
 }
 
 window.scheduleCloudSync=()=>{
+  watchCloudDeletes();
   if(!cloudClient||!cloudUser)return;
-  clearTimeout(cloudTimer);cloudTimer=setTimeout(()=>syncCloud(false),1200);
+  clearTimeout(cloudTimer);cloudTimer=setTimeout(()=>syncCloud(true),1200);
 };
 
 ensureCloudSettings();
