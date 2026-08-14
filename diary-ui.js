@@ -59,7 +59,7 @@ function renderDiary(){
   $('#diaryDate').textContent=fmt(day());
   $('#diaryInput').value=savedDraft?savedDraft.text:(today?indentDiary(today.text):INDENT);
   $('#diaryDateButton').textContent=fmt(day());
-  let cutoff=new Date();cutoff.setDate(cutoff.getDate()-6);let recent=diaries.filter(item=>item.date>=localDay(cutoff)).sort((a,b)=>b.date.localeCompare(a.date));
+  let cutoff=new Date();cutoff.setDate(cutoff.getDate()-29);let recent=diaries.filter(item=>item.date>=localDay(cutoff)).sort((a,b)=>b.date.localeCompare(a.date));
   $('#diaryList').innerHTML=recent.length?recent.map(item=>{let lines=(item.text||'').split(/\r?\n/).map(line=>line.trim().replace(/^　　/,'')).filter(Boolean),words=[...(item.text||'').replace(/\s/g,'')].length;return `<div class="swipe-row diary-swipe" data-id="${item.id}"><div class="diary-row-actions"><button class="edit-record edit-diary" aria-label="编辑 ${fmt(item.date)} 的日记">编辑</button><button class="delete-record delete-diary" aria-label="删除 ${fmt(item.date)} 的日记">删除</button></div><article class="diary-row diary-feed-card" data-diary-id="${item.id}"><header><time>${fmt(item.date)}</time><span data-diary-meta data-words="${words}">${words} 字</span></header><div class="diary-feed-text">${lines.map(line=>`<p>${esc(line)}</p>`).join('')}</div><button class="diary-read-more" type="button" hidden>全文</button><div class="diary-feed-images"></div>${item.place?`<small class="diary-feed-place">⌖ ${esc(item.place)}</small>`:''}</article></div>`}).join(''):'<p class="empty">还没有日记。从今天开始写下值得记住的事。</p>';
   bindDiaryRows();
   bindDiaryReadMore();
