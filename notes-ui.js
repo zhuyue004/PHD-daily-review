@@ -106,4 +106,4 @@ noteImagesInput.onchange=event=>{let files=[...event.target.files];event.target.
 noteInput.addEventListener('input',()=>queueNoteDraft());
 document.addEventListener('visibilitychange',()=>{if(document.hidden)saveNoteDraftNow()});
 window.addEventListener('pagehide',()=>saveNoteDraftNow());
-$('#saveNote').onclick=async()=>{let text=noteInput.value.trim();if(!text&&!pendingNoteImages.length)return noteInput.focus();let now=new Date(),id=crypto.randomUUID(),imageIds=await saveNoteImages(id,pendingNoteImages,now);notes.push({id,date:day(),createdAt:now.toISOString(),text,images:imageIds});saveNotes();clearNoteDraft('new');noteModal.classList.add('hidden');renderNotes()};
+$('#saveNote').onclick=async()=>{let text=noteInput.value.trim();if(!text&&!pendingNoteImages.length)return noteInput.focus();let now=new Date(),id=crypto.randomUUID(),stamp=now.toISOString(),imageIds=await saveNoteImages(id,pendingNoteImages,now);notes.push({id,date:day(),createdAt:stamp,updatedAt:stamp,text,images:imageIds});saveNotes();clearNoteDraft('new');noteModal.classList.add('hidden');renderNotes()};

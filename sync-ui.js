@@ -9,7 +9,7 @@ function cloudSizeText(bytes){return `${(bytes/1024/1024).toFixed(bytes<1024*102
 function cloudTransferSize(bytes=null){let target=$('#cloudTransferSize');if(target)target.textContent=bytes===null?'（本次同步待开始）':`（本次同步 ${cloudSizeText(bytes)}）`}
 function cloudHasContent(){return records.length||notes.length||diaries.length}
 function cloudStamp(item){return new Date(item?.updatedAt||item?.createdAt||0).getTime()||0}
-function mergeCloudList(local,remote,key){let output=new Map(local.map(item=>[item[key],item]));for(let item of remote||[]){let existing=output.get(item[key]);if(!existing||cloudStamp(item)>=cloudStamp(existing))output.set(item[key],item)}return [...output.values()]}
+function mergeCloudList(local,remote,key){let output=new Map(local.map(item=>[item[key],item]));for(let item of remote||[]){let existing=output.get(item[key]);if(!existing||cloudStamp(item)>cloudStamp(existing))output.set(item[key],item)}return [...output.values()]}
 function cloudDeletions(){try{return JSON.parse(localStorage.getItem(CLOUD_DELETIONS_KEY)||'[]').filter(item=>item?.kind&&item?.id)}catch{return []}}
 function saveCloudDeletions(items){let latest=new Map();for(let item of items||[]){let key=`${item.kind}:${item.id}`,existing=latest.get(key),newer=!existing||new Date(item.deletedAt||0)>=new Date(existing.deletedAt||0),imageIds=[...new Set([...(existing?.imageIds||[]),...(item.imageIds||[])])],imagesRemovedAt=existing?.imagesRemovedAt||item.imagesRemovedAt||'';latest.set(key,{kind:item.kind,id:item.id,deletedAt:newer?(item.deletedAt||new Date().toISOString()):(existing.deletedAt||new Date().toISOString()),imageIds,imagesRemovedAt})}localStorage.setItem(CLOUD_DELETIONS_KEY,JSON.stringify([...latest.values()]));return [...latest.values()]}
 function rememberCloudDeletion(kind,id,imageIds=[]){if(!id)return;saveCloudDeletions([...cloudDeletions(),{kind,id,deletedAt:new Date().toISOString(),imageIds}])}
@@ -22,18 +22,19 @@ deleteNoteImages=async function(noteIds){
   return originalDeleteStoredImages(ids);
 };
 async function applyCloudDeletions(items=cloudDeletions()){
-  let removed=deletionSet(items),noteIds=notes.filter(item=>removed.has(`note:${item.id}`)).map(item=>item.id),diaryIds=diaries.filter(item=>removed.has(`diary:${item.id}`)).map(item=>item.id);
+  let removed=deletionSet(items),recordKey=item=>item.id||item.date,noteIds=notes.filter(item=>removed.has(`note:${item.id}`)).map(item=>item.id),diaryIds=diaries.filter(item=>removed.has(`diary:${item.id}`)).map(item=>item.id);
   applyingCloudDeletions=true;
-  try{if(noteIds.length)await deleteNoteImages(noteIds);if(diaryIds.length)await deleteDiaryImages(diaryIds);notes=notes.filter(item=>!removed.has(`note:${item.id}`));diaries=diaries.filter(item=>!removed.has(`diary:${item.id}`))}finally{applyingCloudDeletions=false}
+  try{if(noteIds.length)await deleteNoteImages(noteIds);if(diaryIds.length)await deleteDiaryImages(diaryIds);records=records.filter(item=>!removed.has(`record:${recordKey(item)}`));notes=notes.filter(item=>!removed.has(`note:${item.id}`));diaries=diaries.filter(item=>!removed.has(`diary:${item.id}`))}finally{applyingCloudDeletions=false}
 }
-let knownCloudNoteIds=new Set(notes.map(item=>item.id)),knownCloudDiaryIds=new Set(diaries.map(item=>item.id));
+let knownCloudRecordKeys=new Set(records.map(item=>item.id||item.date)),knownCloudNoteIds=new Set(notes.map(item=>item.id)),knownCloudDiaryIds=new Set(diaries.map(item=>item.id));
 function watchCloudDeletes(){
-  let currentNotes=new Set(notes.map(item=>item.id)),currentDiaries=new Set(diaries.map(item=>item.id));
+  let currentRecords=new Set(records.map(item=>item.id||item.date)),currentNotes=new Set(notes.map(item=>item.id)),currentDiaries=new Set(diaries.map(item=>item.id));
+  for(let id of knownCloudRecordKeys)if(!currentRecords.has(id))rememberCloudDeletion('record',id);
   for(let id of knownCloudNoteIds)if(!currentNotes.has(id))rememberCloudDeletion('note',id);
   for(let id of knownCloudDiaryIds)if(!currentDiaries.has(id))rememberCloudDeletion('diary',id);
-  knownCloudNoteIds=currentNotes;knownCloudDiaryIds=currentDiaries;
+  knownCloudRecordKeys=currentRecords;knownCloudNoteIds=currentNotes;knownCloudDiaryIds=currentDiaries;
 }
-function refreshCloudDeleteWatch(){knownCloudNoteIds=new Set(notes.map(item=>item.id));knownCloudDiaryIds=new Set(diaries.map(item=>item.id))}
+function refreshCloudDeleteWatch(){knownCloudRecordKeys=new Set(records.map(item=>item.id||item.date));knownCloudNoteIds=new Set(notes.map(item=>item.id));knownCloudDiaryIds=new Set(diaries.map(item=>item.id))}
 
 function renderCloudSettings(){
   let config=cloudConfig(),connected=!!cloudUser;

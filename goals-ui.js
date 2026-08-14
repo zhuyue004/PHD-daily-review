@@ -23,6 +23,7 @@ function toggleGoal(index){
   let text=currentGoalText(),lines=goalLines(text),record=todayGoalRecord();
   if(!record){record={id:crypto.randomUUID(),date:day(),goals:text,goalChecks:lines.map(()=>false)};records.push(record)}
   record.goalChecks=lines.map((_,i)=>i===index?!record.goalChecks?.[i]:!!record.goalChecks?.[i]);
+  record.updatedAt=new Date().toISOString();
   save();renderGoalList();
 }
 
@@ -33,6 +34,7 @@ function saveGoalOrder(){
   if(!record){record={id:crypto.randomUUID(),date:day(),goals:currentGoalText(),goalChecks:lines.map(()=>false)};records.push(record)}
   record.goals=order.map(index=>lines[index]).join('\n');
   record.goalChecks=order.map(index=>!!checks[index]);
+  record.updatedAt=new Date().toISOString();
   save();renderGoalList();
 }
 
@@ -84,6 +86,7 @@ saveGoals.onclick=()=>{
   let value=goalInput.value.trim(),oldLines=goalLines(currentGoalText()),oldChecks=todayGoalRecord()?.goalChecks||[],newLines=goalLines(value),index=records.findIndex(r=>r.date===day()),record=index<0?{id:crypto.randomUUID(),date:day()}:{...records[index]};
   record.goals=value;
   record.goalChecks=newLines.map((line,i)=>oldLines[i]===line?!!oldChecks[i]:false);
+  record.updatedAt=new Date().toISOString();
   if(index<0)records.push(record);else records[index]=record;
   save();setEditing(false);home();
 };
