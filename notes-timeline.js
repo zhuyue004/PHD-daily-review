@@ -59,7 +59,7 @@ document.head.append(notesTimelineParagraphStyle);
 const notesTimelineOwnContentStyle=document.createElement('style');
 notesTimelineOwnContentStyle.textContent=`.timeline-text{color:#000;font-size:14px;line-height:1.76;letter-spacing:.01em;text-align:left}.timeline-text .timeline-category{margin:0 0 10px;padding:4px 8px;border-radius:7px;background:#eaf3ff;color:#007aff;font-size:12px;font-weight:600;letter-spacing:0;text-align:left}.timeline-text .timeline-body{white-space:pre-wrap;overflow-wrap:anywhere}.timeline-text .timeline-body.timeline-collapsed{display:-webkit-box;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:4;white-space:pre-wrap}@media (prefers-color-scheme:dark){.timeline-text{color:#f2f2f7}.timeline-text .timeline-category{background:#12395c;color:#8fc9ff}}`;
 document.head.append(notesTimelineOwnContentStyle);
-const timelineDate=iso=>new Date(iso).toLocaleDateString('zh-CN',{month:'long',day:'numeric'});
+const timelineDate=iso=>{let date=new Date(iso),options={month:'long',day:'numeric'};if(date.getFullYear()!==new Date().getFullYear())options.year='numeric';return date.toLocaleDateString('zh-CN',options)};
 const timelineWeekday=iso=>new Date(iso).toLocaleDateString('zh-CN',{weekday:'short'});
 const timelineTime=iso=>new Date(iso).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
 const timelineText=text=>{let lines=(text||'').split(/\r?\n/).map(line=>line.trim()).filter(Boolean),category=/^【[^】]+】$/.test(lines[0]||'')?lines.shift():'';return `<div class="timeline-text">${category?`<div class="timeline-category">${esc(category)}</div>`:''}<div class="timeline-body">${esc(lines.join('\n'))}</div></div>`};

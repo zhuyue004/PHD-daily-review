@@ -2,12 +2,13 @@ let diaries=JSON.parse(localStorage.getItem('phd-diary-records')||'[]');
 const INDENT='　　';
 const indentDiary=text=>(text||'').split(/\r?\n/).map(line=>line.trim()?`${INDENT}${line.trim().replace(/^　　/,'')}`:'').join('\n');
 const diaryPreview=text=>(text||'').split(/\r?\n/).find(line=>line.trim())?.trim().replace(/^　　/,'')||'';
+const PHD_QUOTES=YEAR_QUOTES.filter(quote=>/(实践论|矛盾论|改造我们的学习|反对本本主义|农村调查|党委会的工作方法|关于领导方法|中国革命战争的战略问题|论持久战|星星之火|纪念白求恩|为人民服务|在延安文艺座谈会上的讲话|学习和时局|关心群众生活|组织起来|七律|沁园春|卜算子|满江红|忆秦娥|水调歌头)/.test(quote.source));
 function quoteForToday(){
   let date=new Date(`${day()}T12:00:00`),year=date.getFullYear(),month=date.getMonth(),dateOfMonth=date.getDate();
   if(month===1&&dateOfMonth===29)return LEAP_DAY_QUOTE;
   let index=Math.floor((date-new Date(year,0,1,12))/86400000);
   if(new Date(year,1,29).getMonth()===1&&month>1)index--;
-  return YEAR_QUOTES[index];
+  return PHD_QUOTES[index%PHD_QUOTES.length];
 }
 const saveDiaries=()=>{localStorage.setItem('phd-diary-records',JSON.stringify(diaries));window.scheduleCloudSync?.()};
 const DIARY_DRAFTS_KEY='phd-diary-drafts';
