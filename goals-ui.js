@@ -1,5 +1,5 @@
 const baseHome=home,goalCard=$('.goal-card'),goalList=$('#goalList'),goalInput=$('#homeGoals'),editGoals=$('#editHomeGoals'),saveGoals=$('#saveHomeGoals'),cancelGoals=$('#cancelHomeGoals');
-let suppressGoalClick=false;
+let suppressGoalClick=false,activeGoalPointer=null,goalSortSaving=false;
 
 home=()=>{baseHome();renderGoalList()};
 
@@ -27,15 +27,19 @@ function toggleGoal(index){
   save();renderGoalList();
 }
 
-function saveGoalOrder(){
-  let order=[...goalList.querySelectorAll('.goal-item')].map(button=>+button.dataset.index),lines=goalLines(),checks=todayGoalRecord()?.goalChecks||[];
+function saveGoalOrder(snapshot=null){
+  if(goalSortSaving)return;
+  let order=[...goalList.querySelectorAll('.goal-item')].map(button=>+button.dataset.index),lines=snapshot?.lines||goalLines(),checks=snapshot?.checks||todayGoalRecord()?.goalChecks||[];
+  if(order.length!==lines.length||new Set(order).size!==order.length||order.some(index=>!Number.isInteger(index)||index<0||index>=lines.length)){renderGoalList();return}
   if(order.every((value,index)=>value===index))return;
+  goalSortSaving=true;
   let record=todayGoalRecord();
   if(!record){record={id:crypto.randomUUID(),date:day(),goals:currentGoalText(),goalChecks:lines.map(()=>false)};records.push(record)}
   record.goals=order.map(index=>lines[index]).join('\n');
   record.goalChecks=order.map(index=>!!checks[index]);
   record.updatedAt=new Date().toISOString();
   save();renderGoalList();
+  requestAnimationFrame(()=>goalSortSaving=false);
 }
 
 function moveGoalItem(button,next){
@@ -50,12 +54,12 @@ function moveGoalItem(button,next){
 }
 
 function enableGoalSorting(button){
-  let timer,pointerId,sorting=false,startY=0,tracking=false;
+  let timer,pointerId,sorting=false,startY=0,tracking=false,snapshot=null;
   const cancelTimer=()=>{if(timer){clearTimeout(timer);timer=null}};
-  const stopTracking=()=>{if(!tracking)return;tracking=false;window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',finish);window.removeEventListener('pointercancel',finish)};
+  const stopTracking=()=>{if(!tracking)return;tracking=false;window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',finish);window.removeEventListener('pointercancel',finish);try{button.releasePointerCapture?.(pointerId)}catch{}};
   const move=event=>{
     if(event.pointerId!==pointerId)return;
-    if(!sorting){if(Math.abs(event.clientY-startY)>8){cancelTimer();stopTracking()}return}
+    if(!sorting){if(Math.abs(event.clientY-startY)>8){cancelTimer();stopTracking();activeGoalPointer=null}return}
     event.preventDefault();
     let siblings=[...goalList.querySelectorAll('.goal-item')].filter(item=>item!==button),next=siblings.find(item=>{let rect=item.getBoundingClientRect();return event.clientY<rect.top+rect.height/2});
     if((next&&button.nextElementSibling!==next)||(!next&&button!==goalList.lastElementChild))moveGoalItem(button,next);
@@ -63,15 +67,15 @@ function enableGoalSorting(button){
   const finish=event=>{
     if(event.pointerId!==pointerId)return;
     cancelTimer();stopTracking();
-    if(!sorting)return;
-    sorting=false;button.classList.remove('sorting');suppressGoalClick=true;
-    setTimeout(()=>suppressGoalClick=false,80);saveGoalOrder();
+    if(!sorting){activeGoalPointer=null;return}
+    sorting=false;window.goalSortingActive=false;activeGoalPointer=null;button.classList.remove('sorting');suppressGoalClick=true;
+    setTimeout(()=>suppressGoalClick=false,120);saveGoalOrder(snapshot);
   };
   button.addEventListener('pointerdown',event=>{
-    if(event.button!==undefined&&event.button!==0)return;
-    pointerId=event.pointerId;startY=event.clientY;tracking=true;
+    if(event.button!==undefined&&event.button!==0||activeGoalPointer!==null||goalSortSaving)return;
+    pointerId=event.pointerId;activeGoalPointer=pointerId;startY=event.clientY;tracking=true;snapshot={lines:goalLines(),checks:[...(todayGoalRecord()?.goalChecks||[])]};button.setPointerCapture?.(pointerId);
     window.addEventListener('pointermove',move,{passive:false});window.addEventListener('pointerup',finish);window.addEventListener('pointercancel',finish);
-    timer=setTimeout(()=>{sorting=true;button.classList.add('sorting');navigator.vibrate?.(10)},450);
+    timer=setTimeout(()=>{if(activeGoalPointer!==pointerId||!tracking)return;sorting=true;window.goalSortingActive=true;button.classList.add('sorting');navigator.vibrate?.(10)},450);
   });
 }
 

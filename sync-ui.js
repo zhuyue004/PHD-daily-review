@@ -183,7 +183,7 @@ async function pullCloudData(){
   refreshCloudDeleteWatch();
   let deletedIds=deletionSet(deleted);
   await downloadCloudImages((remote.images||[]).filter(image=>!deletedIds.has(`note:${image.noteId}`)&&!deletedIds.has(`diary:${image.noteId}`)));
-  let active=$('.page.active')?.id;if(active)page(active);
+  let active=$('.page.active')?.id;if(active&&!window.goalSortingActive)page(active);
   return true;
 }
 
