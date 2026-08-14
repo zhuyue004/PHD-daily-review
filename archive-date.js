@@ -64,7 +64,7 @@ if(window.phdDesktop){
   },true);
   document.addEventListener('click',event=>{
     let row=event.target.closest('.diary-swipe');
-    if(!row)return;
+    if(!row||event.target.closest('.diary-read-more,.diary-feed-images button,.diary-row-actions'))return;
     event.preventDefault();
     event.stopImmediatePropagation();
     viewDiary(diaries.find(entry=>entry.id===row.dataset.id));
@@ -183,6 +183,17 @@ function showDesktopDiaryMenu(diaryId,x,y,onDelete=archive){
   setTimeout(()=>document.addEventListener('pointerdown',event=>{if(!event.target.closest('#desktopNoteMenu'))menu.remove()},{once:true,capture:true}),0);
 }
 if(window.phdDesktop){
+  // Desktop diary cards use the same right-click action menu as archive notes.
+  showDesktopDiaryMenu=function(diaryId,x,y,onDone=renderDiary){
+    document.querySelector('#desktopNoteMenu')?.remove();
+    let diary=diaries.find(item=>item.id===diaryId);if(!diary)return;
+    let menu=document.createElement('div');menu.id='desktopNoteMenu';menu.className='desktop-note-menu';
+    menu.innerHTML='<button type="button" data-action="edit">编辑</button><button type="button" data-action="delete">删除</button>';document.body.append(menu);
+    menu.style.left=`${Math.max(12,Math.min(x,window.innerWidth-menu.offsetWidth-12))}px`;menu.style.top=`${Math.max(12,Math.min(y,window.innerHeight-menu.offsetHeight-12))}px`;
+    menu.querySelector('[data-action="edit"]').onclick=()=>{menu.remove();editDiary(diary)};
+    menu.querySelector('[data-action="delete"]').onclick=async()=>{menu.remove();if(!confirm('删除这篇日记吗？此操作无法撤销。'))return;await deleteDiaryImages([diaryId]);diaries=diaries.filter(item=>item.id!==diaryId);saveDiaries();onDone()};
+    setTimeout(()=>document.addEventListener('pointerdown',event=>{if(!event.target.closest('#desktopNoteMenu'))menu.remove()},{once:true,capture:true}),0);
+  };
   // A text selection should be copyable and must not open the editor on mouse-up.
   document.addEventListener('click',event=>{
     if(!event.target.closest('.archive-note[data-note-id]')||event.target.closest('.archive-note-images button'))return;

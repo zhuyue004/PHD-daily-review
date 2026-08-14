@@ -45,6 +45,7 @@ async function editDiary(entry){
   $('#modal').classList.remove('hidden');
 }
 async function renderDiaryImageGrids(){for(let card of $$('.diary-feed-card[data-diary-id]')){let images=await getDiaryImages(card.dataset.diaryId),holder=card.querySelector('.diary-feed-images'),meta=card.querySelector('[data-diary-meta]');if(!holder||!images.length)continue;holder.innerHTML=diaryImageGrid(images);if(meta){let words=meta.dataset.words||'0',total=images.reduce((sum,image)=>sum+(image.blob?.size||0),0);meta.textContent=`${words} 字 / 图片 ${diaryImageSize(total)}`}$$('[data-image-index]',holder).forEach(button=>button.onclick=event=>{event.stopPropagation();openNoteImage(images[+button.dataset.imageIndex].blob)})}}
+function bindDiaryReadMore(){for(let card of $$('.diary-feed-card')){let text=card.querySelector('.diary-feed-text'),button=card.querySelector('.diary-read-more');if(!text||!button)continue;if(text.scrollHeight>text.clientHeight+2){button.hidden=false;button.onclick=event=>{event.preventDefault();event.stopPropagation();let expanded=card.classList.toggle('diary-expanded');button.textContent=expanded?'收起':'全文'}}else button.remove()}}
 
 function renderDiary(){
   ensureDiaryHistory();
@@ -59,8 +60,9 @@ function renderDiary(){
   $('#diaryInput').value=savedDraft?savedDraft.text:(today?indentDiary(today.text):INDENT);
   $('#diaryDateButton').textContent=fmt(day());
   let cutoff=new Date();cutoff.setDate(cutoff.getDate()-6);let recent=diaries.filter(item=>item.date>=localDay(cutoff)).sort((a,b)=>b.date.localeCompare(a.date));
-  $('#diaryList').innerHTML=recent.length?recent.map(item=>{let lines=(item.text||'').split(/\r?\n/).map(line=>line.trim().replace(/^　　/,'')).filter(Boolean),words=[...(item.text||'').replace(/\s/g,'')].length;return `<div class="swipe-row diary-swipe" data-id="${item.id}"><div class="diary-row-actions"><button class="edit-record edit-diary" aria-label="编辑 ${fmt(item.date)} 的日记">编辑</button><button class="delete-record delete-diary" aria-label="删除 ${fmt(item.date)} 的日记">删除</button></div><article class="diary-row diary-feed-card" data-diary-id="${item.id}"><header><time>${fmt(item.date)}</time><span data-diary-meta data-words="${words}">${words} 字</span></header><div class="diary-feed-text">${lines.map(line=>`<p>${esc(line)}</p>`).join('')}</div><div class="diary-feed-images"></div>${item.place?`<small class="diary-feed-place">⌖ ${esc(item.place)}</small>`:''}</article></div>`}).join(''):'<p class="empty">还没有日记。从今天开始写下值得记住的事。</p>';
+  $('#diaryList').innerHTML=recent.length?recent.map(item=>{let lines=(item.text||'').split(/\r?\n/).map(line=>line.trim().replace(/^　　/,'')).filter(Boolean),words=[...(item.text||'').replace(/\s/g,'')].length;return `<div class="swipe-row diary-swipe" data-id="${item.id}"><div class="diary-row-actions"><button class="edit-record edit-diary" aria-label="编辑 ${fmt(item.date)} 的日记">编辑</button><button class="delete-record delete-diary" aria-label="删除 ${fmt(item.date)} 的日记">删除</button></div><article class="diary-row diary-feed-card" data-diary-id="${item.id}"><header><time>${fmt(item.date)}</time><span data-diary-meta data-words="${words}">${words} 字</span></header><div class="diary-feed-text">${lines.map(line=>`<p>${esc(line)}</p>`).join('')}</div><button class="diary-read-more" type="button" hidden>全文</button><div class="diary-feed-images"></div>${item.place?`<small class="diary-feed-place">⌖ ${esc(item.place)}</small>`:''}</article></div>`}).join(''):'<p class="empty">还没有日记。从今天开始写下值得记住的事。</p>';
   bindDiaryRows();
+  bindDiaryReadMore();
   renderDiaryImageGrids();
 }
 
@@ -97,7 +99,6 @@ function bindDiaryRows(){
       if(event.target.closest('.diary-row-actions')){start=0;return}
       if(row.classList.contains('swiped')&&delta>-12){row.classList.remove('swiped');start=0;return}
       if(delta<-42)row.classList.add('swiped');
-      else viewDiary(diaries.find(item=>item.id===row.dataset.id));
       start=0;
     });
     row.addEventListener('pointercancel',()=>{card.style.transform='';start=0});
