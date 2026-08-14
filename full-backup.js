@@ -3,7 +3,7 @@ async function exportFullBackup(){
   if(!window.JSZip)return alert('备份组件未加载，请联网后重试。');
   try{
     let zip=new JSZip(),images=await allNoteImages(),manifest=[];
-    let usedNames=new Set();for(let image of images){let note=notes.find(item=>item.id===image.noteId),extension=(image.name||'').split('.').pop()||'jpg',base=note?`随手记${imageStamp(note.createdAt)}`:`随手记${image.id}`,name=`${base}.${extension}`,number=2;while(usedNames.has(name)){name=`${base}_${number++}.${extension}`}usedNames.add(name);let path=`images/${name}`;zip.file(path,image.blob);manifest.push({id:image.id,noteId:image.noteId,name,type:image.type,path})}
+    let usedNames=new Set();for(let image of images){let note=notes.find(item=>item.id===image.noteId),diary=diaries.find(item=>item.id===image.noteId),extension=(image.name||'').split('.').pop()||'jpg',base=note?`随手记${imageStamp(note.createdAt)}`:diary?`日记${diary.date.replaceAll('-','')}`:`图片${image.id}`,name=`${base}.${extension}`,number=2;while(usedNames.has(name)){name=`${base}_${number++}.${extension}`}usedNames.add(name);let path=`images/${name}`;zip.file(path,image.blob);manifest.push({id:image.id,noteId:image.noteId,name,type:image.type,path})}
     zip.file('backup.json',JSON.stringify({version:1,exportedAt:new Date().toISOString(),records,notes,diaries,images:manifest},null,2));
     zip.file('博士日课复盘.xlsx',excelBlob());
     download(await zip.generateAsync({type:'blob'}),`博士日课完整备份_${backupStamp()}.zip`,'application/zip');
@@ -23,7 +23,7 @@ async function restoreFullBackup(file){
   else{
     let recordMap=new Map(records.map(record=>[record.date,record]));for(let record of data.records)recordMap.set(record.date,{...(recordMap.get(record.date)||{}),...record,id:recordMap.get(record.date)?.id||record.id});records=[...recordMap.values()];
     let noteDates=new Set(data.notes.map(note=>note.date)),oldNoteIds=notes.filter(note=>noteDates.has(note.date)).map(note=>note.id);await deleteNoteImages(oldNoteIds);notes=notes.filter(note=>!noteDates.has(note.date)).concat(data.notes);
-    let diaryDates=new Set((data.diaries||[]).map(diary=>diary.date));diaries=diaries.filter(diary=>!diaryDates.has(diary.date)).concat(data.diaries||[]);
+    let diaryDates=new Set((data.diaries||[]).map(diary=>diary.date)),oldDiaryIds=diaries.filter(diary=>diaryDates.has(diary.date)).map(diary=>diary.id);await deleteDiaryImages(oldDiaryIds);diaries=diaries.filter(diary=>!diaryDates.has(diary.date)).concat(data.diaries||[]);
   }
   await restoreNoteImages(images);save();saveNotes();saveDiaries();page('home');restoreStatus(`恢复完成：${data.records.length} 天复盘，${data.notes.length} 条随手记，${images.length} 张图片，${(data.diaries||[]).length} 篇日记。`);
 }
