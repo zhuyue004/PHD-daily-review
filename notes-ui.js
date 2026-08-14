@@ -11,26 +11,26 @@ function queueNoteDraft(key=noteDraftKey(typeof archiveEditingNote==='undefined'
 function restoreNoteDraft(key='new'){let saved=noteDrafts()[key];if(!saved)return false;noteInput.value=saved.text||'';selectedNoteTemplate=saved.template||'';renderNoteTemplates();return true}
 function clearNoteDraft(key=noteDraftKey(typeof archiveEditingNote==='undefined'?'':archiveEditingNote?.id)){clearTimeout(noteDraftTimer);let drafts=noteDrafts();if(!(key in drafts))return;delete drafts[key];localStorage.setItem(NOTE_DRAFTS_KEY,JSON.stringify(drafts))}
 const noteTemplates={
-  '问题':'【问题】\n现象：\n我猜：\n下一步：',
   '小循环':'【小循环】\n问题：\n尝试：\n结果：\n不确定：\n下一步：',
-  '实验 / 数据':'【实验 / 数据】\n做了什么：\n结果：\n可能原因：\n下一步：',
+  '问题':'【问题】\n现象：\n我猜：\n已有证据：\n下一步：',
+  '实验 / 数据':'【实验 / 数据】\n条件 / 版本：\n做了什么：\n结果：\n可能原因：\n下一步：',
+  '文献':'【文献】\n论文 / 概念：\n关键观点：\n原文位置（页码 / 图表 / 章节）：\n和我课题的关系：\n要核实：',
   '写论文':'【写论文】\n研究问题：\n方法：\n当前结果：\n不确定处：\n下一步：',
-  '文献':'【文献】\n论文 / 概念：\n关键观点：\n和我课题的关系：\n要核实：',
-  '灵感':'【灵感】\n想到：\n为什么可能有用：\n最小验证：',
-  '沟通':'【沟通】\n和谁讨论：\n对方建议：\n我准备采取的动作：',
-  '待办':'【待办】\n要做什么：\n为什么现在要做：\n最小下一步：\n截止时间：',
-  '决策':'【决策】\n要做的选择：\n考虑因素：\n当前决定：\n之后验证：'
+  '读书':'【读书】\n书 / 章节：\n核心内容：\n我的理解：\n和研究或生活的关联：\n想继续追问 / 行动：',
+  '沟通':'【沟通】\n和谁讨论：\n达成结论 / 仍有分歧：\n我准备采取的动作：',
+  '选择 / 决策':'【选择 / 决策】\n要做的选择：\n备选方案：\n考虑因素：\n当前决定：\n之后验证：',
+  '灵感':'【灵感】\n想到：\n为什么可能有用：\n最小验证：'
 };
 const noteExamples={
-  '问题':'【问题】\n现象：参数变化后结果不稳定。\n我猜：可能与随机初始化有关。\n下一步：固定随机种子后重复运行。',
   '小循环':'【小循环】\n问题：为什么这组结果波动很大？\n尝试：固定随机种子，重复运行 3 次。\n结果：波动仍然存在，但比之前小。\n不确定：是否由训练数据量太少造成？\n下一步：把样本量从 100 增加到 300，再比较方差。',
-  '实验 / 数据':'【实验 / 数据】\n做了什么：将参数 α 从 0.1 调到 0.2。\n结果：误差下降，但波动变大。\n可能原因：训练数据量不足。\n下一步：重复运行 10 次并比较。',
+  '问题':'【问题】\n现象：参数变化后结果不稳定。\n我猜：可能与随机初始化有关。\n已有证据：固定数据集后仍有波动。\n下一步：固定随机种子后重复运行。',
+  '实验 / 数据':'【实验 / 数据】\n条件 / 版本：数据集 A，代码提交 v0.3，参数 α=0.2。\n做了什么：比较方法 M 和基线 B。\n结果：M 的误差下降，但波动变大。\n可能原因：训练数据量不足。\n下一步：重复运行 10 次并比较。',
+  '文献':'【文献】\n论文 / 概念：某篇关于反演方法的论文。\n关键观点：先验约束能提高稳定性。\n原文位置（页码 / 图表 / 章节）：第 6 页，图 3。\n和我课题的关系：可用于当前参数识别。\n要核实：样本量变化是否影响结论。',
   '写论文':'【写论文】\n研究问题：某方法在不同参数条件下，是否能更稳定地识别 X？\n方法：固定数据集 A，改变参数 α 为 0.1、0.2、0.3，对比方法 M 和基线 B。\n当前结果：α=0.2 时 M 的误差最低；但样本量较小时波动明显增大。\n不确定处：波动来自参数、数据划分，还是随机初始化？\n下一步：固定随机种子，重复 10 次 α=0.2 的实验，记录均值和方差。',
-  '文献':'【文献】\n论文 / 概念：某篇关于反演方法的论文。\n关键观点：先验约束能提高稳定性。\n和我课题的关系：可用于当前参数识别。\n要核实：样本量变化是否影响结论。',
-  '灵感':'【灵感】\n想到：把误差按频段分别评价。\n为什么可能有用：可定位问题主要来源。\n最小验证：先用已有两组数据画图比较。',
-  '沟通':'【沟通】\n和谁讨论：与导师讨论阶段性结果。\n对方建议：先验证基础假设。\n我准备采取的动作：整理假设与验证清单。',
-  '待办':'【待办】\n要做什么：核对数据预处理流程。\n为什么现在要做：下次实验前需排除该变量。\n最小下一步：今晚列出检查项。\n截止时间：周五前。',
-  '决策':'【决策】\n要做的选择：先扩充数据还是先调模型。\n考虑因素：当前误差主要来自样本不足。\n当前决定：先扩充数据。\n之后验证：比较扩充前后的稳定性。'
+  '读书':'【读书】\n书 / 章节：《如何阅读一本书》第四篇。\n核心内容：阅读不是摘录，而是带着问题与作者对话。\n我的理解：读论文前先写下想回答的问题，能避免只记零散结论。\n和研究或生活的关联：下次精读文献时可先列出三个问题。\n想继续追问 / 行动：试着用这个方法读下一篇关键论文。',
+  '沟通':'【沟通】\n和谁讨论：与导师讨论阶段性结果。\n达成结论 / 仍有分歧：先验证基础假设；模型结构是否需要调整仍待讨论。\n我准备采取的动作：整理假设与验证清单。',
+  '选择 / 决策':'【选择 / 决策】\n要做的选择：先扩充数据还是先调模型。\n备选方案：扩充数据；调整模型结构。\n考虑因素：当前误差主要来自样本不足。\n当前决定：先扩充数据。\n之后验证：比较扩充前后的稳定性。',
+  '灵感':'【灵感】\n想到：把误差按频段分别评价。\n为什么可能有用：可定位问题主要来源。\n最小验证：先用已有两组数据画图比较。'
 };
 let selectedNoteTemplate='';
 function renderNoteTemplates(){let holder=$('#noteTemplates'),example=$('#noteTemplateExample');if(!holder||!example)return;holder.innerHTML=Object.keys(noteTemplates).map(name=>`<button class="${selectedNoteTemplate===name?'selected':''}" data-template="${name}" type="button">${name}</button>`).join('');example.innerHTML=selectedNoteTemplate?`<p>示例</p><pre>${esc(noteExamples[selectedNoteTemplate])}</pre>`:'';$$('#noteTemplates button').forEach(button=>button.onclick=()=>{let name=button.dataset.template,onlyTag=/^【[^】]+】\s*$/.test(noteInput.value);if(noteInput.value.trim()&&!onlyTag&&!confirm('切换分类会覆盖当前内容，继续吗？'))return;selectedNoteTemplate=name;noteInput.value=noteTemplates[name];renderNoteTemplates();queueNoteDraft();noteInput.focus()})}
