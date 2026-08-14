@@ -157,7 +157,8 @@ if(true){
     if($('#diaryWordCount'))return;
     let counter=document.createElement('p');
     counter.id='diaryWordCount';counter.className='diary-word-count';
-    $('#diaryInput').insertAdjacentElement('afterend',counter);
+    let actions=$('.diary-image-actions'),preview=$('#diaryImagePreview');
+    if(actions&&preview)actions.insertBefore(counter,preview);else $('#diaryInput').insertAdjacentElement('afterend',counter);
   }
   renderDiary=function(){originalRenderDiaryForWordCount();ensureDiaryWordCount();updateDiaryWordCount();updateHeaderStat?.('diary');};
   viewDiary=function(entry){
