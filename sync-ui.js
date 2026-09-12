@@ -1,4 +1,4 @@
-const CLOUD_CONFIG_KEY='phd-cloud-config',CLOUD_IMAGE_BUCKET='phd-note-images',CLOUD_IMAGE_MODE_KEY='phd-cloud-image-mode',CLOUD_EMAIL_KEY='phd-cloud-email',CLOUD_IMAGE_LIMIT=500*1024,CLOUD_DELETIONS_KEY='phd-cloud-deletions';
+const CLOUD_CONFIG_KEY='phd-cloud-config',CLOUD_IMAGE_BUCKET='phd-note-images',CLOUD_IMAGE_MODE_KEY='phd-cloud-image-mode',CLOUD_EMAIL_KEY='phd-cloud-email',CLOUD_IMAGE_LIMIT=500*1024,CLOUD_DELETIONS_KEY='phd-cloud-deletions',CLOUD_RESTORE_PENDING_KEY='phd-cloud-restore-pending';
 // Publishable key: this is intentionally public client configuration, not a secret.
 const CLOUD_DEFAULT_CONFIG=Object.freeze({url:'https://vyabmqgisuoiqvyzbpwf.supabase.co',key:'sb_publishable_mQFR2_NI6wrON63ccrysEQ_lYSUqWy7'});
 let cloudClient=null,cloudUser=null,cloudTimer=null,cloudSyncing=false,cloudPasswordRecovery=false,cloudRemoteImageIds=new Set(),cloudRemoteImageTypes=new Map();
@@ -10,12 +10,20 @@ function cloudStatus(text){let target=$('#cloudStatus');if(target)target.textCon
 function cloudSizeText(bytes){return `${(bytes/1024/1024).toFixed(bytes<1024*1024?2:1)} MB`}
 function cloudTransferSize(bytes=null){let target=$('#cloudTransferSize');if(target)target.textContent=bytes===null?'（本次同步待开始）':`（本次同步 ${cloudSizeText(bytes)}）`}
 function cloudHasContent(){return records.length||notes.length||diaries.length}
+function cloudRestorePending(){return !!localStorage.getItem(CLOUD_RESTORE_PENDING_KEY)}
+function markCloudRestorePending(){localStorage.setItem(CLOUD_RESTORE_PENDING_KEY,new Date().toISOString());refreshCloudDeleteWatch()}
+window.markCloudRestorePending=markCloudRestorePending;
 function cloudStamp(item){return new Date(item?.updatedAt||item?.createdAt||0).getTime()||0}
 function mergeCloudList(local,remote,key){let output=new Map(local.map(item=>[item[key],item]));for(let item of remote||[]){let existing=output.get(item[key]);if(!existing||cloudStamp(item)>cloudStamp(existing))output.set(item[key],item)}return [...output.values()]}
 function cloudDeletions(){try{return JSON.parse(localStorage.getItem(CLOUD_DELETIONS_KEY)||'[]').filter(item=>item?.kind&&item?.id)}catch{return []}}
 function saveCloudDeletions(items){let latest=new Map();for(let item of items||[]){let key=`${item.kind}:${item.id}`,existing=latest.get(key),newer=!existing||new Date(item.deletedAt||0)>=new Date(existing.deletedAt||0),imageIds=[...new Set([...(existing?.imageIds||[]),...(item.imageIds||[])])],imagesRemovedAt=existing?.imagesRemovedAt||item.imagesRemovedAt||'';latest.set(key,{kind:item.kind,id:item.id,deletedAt:newer?(item.deletedAt||new Date().toISOString()):(existing.deletedAt||new Date().toISOString()),imageIds,imagesRemovedAt})}localStorage.setItem(CLOUD_DELETIONS_KEY,JSON.stringify([...latest.values()]));return [...latest.values()]}
 function rememberCloudDeletion(kind,id,imageIds=[]){if(!id)return;saveCloudDeletions([...cloudDeletions(),{kind,id,deletedAt:new Date().toISOString(),imageIds}])}
 function deletionSet(items=cloudDeletions()){return new Set(items.map(item=>`${item.kind}:${item.id}`))}
+function keepRestoredItems(items){
+  if(!cloudRestorePending())return items;
+  let recordIds=new Set(records.map(item=>item.id||item.date)),noteIds=new Set(notes.map(item=>item.id)),diaryIds=new Set(diaries.map(item=>item.id));
+  return (items||[]).filter(item=>!((item.kind==='record'&&recordIds.has(item.id))||(item.kind==='note'&&noteIds.has(item.id))||(item.kind==='diary'&&diaryIds.has(item.id))));
+}
 let applyingCloudDeletions=false;
 const originalDeleteStoredImages=deleteNoteImages;
 deleteNoteImages=async function(noteIds){
@@ -30,6 +38,9 @@ async function applyCloudDeletions(items=cloudDeletions()){
 }
 let knownCloudRecordKeys=new Set(records.map(item=>item.id||item.date)),knownCloudNoteIds=new Set(notes.map(item=>item.id)),knownCloudDiaryIds=new Set(diaries.map(item=>item.id));
 function watchCloudDeletes(){
+  // A restore replaces local lists in one operation. It is not a user deletion
+  // and must never create cloud deletion tombstones.
+  if(cloudRestorePending()){refreshCloudDeleteWatch();return}
   let currentRecords=new Set(records.map(item=>item.id||item.date)),currentNotes=new Set(notes.map(item=>item.id)),currentDiaries=new Set(diaries.map(item=>item.id));
   for(let id of knownCloudRecordKeys)if(!currentRecords.has(id))rememberCloudDeletion('record',id);
   for(let id of knownCloudNoteIds)if(!currentNotes.has(id))rememberCloudDeletion('note',id);
@@ -208,7 +219,7 @@ async function pullCloudData(){
   let {data,error}=await cloudClient.from('phd_sync_data').select('payload').eq('user_id',cloudUser.id).maybeSingle();
   if(error)throw error;
   if(!data?.payload){cloudRemoteImageIds.clear();cloudRemoteImageTypes.clear();return false}
-  let remote=data.payload,deleted=saveCloudDeletions([...cloudDeletions(),...(remote.deleted||[])]);
+  let remote=data.payload,deleted=saveCloudDeletions(keepRestoredItems([...cloudDeletions(),...(remote.deleted||[])]));
   cloudRemoteImageIds=new Set((remote.images||[]).map(image=>image.id));
   cloudRemoteImageTypes=new Map((remote.images||[]).map(image=>[image.id,image.type]));
   records=mergeCloudList(records,remote.records||[],'date');
@@ -239,7 +250,7 @@ async function pushCloudData(cleanOrphans=false){
 async function syncCloud(pullFirst=false){
   if(!cloudClient||!cloudUser||cloudSyncing)return;
   cloudSyncing=true;cloudStatus('正在同步…');cloudTransferSize(null);
-  try{if(pullFirst)await pullCloudData();let uploadedBytes=await pushCloudData(pullFirst);cloudTransferSize(uploadedBytes);cloudStatus(`已同步：${new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}`)}catch(error){cloudStatus(`同步失败：${error.message}`)}finally{cloudSyncing=false}
+  try{let restored=cloudRestorePending();if(pullFirst)await pullCloudData();let uploadedBytes=await pushCloudData(pullFirst);if(restored){localStorage.removeItem(CLOUD_RESTORE_PENDING_KEY);refreshCloudDeleteWatch()}cloudTransferSize(uploadedBytes);cloudStatus(`已同步：${new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}`)}catch(error){cloudStatus(`同步失败：${error.message}`)}finally{cloudSyncing=false}
 }
 
 window.scheduleCloudSync=()=>{

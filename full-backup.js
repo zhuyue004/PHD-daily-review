@@ -15,16 +15,17 @@ async function restoreFullBackup(file){
   if(!source)throw new Error('未找到 backup.json，请选择“博士日课”导出的完整备份包。');
   let data=JSON.parse(await source.async('string'));
   if(data.version!==1||!Array.isArray(data.notes)||!Array.isArray(data.records))throw new Error('备份包格式不正确。');
-  let images=[];
+  let images=[],restoredAt=new Date().toISOString();
   for(let meta of data.images||[]){let item=zip.file(meta.path);if(item)images.push({...meta,blob:await item.async('blob')})}
   let mode=$('#restoreMode').value,word=mode==='replace'?'完全恢复会清空本机现有记录和图片，确定继续吗？':'合并恢复会用备份中相同日期的内容及图片覆盖本机内容，确定继续吗？';
   if(!confirm(word))return;
-  if(mode==='replace'){records=data.records;notes=data.notes;diaries=data.diaries||[];await clearNoteImages()}
+  let restoredRecords=data.records.map(item=>({...item,updatedAt:restoredAt})),restoredNotes=data.notes.map(item=>({...item,updatedAt:restoredAt})),restoredDiaries=(data.diaries||[]).map(item=>({...item,updatedAt:restoredAt}));
+  if(mode==='replace'){records=restoredRecords;notes=restoredNotes;diaries=restoredDiaries;await clearNoteImages()}
   else{
-    let recordMap=new Map(records.map(record=>[record.date,record]));for(let record of data.records)recordMap.set(record.date,{...(recordMap.get(record.date)||{}),...record,id:recordMap.get(record.date)?.id||record.id});records=[...recordMap.values()];
-    let noteDates=new Set(data.notes.map(note=>note.date)),oldNoteIds=notes.filter(note=>noteDates.has(note.date)).map(note=>note.id);await deleteNoteImages(oldNoteIds);notes=notes.filter(note=>!noteDates.has(note.date)).concat(data.notes);
-    let diaryDates=new Set((data.diaries||[]).map(diary=>diary.date)),oldDiaryIds=diaries.filter(diary=>diaryDates.has(diary.date)).map(diary=>diary.id);await deleteDiaryImages(oldDiaryIds);diaries=diaries.filter(diary=>!diaryDates.has(diary.date)).concat(data.diaries||[]);
+    let recordMap=new Map(records.map(record=>[record.date,record]));for(let record of restoredRecords)recordMap.set(record.date,{...(recordMap.get(record.date)||{}),...record,id:recordMap.get(record.date)?.id||record.id});records=[...recordMap.values()];
+    let noteMap=new Map(notes.map(note=>[note.id,note]));for(let note of restoredNotes)noteMap.set(note.id,note);notes=[...noteMap.values()];
+    let diaryMap=new Map(diaries.map(diary=>[diary.date,diary]));for(let diary of restoredDiaries)diaryMap.set(diary.date,diary);diaries=[...diaryMap.values()];
   }
-  await restoreNoteImages(images);save();saveNotes();saveDiaries();page('home');restoreStatus(`恢复完成：${data.records.length} 天复盘，${data.notes.length} 条随手记，${images.length} 张图片，${(data.diaries||[]).length} 篇日记。`);
+  await restoreNoteImages(images);window.markCloudRestorePending?.();localStorage.setItem('phd-cloud-restore-pending',restoredAt);save();saveNotes();saveDiaries();page('home');restoreStatus(`恢复完成：${data.records.length} 天复盘，${data.notes.length} 条随手记，${images.length} 张图片，${(data.diaries||[]).length} 篇日记。下一次同步会优先保留本次恢复的数据。`);
 }
 $('#fullBackup').onclick=exportFullBackup;
