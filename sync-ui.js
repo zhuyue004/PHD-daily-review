@@ -1,5 +1,5 @@
 const CLOUD_CONFIG_KEY='phd-cloud-config',CLOUD_IMAGE_BUCKET='phd-note-images',CLOUD_IMAGE_MODE_KEY='phd-cloud-image-mode',CLOUD_EMAIL_KEY='phd-cloud-email',CLOUD_IMAGE_LIMIT=500*1024,CLOUD_DELETIONS_KEY='phd-cloud-deletions';
-let cloudClient=null,cloudUser=null,cloudTimer=null,cloudSyncing=false,cloudRemoteImageIds=new Set(),cloudRemoteImageTypes=new Map();
+let cloudClient=null,cloudUser=null,cloudTimer=null,cloudSyncing=false,cloudPasswordRecovery=false,cloudRemoteImageIds=new Set(),cloudRemoteImageTypes=new Map();
 
 function cloudConfig(){try{return JSON.parse(localStorage.getItem(CLOUD_CONFIG_KEY)||'{}')}catch{return {}}}
 function cloudImageMode(){return localStorage.getItem(CLOUD_IMAGE_MODE_KEY)||'compressed'}
@@ -37,7 +37,7 @@ function watchCloudDeletes(){
 function refreshCloudDeleteWatch(){knownCloudRecordKeys=new Set(records.map(item=>item.id||item.date));knownCloudNoteIds=new Set(notes.map(item=>item.id));knownCloudDiaryIds=new Set(diaries.map(item=>item.id))}
 
 function renderCloudSettings(){
-  let config=cloudConfig(),connected=!!cloudUser;
+  let config=cloudConfig(),connected=!!cloudUser,recovering=connected&&cloudPasswordRecovery;
   $('#cloudUrl').value=config.url||'';
   $('#cloudKey').value=config.key||'';
   $('#cloudImageMode').value=cloudImageMode();
@@ -47,9 +47,11 @@ function renderCloudSettings(){
   $('#cloudPasswordLogin').hidden=connected;
   $('#cloudRegister').hidden=connected;
   $('#cloudLogin').hidden=connected;
-  $('#cloudSyncNow').hidden=!connected;
+  $('#cloudResetPassword').hidden=connected;
+  $('#cloudRecovery').hidden=!recovering;
+  $('#cloudSyncNow').hidden=!connected||recovering;
   $('#cloudSignOut').hidden=!connected;
-  $('#cloudStatus').textContent=connected?`已登录 ${cloudUser.email}，记录会自动同步。`:config.url?'请填写邮箱并发送登录链接。':'请先填写 Supabase 项目地址和匿名密钥。';
+  $('#cloudStatus').textContent=recovering?'请设置新密码；完成后即可继续自动同步。':connected?`已登录 ${cloudUser.email}，记录会自动同步。`:config.url?'请填写邮箱并登录。':'请先填写 Supabase 项目地址和匿名密钥。';
   cloudTransferSize();
 }
 
@@ -57,14 +59,16 @@ function ensureCloudSettings(){
   if($('#cloudSettings'))return;
   let section=document.createElement('article');
   section.id='cloudSettings';
-  section.innerHTML='<h2>多端自动同步</h2><label class="cloud-image-mode" style="display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;margin:8px 0 12px"><span>图片同步方式</span><select id="cloudImageMode" style="width:auto;max-width:62vw;margin:0"><option value="compressed">自动压缩至 500 KB（推荐）</option><option value="original">保留原图</option></select></label><p>使用同一账号登录后，iPhone 网页版与 Windows 桌面版会自动同步复盘、随手记、日记和图片。</p><input id="cloudUrl" class="cloud-field" type="url" placeholder="Supabase Project URL"><input id="cloudKey" class="cloud-field" type="password" placeholder="Supabase anon public key"><button id="cloudConnect" type="button">保存云端配置</button><div class="cloud-credentials" style="display:grid;gap:10px;margin:12px 0 4px"><input id="cloudEmail" class="cloud-field" style="width:100%;box-sizing:border-box;border:0;border-radius:11px;padding:12px;background:#e5e5ea;color:#1c1c1e;font:inherit;margin:0" type="email" placeholder="登录邮箱"><input id="cloudPassword" class="cloud-field" style="width:100%;box-sizing:border-box;border:0;border-radius:11px;padding:12px;background:#e5e5ea;color:#1c1c1e;font:inherit;margin:0" type="password" placeholder="密码（Windows 与 iPhone 使用同一密码）"></div><button id="cloudPasswordLogin" type="button">邮箱密码登录</button><button id="cloudRegister" class="plain" type="button">首次注册账号</button><button id="cloudLogin" class="plain" type="button">或发送登录链接</button><button id="cloudSyncNow" type="button">立即同步</button><button id="cloudSignOut" class="plain" type="button">退出登录</button><p id="cloudStatus" class="status"></p>';
+  section.innerHTML='<h2>多端自动同步</h2><label class="cloud-image-mode" style="display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;margin:8px 0 12px"><span>图片同步方式</span><select id="cloudImageMode" style="width:auto;max-width:62vw;margin:0"><option value="compressed">自动压缩至 500 KB（推荐）</option><option value="original">保留原图</option></select></label><p>使用同一账号登录后，iPhone 网页版与 Windows 桌面版会自动同步复盘、随手记、日记和图片。</p><input id="cloudUrl" class="cloud-field" type="url" placeholder="Supabase Project URL"><input id="cloudKey" class="cloud-field" type="password" placeholder="Supabase anon public key"><button id="cloudConnect" type="button">保存云端配置</button><div class="cloud-credentials" style="display:grid;gap:10px;margin:12px 0 4px"><input id="cloudEmail" class="cloud-field" style="width:100%;box-sizing:border-box;border:0;border-radius:11px;padding:12px;background:#e5e5ea;color:#1c1c1e;font:inherit;margin:0" type="email" placeholder="登录邮箱"><input id="cloudPassword" class="cloud-field" style="width:100%;box-sizing:border-box;border:0;border-radius:11px;padding:12px;background:#e5e5ea;color:#1c1c1e;font:inherit;margin:0" type="password" placeholder="密码（Windows 与 iPhone 使用同一密码）"></div><button id="cloudPasswordLogin" type="button">邮箱密码登录</button><button id="cloudResetPassword" class="plain" type="button">忘记密码</button><button id="cloudRegister" class="plain" type="button">首次注册账号</button><button id="cloudLogin" class="plain" type="button">或发送登录链接</button><div id="cloudRecovery" hidden><p>请设置至少 6 位的新密码：</p><input id="cloudNewPassword" class="cloud-field" type="password" placeholder="新密码（至少 6 位）"><input id="cloudNewPasswordConfirm" class="cloud-field" type="password" placeholder="再次输入新密码"><button id="cloudUpdatePassword" type="button">保存新密码</button></div><button id="cloudSyncNow" type="button">立即同步</button><button id="cloudSignOut" class="plain" type="button">退出登录</button><p id="cloudStatus" class="status"></p>';
   let transferSize=document.createElement('small');transferSize.id='cloudTransferSize';transferSize.style.cssText='font-size:13px;font-weight:400;color:#8e8e93';section.querySelector('h2').append(' ',transferSize);
   $('#preferences').prepend(section);
   $('#cloudConnect').onclick=connectCloud;
   $('#cloudImageMode').onchange=event=>{localStorage.setItem(CLOUD_IMAGE_MODE_KEY,event.target.value);saveDesktopSyncSettings();cloudStatus(event.target.value==='original'?'下次同步将上传原图。':'下次同步将把图片压缩至 500 KB。');window.scheduleCloudSync?.()};
   $('#cloudPasswordLogin').onclick=()=>passwordCloudLogin(false);
+  $('#cloudResetPassword').onclick=requestCloudPasswordReset;
   $('#cloudRegister').onclick=()=>passwordCloudLogin(true);
   $('#cloudLogin').onclick=sendCloudLogin;
+  $('#cloudUpdatePassword').onclick=updateCloudPassword;
   $('#cloudSyncNow').onclick=()=>syncCloud(true);
   $('#cloudSignOut').onclick=signOutCloud;
 }
@@ -80,7 +84,7 @@ async function connectCloud(){
   localStorage.setItem(CLOUD_CONFIG_KEY,JSON.stringify({url,key}));
   saveDesktopSyncSettings();
   cloudClient=window.supabase.createClient(url,key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
-  cloudClient.auth.onAuthStateChange((_event,session)=>{cloudUser=session?.user||null;renderCloudSettings();if(cloudUser)syncCloud(true)});
+  cloudClient.auth.onAuthStateChange((event,session)=>{cloudUser=session?.user||null;if(event==='PASSWORD_RECOVERY'&&cloudUser)cloudPasswordRecovery=true;if(event==='SIGNED_OUT')cloudPasswordRecovery=false;renderCloudSettings();if(cloudUser&&!cloudPasswordRecovery)syncCloud(true)});
   let {data:{session}}=await cloudClient.auth.getSession();cloudUser=session?.user||null;
   renderCloudSettings();
 }
@@ -91,6 +95,40 @@ async function sendCloudLogin(){
   cloudStatus('正在发送登录链接…');
   let {error}=await cloudClient.auth.signInWithOtp({email,options:{emailRedirectTo:location.href.split('#')[0]}});
   cloudStatus(error?`发送失败：${error.message}`:'登录链接已发送，请在此设备的邮箱中打开链接。');
+}
+
+function cloudRecoveryRedirect(){
+  // Electron 的 file:// 地址无法作为 Supabase 邮件重定向地址；桌面端统一回到已发布的 iPhone 网页版完成重设。
+  return location.protocol==='file:'?'https://huyue004.github.io/':location.href.split('#')[0];
+}
+
+async function requestCloudPasswordReset(){
+  if(!cloudClient)return cloudStatus('请先保存云端配置。');
+  let email=$('#cloudEmail').value.trim();
+  if(!email)return cloudStatus('请输入需要找回的登录邮箱。');
+  localStorage.setItem(CLOUD_EMAIL_KEY,email);saveDesktopSyncSettings();
+  cloudStatus('正在发送重设密码链接…');
+  try{
+    let {error}=await cloudClient.auth.resetPasswordForEmail(email,{redirectTo:cloudRecoveryRedirect()});
+    cloudStatus(error?`发送失败：${error.message}`:'重设链接已发送。请在邮件中打开链接，并在返回的页面设置新密码。');
+  }catch(error){cloudStatus(`发送失败：${error.message||'无法连接同步服务。'}`)}
+}
+
+async function updateCloudPassword(){
+  if(!cloudClient||!cloudUser||!cloudPasswordRecovery)return cloudStatus('请从重设密码邮件中的链接返回后，再设置新密码。');
+  let password=$('#cloudNewPassword').value,confirmPassword=$('#cloudNewPasswordConfirm').value;
+  if(password.length<6)return cloudStatus('新密码至少需要 6 位。');
+  if(password!==confirmPassword)return cloudStatus('两次输入的新密码不一致。');
+  cloudStatus('正在保存新密码…');
+  try{
+    let {error}=await cloudClient.auth.updateUser({password});
+    if(error)return cloudStatus(`保存失败：${error.message}`);
+    cloudPasswordRecovery=false;
+    $('#cloudPassword').value='';
+    renderCloudSettings();
+    cloudStatus('新密码已保存。现在可在 iPhone、Windows 和 Android 使用该密码登录。');
+    syncCloud(true);
+  }catch(error){cloudStatus(`保存失败：${error.message||'请重新打开重设链接后再试。'}`)}
 }
 
 async function passwordCloudLogin(register){
