@@ -1,7 +1,9 @@
 const CLOUD_CONFIG_KEY='phd-cloud-config',CLOUD_IMAGE_BUCKET='phd-note-images',CLOUD_IMAGE_MODE_KEY='phd-cloud-image-mode',CLOUD_EMAIL_KEY='phd-cloud-email',CLOUD_IMAGE_LIMIT=500*1024,CLOUD_DELETIONS_KEY='phd-cloud-deletions';
+// Publishable key: this is intentionally public client configuration, not a secret.
+const CLOUD_DEFAULT_CONFIG=Object.freeze({url:'https://vyabmqgisuoiqvyzbpwf.supabase.co',key:'sb_publishable_mQFR2_NI6wrON63ccrysEQ_lYSUqWy7'});
 let cloudClient=null,cloudUser=null,cloudTimer=null,cloudSyncing=false,cloudPasswordRecovery=false,cloudRemoteImageIds=new Set(),cloudRemoteImageTypes=new Map();
 
-function cloudConfig(){try{return JSON.parse(localStorage.getItem(CLOUD_CONFIG_KEY)||'{}')}catch{return {}}}
+function cloudConfig(){return CLOUD_DEFAULT_CONFIG}
 function cloudImageMode(){return localStorage.getItem(CLOUD_IMAGE_MODE_KEY)||'compressed'}
 function saveDesktopSyncSettings(){return window.phdDesktop?.saveSyncSettings?.({config:cloudConfig(),email:localStorage.getItem(CLOUD_EMAIL_KEY)||'',imageMode:cloudImageMode()})?.catch?.(()=>{})}
 function cloudStatus(text){let target=$('#cloudStatus');if(target)target.textContent=text}
@@ -37,9 +39,7 @@ function watchCloudDeletes(){
 function refreshCloudDeleteWatch(){knownCloudRecordKeys=new Set(records.map(item=>item.id||item.date));knownCloudNoteIds=new Set(notes.map(item=>item.id));knownCloudDiaryIds=new Set(diaries.map(item=>item.id))}
 
 function renderCloudSettings(){
-  let config=cloudConfig(),connected=!!cloudUser,recovering=connected&&cloudPasswordRecovery;
-  $('#cloudUrl').value=config.url||'';
-  $('#cloudKey').value=config.key||'';
+  let connected=!!cloudUser,recovering=connected&&cloudPasswordRecovery;
   $('#cloudImageMode').value=cloudImageMode();
   $('#cloudEmail').value=cloudUser?.email||localStorage.getItem(CLOUD_EMAIL_KEY)||'';
   $('#cloudEmail').disabled=connected;
@@ -51,7 +51,7 @@ function renderCloudSettings(){
   $('#cloudRecovery').hidden=!recovering;
   $('#cloudSyncNow').hidden=!connected||recovering;
   $('#cloudSignOut').hidden=!connected;
-  $('#cloudStatus').textContent=recovering?'请设置新密码；完成后即可继续自动同步。':connected?`已登录 ${cloudUser.email}，记录会自动同步。`:config.url?'请填写邮箱并登录。':'请先填写 Supabase 项目地址和匿名密钥。';
+  $('#cloudStatus').textContent=recovering?'请设置新密码；完成后即可继续自动同步。':connected?`已登录 ${cloudUser.email}，记录会自动同步。`:'请输入邮箱和密码登录。';
   cloudTransferSize();
 }
 
@@ -59,10 +59,9 @@ function ensureCloudSettings(){
   if($('#cloudSettings'))return;
   let section=document.createElement('article');
   section.id='cloudSettings';
-  section.innerHTML='<h2>多端自动同步</h2><label class="cloud-image-mode" style="display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;margin:8px 0 12px"><span>图片同步方式</span><select id="cloudImageMode" style="width:auto;max-width:62vw;margin:0"><option value="compressed">自动压缩至 500 KB（推荐）</option><option value="original">保留原图</option></select></label><p>使用同一账号登录后，iPhone 网页版与 Windows 桌面版会自动同步复盘、随手记、日记和图片。</p><input id="cloudUrl" class="cloud-field" type="url" placeholder="Supabase Project URL"><input id="cloudKey" class="cloud-field" type="password" placeholder="Supabase anon public key"><button id="cloudConnect" type="button">保存云端配置</button><div class="cloud-credentials" style="display:grid;gap:10px;margin:12px 0 4px"><input id="cloudEmail" class="cloud-field" style="width:100%;box-sizing:border-box;border:0;border-radius:11px;padding:12px;background:#e5e5ea;color:#1c1c1e;font:inherit;margin:0" type="email" placeholder="登录邮箱"><input id="cloudPassword" class="cloud-field" style="width:100%;box-sizing:border-box;border:0;border-radius:11px;padding:12px;background:#e5e5ea;color:#1c1c1e;font:inherit;margin:0" type="password" placeholder="密码（Windows 与 iPhone 使用同一密码）"></div><button id="cloudPasswordLogin" type="button">邮箱密码登录</button><button id="cloudResetPassword" class="plain" type="button">忘记密码</button><button id="cloudRegister" class="plain" type="button">首次注册账号</button><button id="cloudLogin" class="plain" type="button">或发送登录链接</button><div id="cloudRecovery" hidden><p>请设置至少 6 位的新密码：</p><input id="cloudNewPassword" class="cloud-field" type="password" placeholder="新密码（至少 6 位）"><input id="cloudNewPasswordConfirm" class="cloud-field" type="password" placeholder="再次输入新密码"><button id="cloudUpdatePassword" type="button">保存新密码</button></div><button id="cloudSyncNow" type="button">立即同步</button><button id="cloudSignOut" class="plain" type="button">退出登录</button><p id="cloudStatus" class="status"></p>';
+  section.innerHTML='<h2>多端自动同步</h2><label class="cloud-image-mode" style="display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;margin:8px 0 12px"><span>图片同步方式</span><select id="cloudImageMode" style="width:auto;max-width:62vw;margin:0"><option value="compressed">自动压缩至 500 KB（推荐）</option><option value="original">保留原图</option></select></label><p>使用同一账号登录后，iPhone 网页版与 Windows 桌面版会自动同步复盘、随手记、日记和图片。</p><div class="cloud-credentials" style="display:grid;gap:10px;margin:12px 0 4px"><input id="cloudEmail" class="cloud-field" style="width:100%;box-sizing:border-box;border:0;border-radius:11px;padding:12px;background:#e5e5ea;color:#1c1c1e;font:inherit;margin:0" type="email" placeholder="登录邮箱"><input id="cloudPassword" class="cloud-field" style="width:100%;box-sizing:border-box;border:0;border-radius:11px;padding:12px;background:#e5e5ea;color:#1c1c1e;font:inherit;margin:0" type="password" placeholder="密码（Windows 与 iPhone 使用同一密码）"></div><button id="cloudPasswordLogin" type="button">邮箱密码登录</button><button id="cloudResetPassword" class="plain" type="button">忘记密码</button><button id="cloudRegister" class="plain" type="button">首次注册账号</button><button id="cloudLogin" class="plain" type="button">或发送登录链接</button><div id="cloudRecovery" hidden><p>请设置至少 6 位的新密码：</p><input id="cloudNewPassword" class="cloud-field" type="password" placeholder="新密码（至少 6 位）"><input id="cloudNewPasswordConfirm" class="cloud-field" type="password" placeholder="再次输入新密码"><button id="cloudUpdatePassword" type="button">保存新密码</button></div><button id="cloudSyncNow" type="button">立即同步</button><button id="cloudSignOut" class="plain" type="button">退出登录</button><p id="cloudStatus" class="status"></p>';
   let transferSize=document.createElement('small');transferSize.id='cloudTransferSize';transferSize.style.cssText='font-size:13px;font-weight:400;color:#8e8e93';section.querySelector('h2').append(' ',transferSize);
   $('#preferences').prepend(section);
-  $('#cloudConnect').onclick=connectCloud;
   $('#cloudImageMode').onchange=event=>{localStorage.setItem(CLOUD_IMAGE_MODE_KEY,event.target.value);saveDesktopSyncSettings();cloudStatus(event.target.value==='original'?'下次同步将上传原图。':'下次同步将把图片压缩至 500 KB。');window.scheduleCloudSync?.()};
   $('#cloudPasswordLogin').onclick=()=>passwordCloudLogin(false);
   $('#cloudResetPassword').onclick=requestCloudPasswordReset;
@@ -74,8 +73,7 @@ function ensureCloudSettings(){
 }
 
 async function connectCloud(){
-  let url=$('#cloudUrl').value.trim().replace(/\/$/,''),key=$('#cloudKey').value.trim();
-  if(!/^https:\/\/.+\.supabase\.co$/i.test(url)||!key)return cloudStatus('请填写正确的 Supabase Project URL 和 anon public key。');
+  let {url,key}=cloudConfig();
   if(!window.supabase){
     cloudStatus('正在加载同步组件…');
     try{await window.loadSupabaseSdk?.();}catch{return cloudStatus('同步组件未加载。请检查网络后重试。')}
@@ -98,8 +96,9 @@ async function sendCloudLogin(){
 }
 
 function cloudRecoveryRedirect(){
-  // Electron 的 file:// 地址无法作为 Supabase 邮件重定向地址；桌面端统一回到已发布的 iPhone 网页版完成重设。
-  return location.protocol==='file:'?'https://huyue004.github.io/':location.href.split('#')[0];
+  // Electron 的 file:// 地址不能作为 Supabase 邮件重定向地址；此时由
+  // Supabase 项目中配置的 Site URL 接收重设链接，避免写死错误的 Pages 地址。
+  return location.protocol==='file:'?null:location.href.split('#')[0];
 }
 
 async function requestCloudPasswordReset(){
@@ -109,7 +108,8 @@ async function requestCloudPasswordReset(){
   localStorage.setItem(CLOUD_EMAIL_KEY,email);saveDesktopSyncSettings();
   cloudStatus('正在发送重设密码链接…');
   try{
-    let {error}=await cloudClient.auth.resetPasswordForEmail(email,{redirectTo:cloudRecoveryRedirect()});
+    const redirectTo=cloudRecoveryRedirect();
+    let {error}=await cloudClient.auth.resetPasswordForEmail(email,redirectTo?{redirectTo}:undefined);
     cloudStatus(error?`发送失败：${error.message}`:'重设链接已发送。请在邮件中打开链接，并在返回的页面设置新密码。');
   }catch(error){cloudStatus(`发送失败：${error.message||'无法连接同步服务。'}`)}
 }
@@ -253,7 +253,7 @@ renderCloudSettings();
 function startCloudClient(){let savedCloud=cloudConfig();if(savedCloud.url&&savedCloud.key&&window.supabase&&!cloudClient)connectCloud();}
 if(window.supabase)startCloudClient();
 window.addEventListener('phd-supabase-ready',startCloudClient);
-async function restoreDesktopSyncSettings(){try{let saved=await window.phdDesktop?.loadSyncSettings?.();if(!saved)return;if(saved.config?.url&&saved.config?.key)localStorage.setItem(CLOUD_CONFIG_KEY,JSON.stringify(saved.config));if(saved.email)localStorage.setItem(CLOUD_EMAIL_KEY,saved.email);if(saved.imageMode)localStorage.setItem(CLOUD_IMAGE_MODE_KEY,saved.imageMode);renderCloudSettings();let config=cloudConfig();if(config.url&&config.key&&!cloudClient)connectCloud()}catch{}}
+async function restoreDesktopSyncSettings(){try{let saved=await window.phdDesktop?.loadSyncSettings?.();if(!saved)return;if(saved.email)localStorage.setItem(CLOUD_EMAIL_KEY,saved.email);if(saved.imageMode)localStorage.setItem(CLOUD_IMAGE_MODE_KEY,saved.imageMode);renderCloudSettings();if(!cloudClient)connectCloud()}catch{}}
 restoreDesktopSyncSettings();
 window.addEventListener('online',()=>syncCloud(true));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncCloud(true)});
@@ -264,10 +264,10 @@ setInterval(()=>syncCloud(true),300000);
 // reopening the web app does not require entering the project settings again.
 const CLOUD_WEB_SETTINGS_DB='phd-daily-review-settings',CLOUD_WEB_SETTINGS_STORE='settings',CLOUD_WEB_SETTINGS_ID='cloud-sync';
 function openCloudWebSettings(){return new Promise((resolve,reject)=>{if(!window.indexedDB)return resolve(null);let request=indexedDB.open(CLOUD_WEB_SETTINGS_DB,1);request.onupgradeneeded=()=>request.result.createObjectStore(CLOUD_WEB_SETTINGS_STORE,{keyPath:'id'});request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)})}
-async function saveCloudWebSettings(){try{let db=await openCloudWebSettings();if(!db)return;let config={url:$('#cloudUrl')?.value.trim().replace(/\/$/,'')||cloudConfig().url||'',key:$('#cloudKey')?.value.trim()||cloudConfig().key||''},value={id:CLOUD_WEB_SETTINGS_ID,config,email:$('#cloudEmail')?.value.trim()||localStorage.getItem(CLOUD_EMAIL_KEY)||'',imageMode:$('#cloudImageMode')?.value||cloudImageMode()};await new Promise((resolve,reject)=>{let request=db.transaction(CLOUD_WEB_SETTINGS_STORE,'readwrite').objectStore(CLOUD_WEB_SETTINGS_STORE).put(value);request.onsuccess=resolve;request.onerror=()=>reject(request.error)});db.close()}catch{}}
-async function restoreCloudWebSettings(){try{let db=await openCloudWebSettings();if(!db)return;let saved=await new Promise((resolve,reject)=>{let request=db.transaction(CLOUD_WEB_SETTINGS_STORE,'readonly').objectStore(CLOUD_WEB_SETTINGS_STORE).get(CLOUD_WEB_SETTINGS_ID);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});db.close();if(!saved)return;let current=cloudConfig(),config=current.url&&current.key?current:saved.config||{};if(config.url&&config.key)localStorage.setItem(CLOUD_CONFIG_KEY,JSON.stringify(config));if(!localStorage.getItem(CLOUD_EMAIL_KEY)&&saved.email)localStorage.setItem(CLOUD_EMAIL_KEY,saved.email);if(!localStorage.getItem(CLOUD_IMAGE_MODE_KEY)&&saved.imageMode)localStorage.setItem(CLOUD_IMAGE_MODE_KEY,saved.imageMode);renderCloudSettings();if(config.url&&config.key&&!cloudClient)connectCloud()}catch{}}
+async function saveCloudWebSettings(){try{let db=await openCloudWebSettings();if(!db)return;let value={id:CLOUD_WEB_SETTINGS_ID,config:cloudConfig(),email:$('#cloudEmail')?.value.trim()||localStorage.getItem(CLOUD_EMAIL_KEY)||'',imageMode:$('#cloudImageMode')?.value||cloudImageMode()};await new Promise((resolve,reject)=>{let request=db.transaction(CLOUD_WEB_SETTINGS_STORE,'readwrite').objectStore(CLOUD_WEB_SETTINGS_STORE).put(value);request.onsuccess=resolve;request.onerror=()=>reject(request.error)});db.close()}catch{}}
+async function restoreCloudWebSettings(){try{let db=await openCloudWebSettings();if(!db)return;let saved=await new Promise((resolve,reject)=>{let request=db.transaction(CLOUD_WEB_SETTINGS_STORE,'readonly').objectStore(CLOUD_WEB_SETTINGS_STORE).get(CLOUD_WEB_SETTINGS_ID);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});db.close();if(!saved)return;if(!localStorage.getItem(CLOUD_EMAIL_KEY)&&saved.email)localStorage.setItem(CLOUD_EMAIL_KEY,saved.email);if(!localStorage.getItem(CLOUD_IMAGE_MODE_KEY)&&saved.imageMode)localStorage.setItem(CLOUD_IMAGE_MODE_KEY,saved.imageMode);renderCloudSettings();if(!cloudClient)connectCloud()}catch{}}
 let cloudSettingsSaveTimer=null;
-document.addEventListener('input',event=>{if(!event.target.matches('#cloudUrl,#cloudKey,#cloudEmail'))return;clearTimeout(cloudSettingsSaveTimer);cloudSettingsSaveTimer=setTimeout(saveCloudWebSettings,300)});
+document.addEventListener('input',event=>{if(!event.target.matches('#cloudEmail'))return;clearTimeout(cloudSettingsSaveTimer);cloudSettingsSaveTimer=setTimeout(saveCloudWebSettings,300)});
 document.addEventListener('change',event=>{if(event.target.matches('#cloudImageMode'))saveCloudWebSettings()});
 window.addEventListener('pagehide',saveCloudWebSettings);
 saveCloudWebSettings();
