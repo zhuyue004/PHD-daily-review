@@ -3,8 +3,8 @@ const INDENT='　　';
 const indentDiary=text=>(text||'').split(/\r?\n/).map(line=>line.trim()?`${INDENT}${line.trim().replace(/^　　/,'')}`:'').join('\n');
 const diaryPreview=text=>(text||'').split(/\r?\n/).find(line=>line.trim())?.trim().replace(/^　　/,'')||'';
 const PHD_QUOTES=YEAR_QUOTES.filter(quote=>/(实践论|矛盾论|改造我们的学习|反对本本主义|农村调查|党委会的工作方法|关于领导方法|中国革命战争的战略问题|论持久战|星星之火|纪念白求恩|为人民服务|在延安文艺座谈会上的讲话|学习和时局|关心群众生活|组织起来|七律|沁园春|卜算子|满江红|忆秦娥|水调歌头)/.test(quote.source));
-function quoteForToday(){
-  let date=new Date(`${day()}T12:00:00`),year=date.getFullYear(),month=date.getMonth(),dateOfMonth=date.getDate();
+function quoteForToday(dateKey=day()){
+  let date=new Date(`${dateKey}T12:00:00`),year=date.getFullYear(),month=date.getMonth(),dateOfMonth=date.getDate();
   if(month===1&&dateOfMonth===29)return LEAP_DAY_QUOTE;
   let index=Math.floor((date-new Date(year,0,1,12))/86400000);
   if(new Date(year,1,29).getMonth()===1&&month>1)index--;
@@ -16,13 +16,13 @@ let diaryDraftTimer;
 let diaryDraftStatusTimer;
 function showDiaryDraftStatus(text,settled=false){let status=$('#diaryDraftStatus');if(!status){status=document.createElement('p');status.id='diaryDraftStatus';status.className='local-draft-status';$('#diaryInput').insertAdjacentElement('afterend',status)}clearTimeout(diaryDraftStatusTimer);status.textContent=text;status.classList.toggle('settled',settled);if(settled)diaryDraftStatusTimer=setTimeout(()=>{status.textContent=''},1600)}
 function diaryDrafts(){try{return JSON.parse(localStorage.getItem(DIARY_DRAFTS_KEY)||'{}')}catch{return {}}}
-function diaryDraftFor(date=day()){return diaryDrafts()[date]}
-function saveDiaryDraftNow(){let input=$('#diaryInput');if(!input)return;let drafts=diaryDrafts();drafts[day()]={text:input.value,updatedAt:new Date().toISOString()};localStorage.setItem(DIARY_DRAFTS_KEY,JSON.stringify(drafts));showDiaryDraftStatus('草稿已保存到本机',true)}
+function diaryDraftFor(date=diaryEditingDate){return diaryDrafts()[date]}
+function saveDiaryDraftNow(){let input=$('#diaryInput');if(!input)return;let drafts=diaryDrafts();drafts[diaryEditingDate]={text:input.value,updatedAt:new Date().toISOString()};localStorage.setItem(DIARY_DRAFTS_KEY,JSON.stringify(drafts));showDiaryDraftStatus('草稿已保存到本机',true)}
 function queueDiaryDraft(){clearTimeout(diaryDraftTimer);showDiaryDraftStatus('正在自动保存本地…');diaryDraftTimer=setTimeout(saveDiaryDraftNow,350)}
-function clearDiaryDraft(date=day()){clearTimeout(diaryDraftTimer);let drafts=diaryDrafts();if(!(date in drafts))return;delete drafts[date];localStorage.setItem(DIARY_DRAFTS_KEY,JSON.stringify(drafts))}
+function clearDiaryDraft(date=diaryEditingDate){clearTimeout(diaryDraftTimer);let drafts=diaryDrafts();if(!(date in drafts))return;delete drafts[date];localStorage.setItem(DIARY_DRAFTS_KEY,JSON.stringify(drafts))}
 const basePage=page;
 page=id=>{basePage(id);if(id==='diary')renderDiary()};
-let diaryHistoryDate=day();
+let diaryHistoryDate=day(),diaryEditingDate=day();
 function diaryParagraphs(text){return indentDiary(text).split(/\r?\n/).filter(line=>line.trim()).map(line=>`<p>${esc(line.trim().replace(/^　　/,''))}</p>`).join('')}
 const diaryPosition=()=>new Promise(resolve=>{if(!navigator.geolocation)return resolve(null);navigator.geolocation.getCurrentPosition(position=>resolve(position),()=>resolve(null),{enableHighAccuracy:false,timeout:8000,maximumAge:300000})});
 async function placeFromCoordinates(latitude,longitude){let key=localStorage.getItem('phd-amap-key')||'';if(!key)return '';try{let response=await fetch(`https://restapi.amap.com/v3/geocode/regeo?key=${encodeURIComponent(key)}&location=${longitude},${latitude}&extensions=base&radius=1000&roadlevel=0`),data=await response.json();if(data.status!=='1')return '';let address=data.regeocode?.addressComponent||{},city=Array.isArray(address.city)?address.city[0]:address.city,neighborhood=address.neighborhood?.name,building=address.building?.name,street=address.streetNumber?.street,number=address.streetNumber?.number;return [address.province,city,address.district,address.township,neighborhood,street&&number?`${street}${number}`:street,building].filter((value,index,list)=>value&&list.indexOf(value)===index).join(' · ')}catch{return ''}}
@@ -52,14 +52,18 @@ function renderDiary(){
   ensureDiaryHistory();
   ensureDiaryFeedPreview();
   ensureDiaryImageActions();
-  let quote=quoteForToday();
-  let today=diaries.find(item=>item.date===day());
-  let savedDraft=diaryDraftFor();
+  let targetDate=diaryEditingDate,quote=quoteForToday(targetDate);
+  let today=diaries.find(item=>item.date===targetDate);
+  let savedDraft=diaryDraftFor(targetDate);
   $('#quoteText').textContent=quote.text;
   $('#quoteSource').textContent=quote.source.replace(/（[^）]*）/g,'');
-  $('#diaryDate').textContent=fmt(day());
+  $('#diaryDate').textContent=fmt(targetDate);
+  $('#diaryWriteDate').value=targetDate;
+  $('#diaryWriteDate').max=day();
+  $('#diaryEditorTitle').textContent=targetDate===day()?'今天发生了什么？':'这一天发生了什么？';
+  $('#saveDiary').textContent=targetDate===day()?'保存今日日记':'保存这篇日记';
   $('#diaryInput').value=savedDraft?savedDraft.text:(today?indentDiary(today.text):INDENT);
-  $('#diaryDateButton').textContent=fmt(day());
+  $('#diaryDateButton').textContent=fmt(targetDate);
   let cutoff=new Date();cutoff.setDate(cutoff.getDate()-29);let recent=diaries.filter(item=>item.date>=localDay(cutoff)).sort((a,b)=>b.date.localeCompare(a.date));
   $('#diaryList').innerHTML=recent.length?recent.map(item=>{let lines=(item.text||'').split(/\r?\n/).map(line=>line.trim().replace(/^　　/,'')).filter(Boolean),words=[...(item.text||'').replace(/\s/g,'')].length;return `<div class="swipe-row diary-swipe" data-id="${item.id}"><div class="diary-row-actions"><button class="edit-record edit-diary" aria-label="编辑 ${fmt(item.date)} 的日记">编辑</button><button class="delete-record delete-diary" aria-label="删除 ${fmt(item.date)} 的日记">删除</button></div><article class="diary-row diary-feed-card" data-diary-id="${item.id}"><header><time>${fmt(item.date)}</time><span data-diary-meta data-words="${words}">${words} 字</span></header><div class="diary-feed-text">${lines.map(line=>`<p>${esc(line)}</p>`).join('')}</div><button class="diary-read-more" type="button" hidden>全文</button><div class="diary-feed-images"></div>${item.place?`<small class="diary-feed-place">⌖ ${esc(item.place)}</small>`:''}</article></div>`}).join(''):'<p class="empty">还没有日记。从今天开始写下值得记住的事。</p>';
   bindDiaryRows();
@@ -107,17 +111,28 @@ function bindDiaryRows(){
 }
 
 $('#saveDiary').onclick=async()=>{
-  let raw=$('#diaryInput').value,index=diaries.findIndex(item=>item.date===day());
+  let targetDate=diaryEditingDate,raw=$('#diaryInput').value,index=diaries.findIndex(item=>item.date===targetDate);
   if(!raw.replace(/　/g,'').trim()&&!pendingDiaryImages.length){
-    if(index>=0){diaries.splice(index,1);saveDiaries();clearDiaryDraft();renderDiary()}
+    if(index>=0){diaries.splice(index,1);saveDiaries();clearDiaryDraft(targetDate);renderDiary()}
     return;
   }
-  let button=$('#saveDiary'),oldText=button.textContent;button.disabled=true;button.textContent='正在记录地点…';let text=raw.replace(/　/g,'').trim()?indentDiary(raw).replace(/\n+$/,''):'' ,place=await diaryPlace()||(index>=0?diaries[index].place||'':'');button.disabled=false;button.textContent=oldText;
-  let id=index>=0?diaries[index].id:crypto.randomUUID(),newImages=await saveDiaryImages(id,pendingDiaryImages,new Date()),entry={id,date:day(),text,place,images:[...(index>=0?diaries[index].images||[]:[]),...newImages],updatedAt:new Date().toISOString()};
+  let button=$('#saveDiary'),oldText=button.textContent,isToday=targetDate===day();button.disabled=true;if(isToday)button.textContent='正在记录地点…';let text=raw.replace(/　/g,'').trim()?indentDiary(raw).replace(/\n+$/,''):'' ,place=isToday?(await diaryPlace()||(index>=0?diaries[index].place||'':'')):(index>=0?diaries[index].place||'':'');button.disabled=false;button.textContent=oldText;
+  let id=index>=0?diaries[index].id:crypto.randomUUID(),newImages=await saveDiaryImages(id,pendingDiaryImages,new Date()),entry={id,date:targetDate,text,place,images:[...(index>=0?diaries[index].images||[]:[]),...newImages],updatedAt:new Date().toISOString()};
   if(index>=0)diaries[index]=entry;else diaries.push(entry);
   pendingDiaryImages=[];renderPendingDiaryImages();
   saveDiaries();
-  clearDiaryDraft();
+  clearDiaryDraft(targetDate);
+  renderDiary();
+};
+
+$('#diaryWriteDate').onchange=event=>{
+  let nextDate=event.target.value;
+  if(!nextDate||nextDate===diaryEditingDate)return;
+  if(pendingDiaryImages.length&&!confirm('当前选择的图片尚未保存。切换日期后将不保留这些图片，确定切换吗？')){event.target.value=diaryEditingDate;return}
+  saveDiaryDraftNow();
+  diaryEditingDate=nextDate;
+  pendingDiaryImages=[];
+  renderPendingDiaryImages();
   renderDiary();
 };
 

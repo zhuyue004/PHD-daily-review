@@ -7,8 +7,8 @@ function restoreDate(value){
 }
 
 function importNotes(value,date,times){
-  let timeRows=(times??'').toString().split(/\r?\n/).map(line=>line.trim()).filter(Boolean),items=[],current=null,fallback=0,add=()=>{if(current&&current.text.trim())items.push(current)};
-  for(let raw of (value??'').toString().split(/\r?\n/)){let line=raw.trim(),bracket=line.match(/^【(\d{1,2}:\d{2}(?::\d{2})?)】$/),inline=line.match(/^(\d{1,2}:\d{2}(?::\d{2})?)\s+(.+)$/),time=bracket?.[1]||inline?.[1];if(time){add();let parts=time.split(':');current={time:`${parts[0].padStart(2,'0')}:${parts[1]}:${parts[2]||'00'}`,text:inline?.[2]||''};fallback++;continue}if(!line)continue;if(!current){let match=timeRows[fallback]?.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/),time=match?`${match[1].padStart(2,'0')}:${match[2]}:${match[3]||'00'}`:'12:00:00';current={time,text:''};fallback++}current.text+=`${current.text?'\n':''}${line}`}
+  let timeRows=(times??'').toString().split(/\r?\n/).map(line=>line.trim()).filter(Boolean),items=[],current=null,fallback=0,add=()=>{if(current&&current.text.trim())items.push({...current,text:current.text.trim()})};
+  for(let raw of (value??'').toString().split(/\r?\n/)){let line=raw.trim(),bracket=line.match(/^【(\d{1,2}:\d{2}(?::\d{2})?)】$/),inline=line.match(/^(\d{1,2}:\d{2}(?::\d{2})?)\s+(.+)$/),time=bracket?.[1]||inline?.[1];if(time){add();let parts=time.split(':');current={time:`${parts[0].padStart(2,'0')}:${parts[1]}:${parts[2]||'00'}`,text:inline?.[2]||''};fallback++;continue}if(!current){if(!line)continue;let match=timeRows[fallback]?.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/),time=match?`${match[1].padStart(2,'0')}:${match[2]}:${match[3]||'00'}`:'12:00:00';current={time,text:''};fallback++}if(!line){if(current.text)current.text+='\n';continue}current.text+=`${current.text?'\n':''}${line}`}
   add();return items.map(item=>({id:crypto.randomUUID(),date,createdAt:new Date(`${date}T${item.time}`).toISOString(),text:item.text}));
 }
 
@@ -37,10 +37,16 @@ async function restoreExcel(file){
       let map=new Map(records.map(r=>[r.date,r]));
       for(let record of imported)map.set(record.date,{...(map.get(record.date)||{}),...record,id:map.get(record.date)?.id||record.id});
       records=[...map.values()];
-      if(noteDates.size)notes=notes.filter(note=>!noteDates.has(note.date)).concat(importedNotes);
-      if(diaryDates.size)diaries=diaries.filter(item=>!diaryDates.has(item.date)).concat(importedDiaries);
+      // “合并恢复”绝不删除本机随手记；旧版在 Excel 未正确解析时会先清空同日随手记。
+      let noteMap=new Map(notes.map(note=>[`${note.date}|${note.createdAt}|${note.text}`,note]));
+      for(let note of importedNotes)noteMap.set(`${note.date}|${note.createdAt}|${note.text}`,note);
+      notes=[...noteMap.values()];
+      // 合并恢复只能加入或更新成功识别的日记，不能因空单元格清空本机日记。
+      let diaryMap=new Map(diaries.map(item=>[item.date,item]));
+      for(let diary of importedDiaries)diaryMap.set(diary.date,diary);
+      diaries=[...diaryMap.values()];
     }
-    save();saveNotes();saveDiaries();page('home');restoreStatus(`恢复完成：${imported.length} 天复盘，${importedNotes.length} 条随手记，${importedDiaries.length} 篇日记。`);
+    save();saveNotes();saveDiaries();page('home');restoreStatus(`恢复完成：${imported.length} 天复盘，${importedNotes.length} 条随手记，${importedDiaries.length} 篇日记。${mode==='merge'&&!importedNotes.length?' 未识别到随手记时已保留本机随手记。':''}${mode==='merge'&&!importedDiaries.length?' 未识别到日记时已保留本机日记。':''}`);
   }catch(error){restoreStatus(`恢复失败：${error.message}`)}
 }
 
