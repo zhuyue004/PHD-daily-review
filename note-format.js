@@ -3,7 +3,18 @@
   const KATEX_STYLE='vendor/katex/katex.min.css';
   if(!document.querySelector(`link[href="${KATEX_STYLE}"]`)){let link=document.createElement('link');link.rel='stylesheet';link.href=KATEX_STYLE;document.head.append(link)}
   const escapeHtml=value=>(value||'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+  function normalizeMath(source){
+    let value=String(source||'').trim();
+    // 兼容把 \[...\] 再包进 $...$ 的常见写法；转换为 KaTeX 可识别的多行公式。
+    if(/^\\+\[/.test(value)&&/\\+\]/.test(value)){
+      value=value.replace(/^\\+\[\s*/,'').replace(/\\+\]\s*\[?/g,'\n').replace(/\]\s*$/,'').replace(/\\{2,}%/g,'\\%').trim();
+      let rows=value.split('\n').map(row=>row.trim()).filter(Boolean);
+      return {source:rows.length>1?`\\begin{gathered}${rows.join('\\\\')}\\end{gathered}`:(rows[0]||''),display:true};
+    }
+    return {source:value,display:false};
+  }
   function mathHtml(source,display){
+    let normalized=normalizeMath(source);source=normalized.source;display=display||normalized.display;
     if(!window.katex)return `<code class="note-math-source">${escapeHtml(source)}</code>`;
     try{return window.katex.renderToString(source,{displayMode:display,throwOnError:false,strict:'ignore',trust:false})}
     catch{return `<code class="note-math-source">${escapeHtml(source)}</code>`}
@@ -26,6 +37,8 @@
       if(!line.trim()){index++;continue}
       if(/^```/.test(line)){let code=[];index++;while(index<lines.length&&!/^```/.test(lines[index]))code.push(lines[index++]);if(index<lines.length)index++;html.push(`<pre class="note-code-block"><code>${escapeHtml(code.join('\n'))}</code></pre>`);continue}
       if(/^\$\$\s*$/.test(line.trim())){let formula=[];index++;while(index<lines.length&&!/^\$\$\s*$/.test(lines[index].trim()))formula.push(lines[index++]);if(index<lines.length)index++;html.push(`<div class="note-display-math">${mathHtml(formula.join('\n').trim(),true)}</div>`);continue}
+      // 支持 \[...\]（包括用户输入成 \\[...\\] 的情况）作为独立显示公式。
+      if(/^\\+\[/.test(line.trim())&&/\\+\]/.test(line)){html.push(`<div class="note-display-math">${mathHtml(line.trim(),true)}</div>`);index++;continue}
       let heading=line.match(/^(#{1,3})\s+(.+)$/);if(heading){let level=heading[1].length;html.push(`<h${level} class="note-heading">${inline(heading[2])}</h${level}>`);index++;continue}
       let quote=line.match(/^>\s?(.*)$/);if(quote){let quoteLines=[];while(index<lines.length&&/^>\s?/.test(lines[index]))quoteLines.push(lines[index++].replace(/^>\s?/,''));html.push(`<blockquote class="note-quote">${quoteLines.map(item=>inline(item)).join('<br>')}</blockquote>`);continue}
       let unordered=line.match(/^[-*+]\s+(.+)$/),ordered=line.match(/^\d+[.)]\s+(.+)$/);if(unordered||ordered){let isOrdered=!!ordered,items=[];while(index<lines.length){let found=lines[index].match(isOrdered?/^\d+[.)]\s+(.+)$/:/^[-*+]\s+(.+)$/);if(!found)break;items.push(`<li>${inline(found[1])}</li>`);index++}html.push(`<${isOrdered?'ol':'ul'} class="note-markdown-list">${items.join('')}</${isOrdered?'ol':'ul'}>`);continue}
