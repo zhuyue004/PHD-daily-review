@@ -25,6 +25,8 @@ window.insightPlanExportRows=()=>['week','month'].flatMap(kind=>Object.entries(i
 function currentPlanEntry(bounds){let kind=insightMode==='week'?'week':'month',entry=insightPlans[kind][bounds.key]||{items:[],updatedAt:''};return {kind,entry:{...entry,items:[...(entry.items||[])]}}}
 function writePlan(bounds,kind,entry){insightPlans[kind][bounds.key]={...entry,updatedAt:planNow()};saveInsightPlans()}
 function renderInsightPlan(bounds){
+  // 保存、删除和勾选都会局部重绘；先替换旧卡片，避免短暂叠出第二张计划卡。
+  $('#insightPlan')?.remove();
   let {kind,entry}=currentPlanEntry(bounds),title=kind==='week'?'本周计划':'本月计划',total=entry.items.length,done=entry.items.filter(item=>item.done).length;
   let section=document.createElement('article');section.className='insight-plan-card';section.id='insightPlan';
   section.innerHTML=`<h2 class="insight-section-title">${title}</h2><p class="plan-intro">先写清想完成什么，再在复盘中回看结果。</p><div class="plan-progress"><b>${done} / ${total}</b><span>${total?'已完成':'添加 1–5 个关键条目'}</span></div><ul class="insight-plan-list">${entry.items.map(item=>`<li data-plan-id="${item.id}" class="${item.done?'done':''}"><button class="plan-toggle" type="button" aria-label="${item.done?'标记为未完成':'标记为已完成'}">${item.done?'✓':''}</button><span>${esc(item.text)}</span><button class="plain edit-plan" type="button">编辑</button></li>`).join('')}</ul><button class="plain add-plan" type="button">＋ 添加条目</button>`;
