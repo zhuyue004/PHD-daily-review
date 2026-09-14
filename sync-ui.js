@@ -9,7 +9,7 @@ function saveDesktopSyncSettings(){return window.phdDesktop?.saveSyncSettings?.(
 function cloudStatus(text){let target=$('#cloudStatus');if(target)target.textContent=text}
 function cloudSizeText(bytes){return `${(bytes/1024/1024).toFixed(bytes<1024*1024?2:1)} MB`}
 function cloudTransferSize(bytes=null){let target=$('#cloudTransferSize');if(target)target.textContent=bytes===null?'（本次同步待开始）':`（本次同步 ${cloudSizeText(bytes)}）`}
-function cloudHasContent(){return records.length||notes.length||diaries.length}
+function cloudHasContent(){let plans=window.getInsightPlansForSync?.();return records.length||notes.length||diaries.length||Object.keys(plans?.week||{}).length||Object.keys(plans?.month||{}).length}
 function cloudRestorePending(){return !!localStorage.getItem(CLOUD_RESTORE_PENDING_KEY)}
 function markCloudRestorePending(){localStorage.setItem(CLOUD_RESTORE_PENDING_KEY,new Date().toISOString());refreshCloudDeleteWatch()}
 window.markCloudRestorePending=markCloudRestorePending;
@@ -160,7 +160,7 @@ async function signOutCloud(){
 
 async function cloudSnapshot(cloudImageTypes=new Map()){
   let images=await allNoteImages();
-  return {version:2,records,notes,diaries,deleted:cloudDeletions(),images:images.map(({id,noteId,name,type})=>({id,noteId,name,type:cloudImageTypes.get(id)||type}))};
+  return {version:2,records,notes,diaries,plans:window.getInsightPlansForSync?.()||{},deleted:cloudDeletions(),images:images.map(({id,noteId,name,type})=>({id,noteId,name,type:cloudImageTypes.get(id)||type}))};
 }
 
 async function decodeCloudImage(blob){
@@ -225,6 +225,7 @@ async function pullCloudData(){
   records=mergeCloudList(records,remote.records||[],'date');
   notes=mergeCloudList(notes,remote.notes||[],'id');
   diaries=mergeCloudList(diaries,remote.diaries||[],'date');
+  if(remote.plans)window.mergeInsightPlansFromCloud?.(remote.plans);
   await applyCloudDeletions(deleted);
   localStorage.setItem('phd-review-records',JSON.stringify(records));
   localStorage.setItem('phd-quick-notes',JSON.stringify(notes));
