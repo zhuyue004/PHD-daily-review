@@ -1,0 +1,47 @@
+// 随手记的 Markdown + LaTeX 渲染。原始文本始终保留，用于搜索、同步与备份。
+(()=>{
+  const KATEX_STYLE='vendor/katex/katex.min.css';
+  if(!document.querySelector(`link[href="${KATEX_STYLE}"]`)){let link=document.createElement('link');link.rel='stylesheet';link.href=KATEX_STYLE;document.head.append(link)}
+  const escapeHtml=value=>(value||'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+  function mathHtml(source,display){
+    if(!window.katex)return `<code class="note-math-source">${escapeHtml(source)}</code>`;
+    try{return window.katex.renderToString(source,{displayMode:display,throwOnError:false,strict:'ignore',trust:false})}
+    catch{return `<code class="note-math-source">${escapeHtml(source)}</code>`}
+  }
+  function inline(source){
+    let tokens=[],put=value=>{let key=`\uE000${tokens.length}\uE001`;tokens.push(value);return key};
+    let value=escapeHtml(source);
+    value=value.replace(/`([^`\n]+)`/g,(_,code)=>put(`<code>${code}</code>`));
+    value=value.replace(/\$\$([\s\S]+?)\$\$/g,(_,formula)=>put(`<span class="note-display-math">${mathHtml(formula.trim(),true)}</span>`));
+    value=value.replace(/(^|[^\\])\$([^$\n]+?)\$/g,(_,before,formula)=>`${before}${put(mathHtml(formula.trim(),false))}`);
+    value=value.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,(_,label,url)=>`<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`);
+    value=value.replace(/\*\*([^*\n]+)\*\*/g,'<strong>$1</strong>').replace(/__([^_\n]+)__/g,'<strong>$1</strong>');
+    value=value.replace(/(^|[^*])\*([^*\n]+)\*/g,'$1<em>$2</em>').replace(/(^|[^_])_([^_\n]+)_/g,'$1<em>$2</em>');
+    return value.replace(/\uE000(\d+)\uE001/g,(_,index)=>tokens[+index]);
+  }
+  function renderNoteMarkup(text){
+    let lines=String(text||'').replace(/\r/g,'').split('\n'),html=[],index=0;
+    while(index<lines.length){
+      let line=lines[index];
+      if(!line.trim()){index++;continue}
+      if(/^```/.test(line)){let code=[];index++;while(index<lines.length&&!/^```/.test(lines[index]))code.push(lines[index++]);if(index<lines.length)index++;html.push(`<pre class="note-code-block"><code>${escapeHtml(code.join('\n'))}</code></pre>`);continue}
+      if(/^\$\$\s*$/.test(line.trim())){let formula=[];index++;while(index<lines.length&&!/^\$\$\s*$/.test(lines[index].trim()))formula.push(lines[index++]);if(index<lines.length)index++;html.push(`<div class="note-display-math">${mathHtml(formula.join('\n').trim(),true)}</div>`);continue}
+      let heading=line.match(/^(#{1,3})\s+(.+)$/);if(heading){let level=heading[1].length;html.push(`<h${level} class="note-heading">${inline(heading[2])}</h${level}>`);index++;continue}
+      let quote=line.match(/^>\s?(.*)$/);if(quote){let quoteLines=[];while(index<lines.length&&/^>\s?/.test(lines[index]))quoteLines.push(lines[index++].replace(/^>\s?/,''));html.push(`<blockquote class="note-quote">${quoteLines.map(item=>inline(item)).join('<br>')}</blockquote>`);continue}
+      let unordered=line.match(/^[-*+]\s+(.+)$/),ordered=line.match(/^\d+[.)]\s+(.+)$/);if(unordered||ordered){let isOrdered=!!ordered,items=[];while(index<lines.length){let found=lines[index].match(isOrdered?/^\d+[.)]\s+(.+)$/:/^[-*+]\s+(.+)$/);if(!found)break;items.push(`<li>${inline(found[1])}</li>`);index++}html.push(`<${isOrdered?'ol':'ul'} class="note-markdown-list">${items.join('')}</${isOrdered?'ol':'ul'}>`);continue}
+      if(/^【[^】]+】\s*$/.test(line.trim())){html.push(`<p class="note-category">${escapeHtml(line.trim())}</p>`);index++;continue}
+      let paragraph=[line];index++;while(index<lines.length&&lines[index].trim()&&!/^(#{1,3})\s+|^>\s?|^[-*+]\s+|^\d+[.)]\s+|^```|^\$\$\s*$/.test(lines[index]))paragraph.push(lines[index++]);html.push(`<p class="note-paragraph">${paragraph.map(inline).join('<br>')}</p>`);
+    }
+    return `<div class="note-markdown">${html.join('')}</div>`;
+  }
+  window.renderNoteMarkup=renderNoteMarkup;
+  noteContent=renderNoteMarkup;
+
+  let input=$('#noteInput');if(!input)return;
+  let toolbar=document.createElement('div');toolbar.className='note-format-toolbar';toolbar.innerHTML='<button type="button" class="selected" data-mode="edit">编辑</button><button type="button" data-mode="preview">预览</button><small>支持 Markdown 与 $公式$</small>';
+  let preview=document.createElement('div');preview.id='noteFormatPreview';preview.className='note-format-preview hidden';
+  input.before(toolbar);input.after(preview);
+  function show(mode){let previewing=mode==='preview';toolbar.querySelectorAll('button').forEach(button=>button.classList.toggle('selected',button.dataset.mode===mode));input.hidden=previewing;preview.classList.toggle('hidden',!previewing);if(previewing)preview.innerHTML=renderNoteMarkup(input.value)||'<p class="empty">还没有可预览的内容。</p>'}
+  toolbar.querySelectorAll('button').forEach(button=>button.onclick=()=>show(button.dataset.mode));
+  input.addEventListener('input',()=>{if(!preview.classList.contains('hidden'))preview.innerHTML=renderNoteMarkup(input.value)});
+})();
