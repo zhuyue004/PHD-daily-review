@@ -53,10 +53,14 @@
   noteContent=renderNoteMarkup;
 
   let input=$('#noteInput');if(!input)return;
-  let toolbar=document.createElement('div');toolbar.className='note-format-toolbar';toolbar.innerHTML='<button type="button" class="selected" data-mode="edit">编辑</button><button type="button" data-mode="preview">预览</button><small>支持 Markdown 与 $公式$</small>';
+  let toolbar=document.createElement('div');toolbar.className='note-format-toolbar';toolbar.innerHTML='<div class="note-format-switch" role="tablist" aria-label="随手记显示模式"><i aria-hidden="true"></i><button type="button" class="selected" data-mode="edit" role="tab">编辑</button><button type="button" data-mode="preview" role="tab">预览</button></div><small>支持 Markdown 与 $公式$</small>';
   let preview=document.createElement('div');preview.id='noteFormatPreview';preview.className='note-format-preview hidden';
   input.before(toolbar);input.after(preview);
-  function show(mode){let previewing=mode==='preview';toolbar.querySelectorAll('button').forEach(button=>button.classList.toggle('selected',button.dataset.mode===mode));input.hidden=previewing;preview.classList.toggle('hidden',!previewing);if(previewing)preview.innerHTML=renderNoteMarkup(input.value)||'<p class="empty">还没有可预览的内容。</p>'}
-  toolbar.querySelectorAll('button').forEach(button=>button.onclick=()=>show(button.dataset.mode));
+  function show(mode){let previewing=mode==='preview',toggle=toolbar.querySelector('.note-format-switch');toggle.classList.toggle('previewing',previewing);toolbar.querySelectorAll('button').forEach(button=>{button.classList.toggle('selected',button.dataset.mode===mode);button.setAttribute('aria-selected',String(button.dataset.mode===mode))});input.hidden=previewing;preview.classList.toggle('hidden',!previewing);if(previewing)preview.innerHTML=renderNoteMarkup(input.value)||'<p class="empty">还没有可预览的内容。</p>'}
+  let toggle=toolbar.querySelector('.note-format-switch'),dragStart=null,skipClick=false;
+  toolbar.querySelectorAll('button').forEach(button=>button.onclick=()=>{if(skipClick)return;show(button.dataset.mode)});
+  toggle.addEventListener('pointerdown',event=>{dragStart=event.clientX;toggle.setPointerCapture?.(event.pointerId)});
+  toggle.addEventListener('pointerup',event=>{if(dragStart===null)return;let delta=event.clientX-dragStart;dragStart=null;if(Math.abs(delta)<14)return;skipClick=true;show(delta>0?'preview':'edit');setTimeout(()=>skipClick=false,0)});
+  toggle.addEventListener('pointercancel',()=>dragStart=null);
   input.addEventListener('input',()=>{if(!preview.classList.contains('hidden'))preview.innerHTML=renderNoteMarkup(input.value)});
 })();
