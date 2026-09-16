@@ -15,6 +15,9 @@
   }
   function mathHtml(source,display){
     let normalized=normalizeMath(source);source=normalized.source;display=display||normalized.display;
+    // ChatGPT Markdown copies often escape underscores (P\_f). Inside math,
+    // that should be a subscript rather than a printed underscore character.
+    source=source.replace(/\\_/g,'_');
     if(!window.katex)return `<code class="note-math-source">${escapeHtml(source)}</code>`;
     try{return window.katex.renderToString(source,{displayMode:display,throwOnError:false,strict:'ignore',trust:false})}
     catch{return `<code class="note-math-source">${escapeHtml(source)}</code>`}
@@ -24,6 +27,9 @@
     let value=escapeHtml(source);
     value=value.replace(/`([^`\n]+)`/g,(_,code)=>put(`<code>${code}</code>`));
     value=value.replace(/\$\$([\s\S]+?)\$\$/g,(_,formula)=>put(`<span class="note-display-math">${mathHtml(formula.trim(),true)}</span>`));
+    // Support ChatGPT/MathJax display delimiters anywhere in a line, including
+    // formula + Chinese text and multiple adjacent formulas.
+    value=value.replace(/\\+\[([^\n]*?)\\+\]/g,(_,formula)=>put(`<span class="note-display-math">${mathHtml(formula.trim(),true)}</span>`));
     // ChatGPT、MathJax 常复制为 \(...\)；也兼容复制后出现双反斜杠的文本。
     value=value.replace(/\\+\(([^\n]*?)\\+\)/g,(_,formula)=>put(mathHtml(formula.trim(),false)));
     value=value.replace(/(^|[^\\])\$([^$\n]+?)\$/g,(_,before,formula)=>`${before}${put(mathHtml(formula.trim(),false))}`);
@@ -39,13 +45,17 @@
       if(!line.trim()){index++;continue}
       if(/^```/.test(line)){let code=[];index++;while(index<lines.length&&!/^```/.test(lines[index]))code.push(lines[index++]);if(index<lines.length)index++;html.push(`<pre class="note-code-block"><code>${escapeHtml(code.join('\n'))}</code></pre>`);continue}
       if(/^\$\$\s*$/.test(line.trim())){let formula=[];index++;while(index<lines.length&&!/^\$\$\s*$/.test(lines[index].trim()))formula.push(lines[index++]);if(index<lines.length)index++;html.push(`<div class="note-display-math">${mathHtml(formula.join('\n').trim(),true)}</div>`);continue}
-      // 支持 \[...\]（包括用户输入成 \\[...\\] 的情况）作为独立显示公式。
-      if(/^\\+\[/.test(line.trim())&&/\\+\]/.test(line)){html.push(`<div class="note-display-math">${mathHtml(line.trim(),true)}</div>`);index++;continue}
+      // A line containing only one or more \[...\] formulas renders each
+      // formula as its own display block. Text following a formula falls
+      // through to inline(), which preserves that text.
+      let displayMatches=[...line.trim().matchAll(/\\+\[([^\n]*?)\\+\]/g)];
+      let displayRemainder=line.trim().replace(/\\+\[[^\n]*?\\+\]/g,'').trim();
+      if(displayMatches.length&&!displayRemainder){displayMatches.forEach(match=>html.push(`<div class="note-display-math">${mathHtml(match[1].trim(),true)}</div>`));index++;continue}
       let heading=line.match(/^(#{1,3})\s+(.+)$/);if(heading){let level=heading[1].length;html.push(`<h${level} class="note-heading">${inline(heading[2])}</h${level}>`);index++;continue}
       let quote=line.match(/^>\s?(.*)$/);if(quote){let quoteLines=[];while(index<lines.length&&/^>\s?/.test(lines[index]))quoteLines.push(lines[index++].replace(/^>\s?/,''));html.push(`<blockquote class="note-quote">${quoteLines.map(item=>inline(item)).join('<br>')}</blockquote>`);continue}
       let unordered=line.match(/^[-*+]\s+(.+)$/),ordered=line.match(/^\d+[.)]\s+(.+)$/);if(unordered||ordered){let isOrdered=!!ordered,items=[];while(index<lines.length){let found=lines[index].match(isOrdered?/^\d+[.)]\s+(.+)$/:/^[-*+]\s+(.+)$/);if(!found)break;items.push(`<li>${inline(found[1])}</li>`);index++}html.push(`<${isOrdered?'ol':'ul'} class="note-markdown-list">${items.join('')}</${isOrdered?'ol':'ul'}>`);continue}
       if(/^【[^】]+】\s*$/.test(line.trim())){html.push(`<p class="note-category">${escapeHtml(line.trim())}</p>`);index++;continue}
-      let paragraph=[line];index++;while(index<lines.length&&lines[index].trim()&&!/^(#{1,3})\s+|^>\s?|^[-*+]\s+|^\d+[.)]\s+|^```|^\$\$\s*$/.test(lines[index]))paragraph.push(lines[index++]);html.push(`<p class="note-paragraph">${paragraph.map(inline).join('<br>')}</p>`);
+      let paragraph=[line];index++;while(index<lines.length&&lines[index].trim()&&!/^(#{1,3})\s+|^>\s?|^[-*+]\s+|^\d+[.)]\s+|^```|^\$\$\s*$|^\\+\[/.test(lines[index]))paragraph.push(lines[index++]);html.push(`<p class="note-paragraph">${paragraph.map(inline).join('<br>')}</p>`);
     }
     return `<div class="note-markdown">${html.join('')}</div>`;
   }
