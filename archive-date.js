@@ -212,8 +212,6 @@ if(window.phdDesktop){
 (()=>{
   // The Supabase browser SDK is bundled with the app so syncing never needs
   // to fetch executable code from a third-party CDN at runtime.
-  let katexScript=document.createElement('script');katexScript.src='vendor/katex/katex.min.js';katexScript.async=false;document.body.append(katexScript);
-  let noteFormatScript=document.createElement('script');noteFormatScript.src='note-format.js';noteFormatScript.async=false;document.body.append(noteFormatScript);
   let planScript=document.createElement('script');planScript.src='insight-plans.js';planScript.async=false;document.body.append(planScript);
   let sync=document.createElement('script');sync.src='sync-ui.js';sync.async=false;document.body.append(sync);
   let loading=null;
