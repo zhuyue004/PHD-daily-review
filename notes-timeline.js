@@ -89,3 +89,8 @@ window.renderNotesTimeline=async function(){
   }
 };
 $('#notesTimelineSearch').oninput=()=>window.renderNotesTimeline();
+// If iPhone restores this screen before note-format.js has executed, redraw it
+// after the formatter announces that KaTeX is available.
+window.addEventListener('phd-note-format-ready',()=>{
+  if(document.querySelector('#notesTimeline.active'))window.renderNotesTimeline();
+});

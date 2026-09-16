@@ -51,6 +51,14 @@
   }
   window.renderNoteMarkup=renderNoteMarkup;
   noteContent=renderNoteMarkup;
+  // Some iPhone Safari restores a PWA page before all deferred UI scripts have
+  // finished. Let every note surface redraw once formula rendering is ready.
+  window.dispatchEvent(new Event('phd-note-format-ready'));
+  requestAnimationFrame(()=>{
+    if(document.querySelector('#home.active'))window.renderNotes?.();
+    if(document.querySelector('#archive.active'))window.archive?.();
+    if(document.querySelector('#notesTimeline.active'))window.renderNotesTimeline?.();
+  });
 
   let input=$('#noteInput');if(!input)return;
   let toolbar=document.createElement('div');toolbar.className='note-format-toolbar';toolbar.innerHTML='<div class="note-format-switch" role="tablist" aria-label="随手记显示模式"><i aria-hidden="true"></i><button type="button" class="selected" data-mode="edit" role="tab">编辑</button><button type="button" data-mode="preview" role="tab">预览</button></div><small>支持 Markdown 与 $公式$</small>';
