@@ -1,4 +1,4 @@
-const CLOUD_CONFIG_KEY='phd-cloud-config',CLOUD_IMAGE_BUCKET='phd-note-images',CLOUD_IMAGE_MODE_KEY='phd-cloud-image-mode',CLOUD_EMAIL_KEY='phd-cloud-email',CLOUD_IMAGE_LIMIT=500*1024,CLOUD_DELETIONS_KEY='phd-cloud-deletions',CLOUD_RESTORE_PENDING_KEY='phd-cloud-restore-pending',CLOUD_CLEANUP_LAST_KEY='phd-cloud-cleanup-last',CLOUD_CLEANUP_INTERVAL=7*24*60*60*1000,CLOUD_IMAGE_CONCURRENCY=2,CLOUD_REQUEST_TIMEOUT=30000,CLOUD_IMAGE_REQUEST_TIMEOUT=45000,CLOUD_IMAGE_PROCESS_TIMEOUT=15000;
+const CLOUD_CONFIG_KEY='phd-cloud-config',CLOUD_IMAGE_BUCKET='phd-note-images',CLOUD_IMAGE_MODE_KEY='phd-cloud-image-mode',CLOUD_EMAIL_KEY='phd-cloud-email',CLOUD_IMAGE_LIMIT=500*1024,CLOUD_DELETIONS_KEY='phd-cloud-deletions',CLOUD_RESTORE_PENDING_KEY='phd-cloud-restore-pending',CLOUD_CLEANUP_LAST_KEY='phd-cloud-cleanup-last',CLOUD_SKIPPED_IMAGES_KEY='phd-cloud-skipped-images',CLOUD_CLEANUP_INTERVAL=7*24*60*60*1000,CLOUD_IMAGE_CONCURRENCY=2,CLOUD_REQUEST_TIMEOUT=30000,CLOUD_IMAGE_REQUEST_TIMEOUT=45000,CLOUD_IMAGE_PROCESS_TIMEOUT=15000;
 // Publishable key: this is intentionally public client configuration, not a secret.
 const CLOUD_DEFAULT_CONFIG=Object.freeze({url:'https://vyabmqgisuoiqvyzbpwf.supabase.co',key:'sb_publishable_mQFR2_NI6wrON63ccrysEQ_lYSUqWy7'});
 let cloudClient=null,cloudUser=null,cloudTimer=null,cloudSyncing=false,cloudSyncQueued=false,cloudQueuedPullFirst=false,cloudPasswordRecovery=false,cloudRemoteImageIds=new Set(),cloudRemoteImageTypes=new Map(),cloudRemotePayload=null,cloudProblemImage=null;
@@ -10,8 +10,9 @@ function cloudStatus(text){let target=$('#cloudStatus');if(target)target.textCon
 function cloudImageContext(image){let note=notes.find(item=>item.id===image?.noteId),diary=diaries.find(item=>item.id===image?.noteId),owner=note||diary,kind=note?'随手记':diary?'日记':'未知记录',preview=String(owner?.text||'').replace(/\s+/g,' ').trim().slice(0,28);return {imageId:image?.id||'',noteId:image?.noteId||'',name:image?.name||'未命名图片',kind,date:owner?.date||'',createdAt:owner?.createdAt||owner?.updatedAt||'',preview:preview||'无文字内容'}}
 function cloudImageContextText(problem){let time=problem.createdAt?new Date(problem.createdAt).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}):'';return [problem.kind,problem.date,time,problem.preview].filter(Boolean).join(' · ')}
 function attachCloudImageContext(error,image){let problem=cloudImageContext(image),result=error instanceof Error?error:new Error(String(error||'图片同步失败'));result.cloudImage=problem;if(!result.message.includes('位置：'))result.message+=`；位置：${cloudImageContextText(problem)}`;return result}
-function setCloudProblem(problem){cloudProblemImage=problem||null;let button=$('#cloudLocateProblem');if(button){button.hidden=!cloudProblemImage;button.textContent=cloudProblemImage?`查看问题图片位置（${cloudProblemImage.kind}）`:'查看问题图片位置'}}
+function setCloudProblem(problem){cloudProblemImage=problem||null;let locate=$('#cloudLocateProblem'),skip=$('#cloudSkipProblem');if(locate){locate.hidden=!cloudProblemImage;locate.textContent=cloudProblemImage?`查看问题图片位置（${cloudProblemImage.kind}）`:'查看问题图片位置'}if(skip)skip.hidden=!cloudProblemImage}
 function locateCloudProblem(){if(!cloudProblemImage)return;let note=notes.find(item=>item.id===cloudProblemImage.noteId),diary=diaries.find(item=>item.id===cloudProblemImage.noteId);if(note){page('archive');let input=$('#archiveDate'),button=$('#archiveDateButton');if(input)input.value=note.date;if(button)button.textContent=fmt(note.date);if(typeof calendarMonth!=='undefined')calendarMonth=new Date(`${note.date}T12:00`);archive();setTimeout(()=>typeof openArchiveNoteEditor==='function'&&openArchiveNoteEditor(note),50);return}if(diary){page('diary');setTimeout(()=>typeof editDiary==='function'&&editDiary(diary),50);return}alert(`未找到对应记录。图片文件：${cloudProblemImage.name}\n记录 ID：${cloudProblemImage.noteId}`)}
+function skipCloudProblem(){if(!cloudProblemImage?.imageId)return;if(!confirm(`跳过“${cloudProblemImage.name}”的云端同步吗？\n\n本机图片不会删除，但其他设备不会收到这张图片；文字和其他图片会继续同步。`))return;let skipped=cloudSkippedImages();skipped.add(cloudProblemImage.imageId);saveCloudSkippedImages(skipped);let name=cloudProblemImage.name;setCloudProblem(null);cloudStatus(`已跳过“${name}”，正在继续同步…`);syncCloud(true,true)}
 function cloudSizeText(bytes){return `${(bytes/1024/1024).toFixed(bytes<1024*1024?2:1)} MB`}
 function cloudTransferSize(bytes=null){let target=$('#cloudTransferSize');if(target)target.textContent=bytes===null?'（本次同步待开始）':`（本次同步 ${cloudSizeText(bytes)}）`}
 function cloudWait(ms){return new Promise(resolve=>setTimeout(resolve,ms))}
@@ -24,6 +25,8 @@ window.markCloudRestorePending=markCloudRestorePending;
 function cloudStamp(item){return new Date(item?.updatedAt||item?.createdAt||0).getTime()||0}
 function mergeCloudList(local,remote,key){let output=new Map(local.map(item=>[item[key],item]));for(let item of remote||[]){let existing=output.get(item[key]);if(!existing||cloudStamp(item)>cloudStamp(existing))output.set(item[key],item)}return [...output.values()]}
 function cloudDeletions(){try{return JSON.parse(localStorage.getItem(CLOUD_DELETIONS_KEY)||'[]').filter(item=>item?.kind&&item?.id)}catch{return []}}
+function cloudSkippedImages(){try{return new Set(JSON.parse(localStorage.getItem(CLOUD_SKIPPED_IMAGES_KEY)||'[]').filter(Boolean))}catch{return new Set()}}
+function saveCloudSkippedImages(ids){let values=[...new Set(ids||[])];if(values.length)localStorage.setItem(CLOUD_SKIPPED_IMAGES_KEY,JSON.stringify(values));else localStorage.removeItem(CLOUD_SKIPPED_IMAGES_KEY);return new Set(values)}
 function saveCloudDeletions(items){let latest=new Map();for(let item of items||[]){let key=`${item.kind}:${item.id}`,existing=latest.get(key),newer=!existing||new Date(item.deletedAt||0)>=new Date(existing.deletedAt||0),imageIds=[...new Set([...(existing?.imageIds||[]),...(item.imageIds||[])])],imagesRemovedAt=existing?.imagesRemovedAt||item.imagesRemovedAt||'';latest.set(key,{kind:item.kind,id:item.id,deletedAt:newer?(item.deletedAt||new Date().toISOString()):(existing.deletedAt||new Date().toISOString()),imageIds,imagesRemovedAt})}localStorage.setItem(CLOUD_DELETIONS_KEY,JSON.stringify([...latest.values()]));return [...latest.values()]}
 function rememberCloudDeletion(kind,id,imageIds=[]){if(!id)return;saveCloudDeletions([...cloudDeletions(),{kind,id,deletedAt:new Date().toISOString(),imageIds}])}
 function deletionSet(items=cloudDeletions()){return new Set(items.map(item=>`${item.kind}:${item.id}`))}
@@ -78,7 +81,7 @@ function ensureCloudSettings(){
   if($('#cloudSettings'))return;
   let section=document.createElement('article');
   section.id='cloudSettings';
-  section.innerHTML='<h2>多端自动同步</h2><label class="cloud-image-mode" style="display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;margin:8px 0 12px"><span>图片同步方式</span><select id="cloudImageMode" style="width:auto;max-width:62vw;margin:0"><option value="compressed">自动压缩至 500 KB（推荐）</option><option value="original">保留原图</option></select></label><p>使用同一账号登录后，iPhone 网页版与 Windows 桌面版会自动同步复盘、随手记、日记和图片。</p><div class="cloud-credentials" style="display:grid;gap:10px;margin:12px 0 4px"><input id="cloudEmail" class="cloud-field" style="width:100%;box-sizing:border-box;border:0;border-radius:11px;padding:12px;background:#e5e5ea;color:#1c1c1e;font:inherit;margin:0" type="email" placeholder="登录邮箱"><input id="cloudPassword" class="cloud-field" style="width:100%;box-sizing:border-box;border:0;border-radius:11px;padding:12px;background:#e5e5ea;color:#1c1c1e;font:inherit;margin:0" type="password" placeholder="密码（Windows 与 iPhone 使用同一密码）"></div><button id="cloudPasswordLogin" type="button">邮箱密码登录</button><button id="cloudResetPassword" class="plain" type="button">忘记密码</button><button id="cloudRegister" class="plain" type="button">首次注册账号</button><button id="cloudLogin" class="plain" type="button">或发送登录链接</button><div id="cloudRecovery" hidden><p>请设置至少 6 位的新密码：</p><input id="cloudNewPassword" class="cloud-field" type="password" placeholder="新密码（至少 6 位）"><input id="cloudNewPasswordConfirm" class="cloud-field" type="password" placeholder="再次输入新密码"><button id="cloudUpdatePassword" type="button">保存新密码</button></div><button id="cloudSyncNow" type="button">立即同步</button><button id="cloudSignOut" class="plain" type="button">退出登录</button><p id="cloudStatus" class="status"></p><button id="cloudLocateProblem" class="plain" type="button" hidden>查看问题图片位置</button>';
+  section.innerHTML='<h2>多端自动同步</h2><label class="cloud-image-mode" style="display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;margin:8px 0 12px"><span>图片同步方式</span><select id="cloudImageMode" style="width:auto;max-width:62vw;margin:0"><option value="compressed">自动压缩至 500 KB（推荐）</option><option value="original">保留原图</option></select></label><p>使用同一账号登录后，iPhone 网页版与 Windows 桌面版会自动同步复盘、随手记、日记和图片。</p><div class="cloud-credentials" style="display:grid;gap:10px;margin:12px 0 4px"><input id="cloudEmail" class="cloud-field" style="width:100%;box-sizing:border-box;border:0;border-radius:11px;padding:12px;background:#e5e5ea;color:#1c1c1e;font:inherit;margin:0" type="email" placeholder="登录邮箱"><input id="cloudPassword" class="cloud-field" style="width:100%;box-sizing:border-box;border:0;border-radius:11px;padding:12px;background:#e5e5ea;color:#1c1c1e;font:inherit;margin:0" type="password" placeholder="密码（Windows 与 iPhone 使用同一密码）"></div><button id="cloudPasswordLogin" type="button">邮箱密码登录</button><button id="cloudResetPassword" class="plain" type="button">忘记密码</button><button id="cloudRegister" class="plain" type="button">首次注册账号</button><button id="cloudLogin" class="plain" type="button">或发送登录链接</button><div id="cloudRecovery" hidden><p>请设置至少 6 位的新密码：</p><input id="cloudNewPassword" class="cloud-field" type="password" placeholder="新密码（至少 6 位）"><input id="cloudNewPasswordConfirm" class="cloud-field" type="password" placeholder="再次输入新密码"><button id="cloudUpdatePassword" type="button">保存新密码</button></div><button id="cloudSyncNow" type="button">立即同步</button><button id="cloudSignOut" class="plain" type="button">退出登录</button><p id="cloudStatus" class="status"></p><button id="cloudLocateProblem" class="plain" type="button" hidden>查看问题图片位置</button><button id="cloudSkipProblem" class="plain" type="button" hidden>跳过此图片并继续同步</button>';
   let transferSize=document.createElement('small');transferSize.id='cloudTransferSize';transferSize.style.cssText='font-size:13px;font-weight:400;color:#8e8e93';section.querySelector('h2').append(' ',transferSize);
   $('#preferences').prepend(section);
   $('#cloudImageMode').onchange=event=>{localStorage.setItem(CLOUD_IMAGE_MODE_KEY,event.target.value);saveDesktopSyncSettings();cloudStatus(event.target.value==='original'?'下次同步将上传原图。':'下次同步将把图片压缩至 500 KB。');window.scheduleCloudSync?.()};
@@ -90,6 +93,7 @@ function ensureCloudSettings(){
   $('#cloudSyncNow').onclick=()=>syncCloud(true,true);
   $('#cloudSignOut').onclick=signOutCloud;
   $('#cloudLocateProblem').onclick=locateCloudProblem;
+  $('#cloudSkipProblem').onclick=skipCloudProblem;
 }
 
 async function connectCloud(){
@@ -167,7 +171,10 @@ async function signOutCloud(){
   cloudUser=null;renderCloudSettings();cloudStatus('已退出登录。本机记录仍会保留。');
 }
 
-function cloudSnapshot(images=[]){return {version:2,records,notes,diaries,plans:window.getInsightPlansForSync?.()||{},deleted:cloudDeletions(),images}}
+function cloudSnapshot(images=[],skipped=new Set()){
+  let withoutSkipped=item=>({...item,images:(item.images||[]).filter(id=>!skipped.has(id))});
+  return {version:2,records,notes:notes.map(withoutSkipped),diaries:diaries.map(withoutSkipped),plans:window.getInsightPlansForSync?.()||{},deleted:cloudDeletions(),images};
+}
 
 function stableCloudValue(value){if(Array.isArray(value))return value.map(stableCloudValue);if(value&&typeof value==='object')return Object.keys(value).sort().reduce((output,key)=>(output[key]=stableCloudValue(value[key]),output),{});return value}
 function cloudComparablePayload(payload){if(!payload)return null;let sorted=(items,key)=>[...(items||[])].sort((a,b)=>String(key(a)).localeCompare(String(key(b))));return {version:payload.version||2,records:sorted(payload.records,item=>item.id||item.date),notes:sorted(payload.notes,item=>item.id),diaries:sorted(payload.diaries,item=>item.id||item.date),plans:payload.plans||{},deleted:sorted(payload.deleted,item=>`${item.kind}:${item.id}`),images:sorted(payload.images,item=>item.id)}}
@@ -252,13 +259,15 @@ async function pullCloudData(){
 }
 
 async function pushCloudData(cleanOrphans=false){
-  let localImageIds=await allNoteImageIds(),pendingIds=localImageIds.filter(id=>!cloudRemoteImageIds.has(id)),images=await noteImagesByIds(pendingIds);
+  let allLocalImageIds=await allNoteImageIds(),skipped=cloudSkippedImages();
+  skipped=saveCloudSkippedImages([...skipped].filter(id=>allLocalImageIds.includes(id)));
+  let localImageIds=allLocalImageIds.filter(id=>!skipped.has(id)),pendingIds=localImageIds.filter(id=>!cloudRemoteImageIds.has(id)),images=await noteImagesByIds(pendingIds);
   if(images.length!==pendingIds.length)throw new Error('本机图片索引不完整，请重新打开应用后再同步');
   let removedImages=await removeDeletedCloudImages();
   let {cloudImageTypes,uploadedBytes}=await uploadCloudImages(images);
   let remoteImages=new Map((cloudRemotePayload?.images||[]).map(image=>[image.id,image])),newImages=new Map(images.map(image=>[image.id,image]));
   let imageManifest=localImageIds.map(id=>{let source=newImages.get(id)||remoteImages.get(id);if(!source)throw new Error(`图片 ${id} 的同步信息缺失`);return {id,noteId:source.noteId,name:source.name,type:cloudImageTypes.get(id)||cloudRemoteImageTypes.get(id)||source.type||source.blob?.type||'image/jpeg'}});
-  let payload=cloudSnapshot(imageManifest);
+  let payload=cloudSnapshot(imageManifest,skipped);
   let payloadChanged=!cloudPayloadEqual(payload,cloudRemotePayload),payloadBytes=0,removedOrphans=0;
   if(payloadChanged){cloudStatus(uploadedBytes?'正在保存记录…':'正在同步文字记录…');await cloudOperation(()=>cloudClient.from('phd_sync_data').upsert({user_id:cloudUser.id,payload,updated_at:new Date().toISOString()}),'保存同步记录');payloadBytes=new Blob([JSON.stringify(payload)]).size;cloudRemotePayload=payload;cloudRemoteImageIds=new Set(imageManifest.map(image=>image.id));cloudRemoteImageTypes=new Map(imageManifest.map(image=>[image.id,image.type]))}
   if(cleanOrphans){cloudStatus('正在整理云端图片…');removedOrphans=await removeOrphanCloudImages(localImageIds.map(id=>({id})));localStorage.setItem(CLOUD_CLEANUP_LAST_KEY,String(Date.now()))}
