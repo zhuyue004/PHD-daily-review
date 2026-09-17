@@ -18,7 +18,9 @@ function mergeInsightPlans(local,remote){
 }
 function setInsightPlans(value,{sync=true}={}){insightPlans=normalizeInsightPlans(value);localStorage.setItem(INSIGHT_PLANS_KEY,JSON.stringify(insightPlans));if(sync)window.scheduleCloudSync?.()}
 window.getInsightPlansForSync=()=>normalizeInsightPlans(insightPlans);
-window.mergeInsightPlansFromCloud=remote=>setInsightPlans(mergeInsightPlans(insightPlans,remote));
+// Applying a cloud snapshot is not a new local edit. Keep it silent so a
+// completed pull cannot schedule another pull forever.
+window.mergeInsightPlansFromCloud=remote=>setInsightPlans(mergeInsightPlans(insightPlans,remote),{sync:false});
 window.restoreInsightPlans=(restored,mode,restoredAt)=>{if(!restored)return 0;let stamped=normalizeInsightPlans(restored);for(let kind of ['week','month'])for(let entry of Object.values(stamped[kind])){entry.updatedAt=restoredAt;entry.items.forEach(item=>item.updatedAt=restoredAt)}setInsightPlans(mode==='replace'?stamped:mergeInsightPlans(insightPlans,stamped));return Object.values(stamped.week).reduce((count,item)=>count+item.items.length,0)+Object.values(stamped.month).reduce((count,item)=>count+item.items.length,0)};
 window.insightPlanExportRows=()=>['week','month'].flatMap(kind=>Object.entries(insightPlans[kind]).flatMap(([key,entry])=>entry.items.map(item=>({周期:kind==='week'?'周计划':'月计划',范围:key.replace(/^week:/,'').replace(/^month:/,''),状态:item.done?'已完成':'待完成',计划:item.text,更新时间:item.updatedAt||entry.updatedAt||''}))));
 
