@@ -6,12 +6,12 @@
   typographyStyle.id='note-unified-typography';
   typographyStyle.textContent=`
   #noteInput{font-size:15px;line-height:1.72;letter-spacing:.01em;color:#111;tab-size:2}
-  .note-format-preview,.note-markdown{font-size:15px;line-height:1.72;letter-spacing:.01em;color:#111}
+  .note-format-preview,.note-markdown{font-size:15px;font-weight:400;line-height:1.72;letter-spacing:.01em;color:#111}
   .note-markdown .note-paragraph{margin:0 0 9px;line-height:1.72;text-indent:2em;white-space:pre-wrap;text-align:left}
   .note-markdown .note-paragraph.note-field-paragraph{padding-left:0;text-indent:0}
   .note-markdown .note-blank-line{height:.65em}
   .note-markdown .note-blank-line.note-blank-line-double{height:1.3em}
-  .note-field-label{color:#1c1c1e;font-weight:650}
+  .note-field-label{color:#1c1c1e;font-weight:400}
   .note-field-value{color:inherit;font-weight:400}
   .note-markdown strong{color:#111;font-weight:700}.note-markdown em{color:#3a3a3c}
   .note-markdown .note-heading{color:#1c1c1e;font-weight:700;letter-spacing:-.2px}.note-markdown h1.note-heading{font-size:20px}.note-markdown h2.note-heading{font-size:18px}.note-markdown h3.note-heading{font-size:16px}
