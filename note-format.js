@@ -2,7 +2,31 @@
 (()=>{
   const KATEX_STYLE='vendor/katex/katex.min.css';
   if(!document.querySelector(`link[href="${KATEX_STYLE}"]`)){let link=document.createElement('link');link.rel='stylesheet';link.href=KATEX_STYLE;document.head.append(link)}
+  const typographyStyle=document.createElement('style');
+  typographyStyle.id='note-unified-typography';
+  typographyStyle.textContent=`
+  #noteInput{font-size:15px;line-height:1.72;letter-spacing:.01em;color:#111;tab-size:2}
+  .note-format-preview,.note-markdown{font-size:15px;line-height:1.72;letter-spacing:.01em;color:#111}
+  .note-markdown .note-paragraph{margin:0 0 9px;line-height:1.72;text-indent:2em;white-space:pre-wrap;text-align:left}
+  .note-markdown .note-paragraph.note-field-paragraph{padding-left:0;text-indent:0}
+  .note-markdown .note-blank-line{height:.65em}
+  .note-markdown .note-blank-line.note-blank-line-double{height:1.3em}
+  .note-field-label{color:#1c1c1e;font-weight:650}
+  .note-field-value{color:inherit;font-weight:400}
+  .note-markdown strong{color:#111;font-weight:700}.note-markdown em{color:#3a3a3c}
+  .note-markdown .note-heading{color:#1c1c1e;font-weight:700;letter-spacing:-.2px}.note-markdown h1.note-heading{font-size:20px}.note-markdown h2.note-heading{font-size:18px}.note-markdown h3.note-heading{font-size:16px}
+  .note-markdown .note-category,.timeline-text .note-markdown .note-category{display:inline-flex!important;align-items:center;width:auto;margin:0 0 11px;padding:4px 9px;border:1px solid #b9dec3;border-radius:7px;background:#edf8f0;color:#248a3d;font-size:12px;font-weight:650;line-height:1.3;text-indent:0}
+  .note-markdown .note-markdown-list{margin:7px 0 10px;padding-left:1.5em;line-height:1.68}.note-markdown .note-markdown-list li{margin:4px 0;padding-left:2px;text-indent:0}.note-markdown .note-markdown-list li::marker{color:#8e8e93}
+  .note-markdown .note-quote{margin:9px 0;padding:7px 11px;border-left:3px solid #8e8e93;border-radius:0 7px 7px 0;background:#f2f2f7;color:#636366;line-height:1.68}
+  .note-markdown .note-code-block{margin:9px 0;padding:11px;border-radius:9px;background:#1c1c1e;color:#f2f2f7;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;line-height:1.58;white-space:pre-wrap;overflow:auto}
+  .note-markdown code,.note-math-source{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}.note-display-math{margin:10px 0;text-align:center}
+  .timeline-text,.timeline-text .note-markdown{color:#111;font-size:14px;line-height:1.72;text-align:left}.timeline-card .timeline-text .note-markdown .note-paragraph{color:#111!important;line-height:1.72!important;text-align:left!important}.timeline-card .timeline-text .note-markdown .note-field-paragraph{text-indent:0!important}
+  @media (prefers-color-scheme:dark){#noteInput,.note-format-preview,.note-markdown,.timeline-text,.timeline-text .note-markdown{color:#f2f2f7}.note-field-label,.note-markdown .note-heading,.note-markdown strong{color:#f2f2f7}.note-markdown em{color:#d1d1d6}.note-markdown .note-category,.timeline-text .note-markdown .note-category{border-color:#376947;background:#173d25;color:#7edb94}.note-markdown .note-quote{border-left-color:#8e8e93;background:#2c2c2e;color:#d1d1d6}.timeline-card .timeline-text .note-markdown .note-paragraph{color:#f2f2f7!important}}
+  `;
+  document.head.append(typographyStyle);
   const escapeHtml=value=>(value||'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+  const FIELD_LABELS=new Set(['问题','尝试','结果','不确定','下一步','现象','我猜','已有证据','条件 / 版本','做了什么','可能原因','论文 / 概念','关键观点','原文位置（页码 / 图表 / 章节）','和我课题的关系','要核实','研究问题','方法','当前结果','不确定处','书 / 章节','核心内容','我的理解','和研究或生活的关联','想继续追问 / 行动','和谁讨论','达成结论 / 仍有分歧','我准备采取的动作','要做的选择','备选方案','考虑因素','当前决定','之后验证','想到','为什么可能有用','最小验证']);
+  const fieldMatch=line=>{let match=String(line||'').match(/^([　 \t]*)([^：:\n]{1,24})([：:])([　 \t]*)(.*)$/);if(!match)return null;return FIELD_LABELS.has(match[2].replace(/\s+/g,' ').trim())?match:null};
   function normalizeMath(source){
     let value=String(source||'').trim();
     // 兼容把 \[...\] 再包进 $...$ 的常见写法；转换为 KaTeX 可识别的多行公式。
@@ -38,11 +62,12 @@
     value=value.replace(/(^|[^*])\*([^*\n]+)\*/g,'$1<em>$2</em>').replace(/(^|[^_])_([^_\n]+)_/g,'$1<em>$2</em>');
     return value.replace(/\uE000(\d+)\uE001/g,(_,index)=>tokens[+index]);
   }
+  function formattedLine(line){let match=fieldMatch(line);if(!match)return inline(line);return `${inline(match[1])}<span class="note-field-label">${inline(match[2]+match[3])}</span>${inline(match[4])}<span class="note-field-value">${inline(match[5])}</span>`}
   function renderNoteMarkup(text){
     let lines=String(text||'').replace(/\r/g,'').split('\n'),html=[],index=0;
     while(index<lines.length){
       let line=lines[index];
-      if(!line.trim()){index++;continue}
+      if(!line.trim()){let blankCount=0;while(index<lines.length&&!lines[index].trim()){blankCount++;index++}if(html.length&&index<lines.length)html.push(`<div class="note-blank-line${blankCount>1?' note-blank-line-double':''}" aria-hidden="true"></div>`);continue}
       if(/^```/.test(line)){let code=[];index++;while(index<lines.length&&!/^```/.test(lines[index]))code.push(lines[index++]);if(index<lines.length)index++;html.push(`<pre class="note-code-block"><code>${escapeHtml(code.join('\n'))}</code></pre>`);continue}
       if(/^\$\$\s*$/.test(line.trim())){let formula=[];index++;while(index<lines.length&&!/^\$\$\s*$/.test(lines[index].trim()))formula.push(lines[index++]);if(index<lines.length)index++;html.push(`<div class="note-display-math">${mathHtml(formula.join('\n').trim(),true)}</div>`);continue}
       // A line containing only one or more \[...\] formulas renders each
@@ -55,7 +80,7 @@
       let quote=line.match(/^>\s?(.*)$/);if(quote){let quoteLines=[];while(index<lines.length&&/^>\s?/.test(lines[index]))quoteLines.push(lines[index++].replace(/^>\s?/,''));html.push(`<blockquote class="note-quote">${quoteLines.map(item=>inline(item)).join('<br>')}</blockquote>`);continue}
       let unordered=line.match(/^[-*+]\s+(.+)$/),ordered=line.match(/^\d+[.)]\s+(.+)$/);if(unordered||ordered){let isOrdered=!!ordered,items=[];while(index<lines.length){let found=lines[index].match(isOrdered?/^\d+[.)]\s+(.+)$/:/^[-*+]\s+(.+)$/);if(!found)break;items.push(`<li>${inline(found[1])}</li>`);index++}html.push(`<${isOrdered?'ol':'ul'} class="note-markdown-list">${items.join('')}</${isOrdered?'ol':'ul'}>`);continue}
       if(/^【[^】]+】\s*$/.test(line.trim())){html.push(`<p class="note-category">${escapeHtml(line.trim())}</p>`);index++;continue}
-      let paragraph=[line];index++;while(index<lines.length&&lines[index].trim()&&!/^(#{1,3})\s+|^>\s?|^[-*+]\s+|^\d+[.)]\s+|^```|^\$\$\s*$|^\\+\[/.test(lines[index]))paragraph.push(lines[index++]);html.push(`<p class="note-paragraph">${paragraph.map(inline).join('<br>')}</p>`);
+      let paragraph=[line];index++;while(index<lines.length&&lines[index].trim()&&!/^(#{1,3})\s+|^>\s?|^[-*+]\s+|^\d+[.)]\s+|^```|^\$\$\s*$|^\\+\[/.test(lines[index]))paragraph.push(lines[index++]);let fieldParagraph=paragraph.some(fieldMatch);html.push(`<p class="note-paragraph${fieldParagraph?' note-field-paragraph':''}">${paragraph.map(formattedLine).join('<br>')}</p>`);
     }
     return `<div class="note-markdown">${html.join('')}</div>`;
   }

@@ -62,7 +62,7 @@ document.head.append(notesTimelineOwnContentStyle);
 const timelineDate=iso=>{let date=new Date(iso),options={month:'long',day:'numeric'};if(date.getFullYear()!==new Date().getFullYear())options.year='numeric';return date.toLocaleDateString('zh-CN',options)};
 const timelineWeekday=iso=>new Date(iso).toLocaleDateString('zh-CN',{weekday:'short'});
 const timelineTime=iso=>new Date(iso).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
-const timelineText=text=>{let lines=(text||'').split(/\r?\n/).map(line=>line.trim()).filter(Boolean),category=/^【[^】]+】$/.test(lines[0]||'')?lines.shift():'';let body=window.renderNoteMarkup?window.renderNoteMarkup(lines.join('\n')):esc(lines.join('\n'));return `<div class="timeline-text">${category?`<div class="timeline-category">${esc(category)}</div>`:''}<div class="timeline-body timeline-markdown-body">${body}</div></div>`};
+const timelineText=text=>{let source=String(text||'').replace(/\r/g,'').trim(),body=window.renderNoteMarkup?window.renderNoteMarkup(source):esc(source);return `<div class="timeline-text"><div class="timeline-body timeline-markdown-body">${body}</div></div>`};
 async function renderTimelineImages(note,holder){
   let images=await getNoteImages(note.id);if(!holder.isConnected||!images.length)return;
   holder.innerHTML=images.map((image,index)=>`<button type="button" data-index="${index}" aria-label="查看原图"><img src="${URL.createObjectURL(image.blob)}" alt="随手记图片 ${index+1}"></button>`).join('');
