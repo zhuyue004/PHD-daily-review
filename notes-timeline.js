@@ -65,8 +65,9 @@ const timelineTime=iso=>new Date(iso).toLocaleTimeString('zh-CN',{hour:'2-digit'
 const timelineText=text=>{let source=String(text||'').replace(/\r/g,'').trim(),body=window.renderNoteMarkup?window.renderNoteMarkup(source):esc(source);return `<div class="timeline-text"><div class="timeline-body timeline-markdown-body">${body}</div></div>`};
 async function renderTimelineImages(note,holder){
   let images=await getNoteImages(note.id);if(!holder.isConnected||!images.length)return;
-  holder.innerHTML=images.map((image,index)=>`<button type="button" data-index="${index}" aria-label="查看原图"><img src="${URL.createObjectURL(image.blob)}" alt="随手记图片 ${index+1}"></button>`).join('');
-  holder.querySelectorAll('button').forEach(button=>button.onclick=()=>openNoteImage(images[+button.dataset.index].blob));
+  let used=window.hydrateNoteInlineImages?.(holder.closest('.timeline-card'),images)||new Set(),remaining=images.filter(image=>!used.has(image.id));
+  holder.innerHTML=remaining.map((image,index)=>`<button type="button" data-index="${index}" aria-label="查看原图"><img src="${URL.createObjectURL(image.blob)}" alt="随手记图片 ${index+1}"></button>`).join('');
+  holder.querySelectorAll('button').forEach(button=>button.onclick=()=>openNoteImage(remaining[+button.dataset.index].blob));
 }
 window.renderNotesTimeline=async function(){
   updateHeaderStat?.('notesTimeline');
