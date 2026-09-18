@@ -92,9 +92,9 @@
       if(displayMatches.length&&!displayRemainder){displayMatches.forEach(match=>html.push(`<div class="note-display-math">${mathHtml(match[1].trim(),true)}</div>`));index++;continue}
       let heading=line.match(/^(#{1,3})\s+(.+)$/);if(heading){let level=heading[1].length;html.push(`<h${level} class="note-heading">${inline(heading[2])}</h${level}>`);index++;continue}
       let quote=line.match(/^>\s?(.*)$/);if(quote){let quoteLines=[];while(index<lines.length&&/^>\s?/.test(lines[index]))quoteLines.push(lines[index++].replace(/^>\s?/,''));html.push(`<blockquote class="note-quote">${quoteLines.map(item=>inline(item)).join('<br>')}</blockquote>`);continue}
-      let unordered=line.match(/^[-*+]\s+(.+)$/),ordered=line.match(/^\d+[.)]\s+(.+)$/);if(unordered||ordered){let isOrdered=!!ordered,items=[];while(index<lines.length){let found=lines[index].match(isOrdered?/^\d+[.)]\s+(.+)$/:/^[-*+]\s+(.+)$/);if(!found)break;items.push(`<li>${inline(found[1])}</li>`);index++}html.push(`<${isOrdered?'ol':'ul'} class="note-markdown-list">${items.join('')}</${isOrdered?'ol':'ul'}>`);continue}
+      let unordered=line.match(/^[-*+]\s+(.+)$/);if(unordered){let items=[];while(index<lines.length){let found=lines[index].match(/^[-*+]\s+(.+)$/);if(!found)break;items.push(`<li>${inline(found[1])}</li>`);index++}html.push(`<ul class="note-markdown-list">${items.join('')}</ul>`);continue}
       if(/^【[^】]+】\s*$/.test(line.trim())){html.push(`<p class="note-category">${escapeHtml(line.trim())}</p>`);index++;continue}
-      let paragraph=[line];index++;while(index<lines.length&&lines[index].trim()&&!/^(#{1,3})\s+|^>\s?|^[-*+]\s+|^\d+[.)]\s+|^```|^\$\$\s*$|^\\+\[/.test(lines[index]))paragraph.push(lines[index++]);let fieldParagraph=paragraph.some(fieldMatch);html.push(`<p class="note-paragraph${fieldParagraph?' note-field-paragraph':''}">${paragraph.map(formattedLine).join('<br>')}</p>`);
+      let paragraph=[line];index++;while(index<lines.length&&lines[index].trim()&&!/^(#{1,3})\s+|^>\s?|^[-*+]\s+|^```|^\$\$\s*$|^\\+\[/.test(lines[index]))paragraph.push(lines[index++]);let fieldParagraph=paragraph.some(fieldMatch);html.push(`<p class="note-paragraph${fieldParagraph?' note-field-paragraph':''}">${paragraph.map(formattedLine).join('<br>')}</p>`);
     }
     return `<div class="note-markdown">${html.join('')}</div>`;
   }
