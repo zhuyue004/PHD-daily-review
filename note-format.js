@@ -63,11 +63,20 @@
     return value.replace(/\uE000(\d+)\uE001/g,(_,index)=>tokens[+index]);
   }
   function formattedLine(line){let match=fieldMatch(line);if(!match)return inline(line);return `${inline(match[1])}<span class="note-field-label">${inline(match[2]+match[3])}</span>${inline(match[4])}<span class="note-field-value">${inline(match[5])}</span>`}
+  function prepareCopiedDisplayMath(text){
+    let formulas=[];
+    let source=String(text||'').replace(/\r/g,'').replace(/(?:\*\*\s*)?\\+\[([\s\S]*?)\\+\](?:\s*\*\*)?(?:\s*(?:&#x20;|&nbsp;))?/gi,(_,formula)=>{
+      let cleaned=formula.replace(/\*\*/g,'').replace(/\\[ \t]*\n/g,' ').replace(/\n+/g,' ').replace(/(?:&#x20;|&nbsp;)/gi,' ').replace(/\s+/g,' ').trim();
+      let token=`\uE100${formulas.length}\uE101`;formulas.push(cleaned);return `\n${token}\n`;
+    });
+    return {source,formulas};
+  }
   function renderNoteMarkup(text){
-    let lines=String(text||'').replace(/\r/g,'').split('\n'),html=[],index=0;
+    let prepared=prepareCopiedDisplayMath(text),lines=prepared.source.split('\n'),html=[],index=0;
     while(index<lines.length){
       let line=lines[index];
       if(!line.trim()){let blankCount=0;while(index<lines.length&&!lines[index].trim()){blankCount++;index++}if(html.length&&index<lines.length)html.push(`<div class="note-blank-line${blankCount>1?' note-blank-line-double':''}" aria-hidden="true"></div>`);continue}
+      let copiedDisplay=line.trim().match(/^\uE100(\d+)\uE101$/);if(copiedDisplay){html.push(`<div class="note-display-math">${mathHtml(prepared.formulas[+copiedDisplay[1]],true)}</div>`);index++;continue}
       if(/^```/.test(line)){let code=[];index++;while(index<lines.length&&!/^```/.test(lines[index]))code.push(lines[index++]);if(index<lines.length)index++;html.push(`<pre class="note-code-block"><code>${escapeHtml(code.join('\n'))}</code></pre>`);continue}
       if(/^\$\$\s*$/.test(line.trim())){let formula=[];index++;while(index<lines.length&&!/^\$\$\s*$/.test(lines[index].trim()))formula.push(lines[index++]);if(index<lines.length)index++;html.push(`<div class="note-display-math">${mathHtml(formula.join('\n').trim(),true)}</div>`);continue}
       // A line containing only one or more \[...\] formulas renders each
