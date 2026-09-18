@@ -19,7 +19,7 @@
   .note-markdown .note-markdown-list{margin:7px 0 10px;padding-left:1.5em;line-height:1.68}.note-markdown .note-markdown-list li{margin:4px 0;padding-left:2px;text-indent:0}.note-markdown .note-markdown-list li::marker{color:#8e8e93}
   .note-markdown .note-quote{margin:9px 0;padding:7px 11px;border-left:3px solid #8e8e93;border-radius:0 7px 7px 0;background:#f2f2f7;color:#636366;line-height:1.68}
   .note-markdown .note-code-block{margin:9px 0;padding:11px;border-radius:9px;background:#1c1c1e;color:#f2f2f7;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;line-height:1.58;white-space:pre-wrap;overflow:auto}
-  .note-markdown code,.note-math-source{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}.note-display-math{margin:10px 0;text-align:center}
+  .note-markdown code,.note-math-source{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}.note-display-math{display:block;max-width:100%;margin:10px 0;overflow-x:auto;overflow-y:hidden;text-align:center;text-indent:0;-webkit-overflow-scrolling:touch}.note-display-math .katex-display{margin:.4em 0}.note-markdown .katex,.note-markdown .katex *{overflow-wrap:normal;word-break:normal}.note-math-source{display:inline-block;max-width:100%;white-space:pre-wrap;overflow-wrap:anywhere;text-indent:0}
   .note-annotation{padding:1px 2px;border-radius:3px;color:inherit}.note-bold{font-weight:700}.note-highlight-yellow{background:#ffe58f}.note-highlight-green{background:#bfe7c8}.note-highlight-red{background:#f4b9bd}.note-text-red{color:#c53b3b}.note-underline-blue{padding-bottom:1px;border-bottom:2px solid #7fa7c4}.note-deleted{color:#8e8e93;text-decoration-thickness:1.5px}
   .note-annotate-wrap{position:relative}.note-annotate-toggle{height:31px!important;margin:0!important;padding:0 9px!important;border-radius:8px!important;background:#edf0f3!important;color:#5f6872!important;font-size:13px!important;font-weight:500!important}.note-annotate-menu{position:absolute;z-index:12;top:37px;left:0;display:grid;grid-template-columns:repeat(3,max-content);gap:6px;width:max-content;padding:8px;border:1px solid #dedee3;border-radius:11px;background:#fff;box-shadow:0 8px 24px #0002}.note-annotate-menu.hidden{display:none}.note-annotate-menu button{display:flex;align-items:center;gap:5px;margin:0!important;padding:6px 8px!important;border-radius:7px!important;background:#f2f2f7!important;color:#3a3a3c!important;font-size:12px!important;font-weight:400!important}.note-annotate-menu i{width:14px;height:14px;border-radius:3px}.note-annotate-menu [data-annotation=bold] i{position:relative}.note-annotate-menu [data-annotation=bold] i::after{content:'B';position:absolute;inset:-3px 0 0;color:#3a3a3c;font-size:14px;font-style:normal;font-weight:800;text-align:center}.note-annotate-menu [data-annotation=yellow] i{background:#ffe58f}.note-annotate-menu [data-annotation=green] i{background:#bfe7c8}.note-annotate-menu [data-annotation=red] i{background:#f4b9bd}.note-annotate-menu [data-annotation=text-red] i{position:relative}.note-annotate-menu [data-annotation=text-red] i::after{content:'A';position:absolute;inset:-2px 0 0;color:#c53b3b;font-size:13px;font-style:normal;font-weight:700;text-align:center}.note-annotate-menu [data-annotation=underline] i{border-bottom:2px solid #7fa7c4}.note-annotate-menu [data-annotation=delete] i{position:relative}.note-annotate-menu [data-annotation=delete] i::after{content:'';position:absolute;left:0;right:0;top:6px;border-top:1px solid #8e8e93}
   .timeline-text,.timeline-text .note-markdown{color:#111;font-size:14px;line-height:1.72;text-align:left}.timeline-card .timeline-text .note-markdown .note-paragraph{color:#111!important;line-height:1.72!important;text-align:left!important}.timeline-card .timeline-text .note-markdown .note-field-paragraph{text-indent:0!important}
@@ -27,10 +27,11 @@
   `;
   document.head.append(typographyStyle);
   const escapeHtml=value=>(value||'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+  const decodeMathEntities=value=>String(value||'').replace(/&(amp|lt|gt|quot|#39);/g,(_,name)=>({amp:'&',lt:'<',gt:'>',quot:'"','#39':"'"}[name]));
   const FIELD_LABELS=new Set(['问题','尝试','结果','不确定','下一步','现象','我猜','已有证据','条件 / 版本','做了什么','可能原因','论文 / 概念','关键观点','原文位置（页码 / 图表 / 章节）','和我课题的关系','要核实','研究问题','方法','当前结果','不确定处','书 / 章节','核心内容','我的理解','和研究或生活的关联','想继续追问 / 行动','和谁讨论','达成结论 / 仍有分歧','我准备采取的动作','要做的选择','备选方案','考虑因素','当前决定','之后验证','想到','为什么可能有用','最小验证']);
   const fieldMatch=line=>{let match=String(line||'').match(/^([　 \t]*)([^：:\n]{1,24})([：:])([　 \t]*)(.*)$/);if(!match)return null;return FIELD_LABELS.has(match[2].replace(/\s+/g,' ').trim())?match:null};
   function normalizeMath(source){
-    let value=String(source||'').trim();
+    let value=decodeMathEntities(source).replace(/(?:&#x20;|&nbsp;)/gi,' ').trim();
     // 兼容把 \[...\] 再包进 $...$ 的常见写法；转换为 KaTeX 可识别的多行公式。
     if(/^\\+\[/.test(value)&&/\\+\]/.test(value)){
       value=value.replace(/^\\+\[\s*/,'').replace(/\\+\]\s*\[?/g,'\n').replace(/\]\s*$/,'').replace(/\\{2,}%/g,'\\%').trim();
@@ -44,7 +45,7 @@
     // ChatGPT Markdown copies often escape underscores (P\_f). Inside math,
     // that should be a subscript rather than a printed underscore character.
     source=source.replace(/\\_/g,'_');
-    if(!window.katex)return `<code class="note-math-source">${escapeHtml(source)}</code>`;
+    if(!window.katex)return `<code class="note-math-source note-math-pending">${escapeHtml(source)}</code>`;
     try{return window.katex.renderToString(source,{displayMode:display,throwOnError:false,strict:'ignore',trust:false})}
     catch{return `<code class="note-math-source">${escapeHtml(source)}</code>`}
   }
@@ -71,10 +72,12 @@
   function formattedLine(line){let match=fieldMatch(line);if(!match)return inline(line);return `${inline(match[1])}<span class="note-field-label">${inline(match[2]+match[3])}</span>${inline(match[4])}<span class="note-field-value">${inline(match[5])}</span>`}
   function prepareCopiedDisplayMath(text){
     let formulas=[];
-    let source=String(text||'').replace(/\r/g,'').replace(/(?:\*\*\s*)?\\+\[([\s\S]*?)\\+\](?:\s*\*\*)?(?:\s*(?:&#x20;|&nbsp;))?/gi,(_,formula)=>{
-      let cleaned=formula.replace(/\*\*/g,'').replace(/\\[ \t]*\n/g,' ').replace(/\n+/g,' ').replace(/(?:&#x20;|&nbsp;)/gi,' ').replace(/\s+/g,' ').trim();
-      let token=`\uE100${formulas.length}\uE101`;formulas.push(cleaned);return `\n${token}\n`;
-    });
+    let stash=formula=>{let cleaned=formula.replace(/\*\*/g,'').replace(/(^|[^\\])\\[ \t]*\n/g,'$1 ').replace(/(?:&#x20;|&nbsp;)/gi,' ').replace(/[ \t]*\n[ \t]*/g,' ').replace(/[ \t]{2,}/g,' ').trim(),token=`\uE100${formulas.length}\uE101`;formulas.push(cleaned);return `\n${token}\n`};
+    let process=segment=>segment
+      .replace(/\$\$([\s\S]*?)\$\$/g,(_,formula)=>stash(formula))
+      .replace(/(?:\*\*\s*)?(?:\$\s*)?\\+\[([\s\S]*?)\\+\](?:\s*\$)?(?:\s*\*\*)?(?:\s*(?:&#x20;|&nbsp;))?/gi,(_,formula)=>stash(formula));
+    let source=String(text||'').replace(/\r/g,''),segments=source.split(/(```[\s\S]*?```)/g);
+    source=segments.map((segment,index)=>index%2?segment:process(segment)).join('');
     return {source,formulas};
   }
   function renderNoteMarkup(text){
@@ -85,31 +88,36 @@
       let copiedDisplay=line.trim().match(/^\uE100(\d+)\uE101$/);if(copiedDisplay){html.push(`<div class="note-display-math">${mathHtml(prepared.formulas[+copiedDisplay[1]],true)}</div>`);index++;continue}
       if(/^```/.test(line)){let code=[];index++;while(index<lines.length&&!/^```/.test(lines[index]))code.push(lines[index++]);if(index<lines.length)index++;html.push(`<pre class="note-code-block"><code>${escapeHtml(code.join('\n'))}</code></pre>`);continue}
       if(/^\$\$\s*$/.test(line.trim())){let formula=[];index++;while(index<lines.length&&!/^\$\$\s*$/.test(lines[index].trim()))formula.push(lines[index++]);if(index<lines.length)index++;html.push(`<div class="note-display-math">${mathHtml(formula.join('\n').trim(),true)}</div>`);continue}
-      // A line containing only one or more \[...\] formulas renders each
-      // formula as its own display block. Text following a formula falls
-      // through to inline(), which preserves that text.
-      let displayMatches=[...line.trim().matchAll(/\\+\[([^\n]*?)\\+\]/g)];
-      let displayRemainder=line.trim().replace(/\\+\[[^\n]*?\\+\]/g,'').trim();
-      if(displayMatches.length&&!displayRemainder){displayMatches.forEach(match=>html.push(`<div class="note-display-math">${mathHtml(match[1].trim(),true)}</div>`));index++;continue}
       let heading=line.match(/^(#{1,3})\s+(.+)$/);if(heading){let level=heading[1].length;html.push(`<h${level} class="note-heading">${inline(heading[2])}</h${level}>`);index++;continue}
       let quote=line.match(/^>\s?(.*)$/);if(quote){let quoteLines=[];while(index<lines.length&&/^>\s?/.test(lines[index]))quoteLines.push(lines[index++].replace(/^>\s?/,''));html.push(`<blockquote class="note-quote">${quoteLines.map(item=>inline(item)).join('<br>')}</blockquote>`);continue}
       let unordered=line.match(/^[-*+]\s+(.+)$/);if(unordered){let items=[];while(index<lines.length){let found=lines[index].match(/^[-*+]\s+(.+)$/);if(!found)break;items.push(`<li>${inline(found[1])}</li>`);index++}html.push(`<ul class="note-markdown-list">${items.join('')}</ul>`);continue}
       if(/^【[^】]+】\s*$/.test(line.trim())){html.push(`<p class="note-category">${escapeHtml(line.trim())}</p>`);index++;continue}
-      let paragraph=[line];index++;while(index<lines.length&&lines[index].trim()&&!/^(#{1,3})\s+|^>\s?|^[-*+]\s+|^```|^\$\$\s*$|^\\+\[/.test(lines[index]))paragraph.push(lines[index++]);let fieldParagraph=paragraph.some(fieldMatch);html.push(`<p class="note-paragraph${fieldParagraph?' note-field-paragraph':''}">${paragraph.map(formattedLine).join('<br>')}</p>`);
+      let paragraph=[line];index++;while(index<lines.length&&lines[index].trim()&&!/^\uE100\d+\uE101$|^(#{1,3})\s+|^>\s?|^[-*+]\s+|^```|^\$\$\s*$|^\\+\[/.test(lines[index].trim()))paragraph.push(lines[index++]);let fieldParagraph=paragraph.some(fieldMatch);html.push(`<p class="note-paragraph${fieldParagraph?' note-field-paragraph':''}">${paragraph.map(formattedLine).join('<br>')}</p>`);
     }
     return `<div class="note-markdown">${html.join('')}</div>`;
   }
   window.renderNoteMarkup=renderNoteMarkup;
   window.plainNoteText=plainNoteText;
   noteContent=renderNoteMarkup;
-  // Some iPhone Safari restores a PWA page before all deferred UI scripts have
-  // finished. Let every note surface redraw once formula rendering is ready.
-  window.dispatchEvent(new Event('phd-note-format-ready'));
-  requestAnimationFrame(()=>{
+  function redrawNoteSurfaces(){
+    let previewNode=document.querySelector('#noteFormatPreview'),inputNode=document.querySelector('#noteInput');
+    if(previewNode&&inputNode&&!previewNode.classList.contains('hidden'))previewNode.innerHTML=renderNoteMarkup(inputNode.value);
     if(document.querySelector('#home.active'))window.renderNotes?.();
     if(document.querySelector('#archive.active'))window.archive?.();
     if(document.querySelector('#notesTimeline.active'))window.renderNotesTimeline?.();
-  });
+  }
+  function announceFormatReady(){window.dispatchEvent(new Event('phd-note-format-ready'));requestAnimationFrame(redrawNoteSurfaces)}
+  let katexRetryCount=0;
+  function ensureKatex(){
+    if(window.katex){announceFormatReady();return}
+    if(document.querySelector('script[data-katex-retry]')||katexRetryCount>=2){announceFormatReady();return}
+    katexRetryCount++;
+    let script=document.createElement('script');script.src='vendor/katex/katex.min.js';script.dataset.katexRetry=String(katexRetryCount);
+    script.onload=()=>{script.remove();announceFormatReady()};
+    script.onerror=()=>{script.remove();setTimeout(ensureKatex,250)};
+    document.head.append(script);
+  }
+  ensureKatex();
 
   let input=$('#noteInput');if(!input)return;
   let toolbar=document.createElement('div');toolbar.className='note-format-toolbar';toolbar.innerHTML='<div class="note-format-switch" role="tablist" aria-label="随手记显示模式"><i aria-hidden="true"></i><button type="button" class="selected" data-mode="edit" role="tab">编辑</button><button type="button" data-mode="preview" role="tab">预览</button></div><div class="note-annotate-wrap"><button type="button" class="note-annotate-toggle" aria-expanded="false">批注</button><div class="note-annotate-menu hidden"><button type="button" data-annotation="bold"><i></i>加粗</button><button type="button" data-annotation="yellow"><i></i>黄色</button><button type="button" data-annotation="green"><i></i>绿色</button><button type="button" data-annotation="red"><i></i>红色</button><button type="button" data-annotation="text-red"><i></i>红字</button><button type="button" data-annotation="underline"><i></i>下划线</button><button type="button" data-annotation="delete"><i></i>删除线</button><button type="button" data-annotation="clear">清除</button></div></div><small>支持批注与 $公式$</small>';
