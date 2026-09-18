@@ -29,3 +29,22 @@
   .status,.quick-note small,.note-editor p,.screen-crop-dialog p{color:#aeaeb2!important}
   hr{border-color:#38383a}
 }
+
+/* iPhone 随手记夜间模式：覆盖较早的浅色内联样式与高优先级规则。 */
+@media (prefers-color-scheme:dark){
+  #noteModal .note-editor,#noteModal .note-editor h2{color:#f2f2f7!important}
+  #noteModal .note-editor>p,#noteModal .note-template-hint{color:#aeaeb2!important}
+  #noteModal #noteInput{background:#2c2c2e!important;color:#f2f2f7!important;caret-color:#0a84ff}
+  #noteModal #noteInput::placeholder{color:#8e8e93;opacity:1}
+  #noteModal .note-templates button{background:#3a3a3c!important;color:#d1d1d6!important}
+  #noteModal .note-templates button.selected{background:#0a84ff!important;color:#fff!important}
+  #noteModal .note-template-example pre{background:#2c2c2e!important;color:#d1d1d6!important}
+  #noteModal .note-image-actions .plain{background:#2c2c2e!important;color:#0a84ff!important}
+  #noteModal .note-format-preview{background:#2c2c2e!important;color:#f2f2f7!important}
+  #noteModal .local-draft-status{color:#98989d!important}
+  #noteModal .local-draft-status.settled{color:#30d158!important}
+  #noteModal .existing-note-images img,#noteModal .note-image-preview img,
+  .archive-note-images img,.timeline-images img{background:#3a3a3c!important}
+  .archive-note{background:#1c1c1e!important;color:#f2f2f7!important}
+  .archive-note time,.archive-note small{color:#98989d!important}
+}
