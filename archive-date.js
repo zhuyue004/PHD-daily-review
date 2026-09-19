@@ -22,7 +22,40 @@ noteModal.addEventListener('click',event=>{if(event.target===noteModal)resetArch
 const originalInsights=insights;
 const insightGroups=[['completed','本周推进','暂未记录完成的工作。'],['solved','已打通的问题','暂未记录已解决问题。'],['unsolved','仍待推进','暂未记录未解决问题。'],['blockers','反复出现的卡点','暂未记录难点或卡点。'],['tomorrow','下周行动重点','暂未记录后续计划。']];
 const insightState=()=>JSON.parse(localStorage.getItem('phd-insight-summary-edits')||'{}');
-const saveInsightState=value=>localStorage.setItem('phd-insight-summary-edits',JSON.stringify(value));
+const summaryStamp=value=>Number.isFinite(Date.parse(value||''))?Date.parse(value):0;
+const summaryGroupKeys=insightGroups.map(group=>group[0]);
+function mergeInsightSummaryGroup(local={},remote={}){
+  let localNewer=summaryStamp(local.updatedAt)>=summaryStamp(remote.updatedAt),first=localNewer?remote:local,last=localNewer?local:remote;
+  let additions=new Map();for(let list of [local.added||[],remote.added||[]])list.forEach((item,index)=>{if(!item?.id)return;let candidate={...item,order:Number.isFinite(item.order)?item.order:index},previous=additions.get(item.id);if(!previous||summaryStamp(item.updatedAt)>summaryStamp(previous.updatedAt))additions.set(item.id,candidate)});
+  let deleted=new Map();for(let item of [...(local.deletedAdded||[]),...(remote.deletedAdded||[])])if(item?.id&&summaryStamp(item.deletedAt)>summaryStamp(deleted.get(item.id)?.deletedAt))deleted.set(item.id,item);
+  return {removed:[...new Set([...(local.removed||[]),...(remote.removed||[])])].sort(),changes:{...(first.changes||{}),...(last.changes||{})},added:[...additions.values()].filter(item=>!deleted.has(item.id)||summaryStamp(item.updatedAt)>summaryStamp(deleted.get(item.id).deletedAt)).sort((a,b)=>a.order-b.order||a.id.localeCompare(b.id)),deletedAdded:[...deleted.values()].sort((a,b)=>a.id.localeCompare(b.id)),updatedAt:last.updatedAt||first.updatedAt||''};
+}
+function mergeInsightSummaryState(local={},remote={}){
+  let merged={};for(let period of new Set([...Object.keys(local||{}),...Object.keys(remote||{})])){
+    let left=local?.[period],right=remote?.[period];if(!left||!right){merged[period]=left||right;continue}
+    let newer=summaryStamp(left.updatedAt)>=summaryStamp(right.updatedAt)?left:right,entry={updatedAt:newer.updatedAt||left.updatedAt||right.updatedAt||'',carryoverApplied:newer.carryoverApplied||left.carryoverApplied||right.carryoverApplied||''};
+    for(let key of summaryGroupKeys)if(left[key]||right[key])entry[key]=mergeInsightSummaryGroup(left[key],right[key]);merged[period]=entry;
+  }return merged;
+}
+function setInsightSummaryState(value,{sync=false}={}){localStorage.setItem('phd-insight-summary-edits',JSON.stringify(value||{}));if(sync)window.scheduleCloudSync?.()}
+function saveInsightState(value){
+  let previous=insightState(),next=value||{},now=new Date().toISOString(),changed=false;
+  for(let [period,entry] of Object.entries(next)){let before=previous[period]||{},touched=entry.carryoverApplied!==before.carryoverApplied;
+    for(let key of summaryGroupKeys){let group=entry[key];if(!group)continue;let old=before[key]||{},oldItems=new Map((old.added||[]).map(item=>[item.id,item])),groupTouched=false;
+      group.added=(group.added||[]).map((item,index)=>{let prior=oldItems.get(item.id),modified=!prior||prior.text!==item.text;if(modified)groupTouched=true;return {...item,order:item.order??prior?.order??index,updatedAt:modified?now:(item.updatedAt||prior.updatedAt||'')}});
+      let tombstones=new Map([...(old.deletedAdded||[]),...(group.deletedAdded||[])].filter(item=>item?.id).map(item=>[item.id,item]));
+      for(let item of old.added||[])if(!group.added.some(current=>current.id===item.id)){tombstones.set(item.id,{id:item.id,deletedAt:now});groupTouched=true}
+      group.deletedAdded=[...tombstones.values()];
+      if(JSON.stringify(old.removed||[])!==JSON.stringify(group.removed||[])||JSON.stringify(old.changes||{})!==JSON.stringify(group.changes||{}))groupTouched=true;
+      if(groupTouched){group.updatedAt=now;touched=true}else group.updatedAt=group.updatedAt||old.updatedAt||'';
+    }
+    if(touched){entry.updatedAt=now;changed=true}else entry.updatedAt=entry.updatedAt||before.updatedAt||'';
+  }
+  setInsightSummaryState(next,{sync:changed});
+}
+window.getInsightSummariesForSync=()=>insightState();
+window.mergeInsightSummariesFromCloud=remote=>setInsightSummaryState(mergeInsightSummaryState(insightState(),remote));
+window.restoreInsightSummaries=(restored,mode,restoredAt)=>{let stamped=JSON.parse(JSON.stringify(restored||{}));for(let entry of Object.values(stamped)){entry.updatedAt=restoredAt;for(let key of summaryGroupKeys){let group=entry[key];if(!group)continue;group.updatedAt=restoredAt;group.added=(group.added||[]).map(item=>({...item,updatedAt:restoredAt}));group.deletedAdded=(group.deletedAdded||[]).map(item=>({...item,deletedAt:restoredAt}))}}let next=mode==='replace'?stamped:mergeInsightSummaryState(insightState(),stamped);setInsightSummaryState(next,{sync:true});return Object.keys(stamped).length};
 function insightPeriod(){let cutoff=new Date();cutoff.setHours(0,0,0,0);cutoff.setDate(cutoff.getDate()-chartDays+1);return `${chartDays}:${localDay(cutoff)}`}
 function insightWeekday(date){return new Date(`${date}T12:00`).toLocaleDateString('zh-CN',{weekday:'short'})}
 function renderEditableInsights(){let cutoff=new Date();cutoff.setHours(0,0,0,0);cutoff.setDate(cutoff.getDate()-chartDays+1);let rows=records.filter(record=>new Date(`${record.date}T12:00`)>=cutoff),all=insightState(),period=insightPeriod(),state=all[period]||{};$('#summary').innerHTML=`<p class="summary-intro">自动汇总每日复盘；点击条目即可修改，来源日期会保留在自动条目后。</p>${insightGroups.map(([key,title,empty])=>{let group=state[key]||{removed:[],changes:{},added:[]},auto=summaryItems(rows,key).slice(0,10).filter(item=>!group.removed.includes(`${item.date}:${item.index}`)).map(item=>({id:`${item.date}:${item.index}`,text:group.changes[`${item.date}:${item.index}`]??item.text,date:item.date,automatic:true})),added=group.added||[],items=[...auto,...added];return `<section class="summary-group" data-group="${key}"><h3>${title}</h3>${items.length?`<ul>${items.map(item=>`<li class="summary-item" data-id="${item.id}" data-auto="${item.automatic?'1':'0'}"><span>${esc(item.text)}</span>${item.date?`<time>${fmt(item.date)} · ${insightWeekday(item.date)}</time>`:''}<button class="plain edit-summary" type="button">编辑</button></li>`).join('')}</ul>`:`<p>${empty}</p>`}<button class="plain add-summary" type="button">＋ 添加条目</button></section>`}).join('')}`;$$('.edit-summary').forEach(button=>button.onclick=event=>{event.stopPropagation();editInsightItem(button.closest('.summary-item'),period)});$$('.summary-item').forEach(item=>item.onclick=event=>{if(!event.target.closest('button'))editInsightItem(item,period)});$$('.add-summary').forEach(button=>{button.onclick=()=>{let key=button.closest('.summary-group').dataset.group,all=insightState(),periodState=all[period]||{},group=periodState[key]||{removed:[],changes:{},added:[]},id=`new:${crypto.randomUUID()}`;group.added=[...(group.added||[]),{id,text:'新建条目'}];periodState[key]=group;all[period]=periodState;saveInsightState(all);renderEditableInsights();setTimeout(()=>$('#summary').querySelector(`[data-id="${id}"]`)?.click(),0)}})}

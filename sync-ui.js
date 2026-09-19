@@ -18,7 +18,7 @@ function cloudTransferSize(bytes=null){let target=$('#cloudTransferSize');if(tar
 function cloudWait(ms){return new Promise(resolve=>setTimeout(resolve,ms))}
 async function cloudTimed(task,timeout,label){let timer;try{return await Promise.race([Promise.resolve().then(task),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(`${label}超时，请检查网络后重试`)),timeout)})])}finally{clearTimeout(timer)}}
 async function cloudOperation(task,label,{timeout=CLOUD_REQUEST_TIMEOUT,retries=1}={}){let lastError;for(let attempt=0;attempt<=retries;attempt++){try{let result=await cloudTimed(task,timeout,label);if(result?.error)throw result.error;return result}catch(error){lastError=error;if(attempt<retries){cloudStatus(`${label}未完成，正在重试…`);await cloudWait(500*(attempt+1))}}}let message=lastError?.message||String(lastError||'未知错误');throw new Error(message.startsWith(label)?message:`${label}失败：${message}`)}
-function cloudHasContent(){let plans=window.getInsightPlansForSync?.();return records.length||notes.length||diaries.length||Object.keys(plans?.week||{}).length||Object.keys(plans?.month||{}).length}
+function cloudHasContent(){let plans=window.getInsightPlansForSync?.(),summaries=window.getInsightSummariesForSync?.();return records.length||notes.length||diaries.length||Object.keys(plans?.week||{}).length||Object.keys(plans?.month||{}).length||Object.keys(summaries||{}).length}
 function cloudRestorePending(){return !!localStorage.getItem(CLOUD_RESTORE_PENDING_KEY)}
 function markCloudRestorePending(){localStorage.setItem(CLOUD_RESTORE_PENDING_KEY,new Date().toISOString());refreshCloudDeleteWatch()}
 window.markCloudRestorePending=markCloudRestorePending;
@@ -174,14 +174,14 @@ async function signOutCloud(){
 
 function cloudSnapshot(images=[],skipped=new Set()){
   let withoutSkipped=item=>({...item,images:(item.images||[]).filter(id=>!skipped.has(id))});
-  return {version:2,records,notes:notes.map(withoutSkipped),diaries:diaries.map(withoutSkipped),plans:window.getInsightPlansForSync?.()||{},deleted:cloudDeletions(),images};
+  return {version:2,records,notes:notes.map(withoutSkipped),diaries:diaries.map(withoutSkipped),plans:window.getInsightPlansForSync?.()||{},summaries:window.getInsightSummariesForSync?.()||{},deleted:cloudDeletions(),images};
 }
 
 function stableCloudValue(value){if(Array.isArray(value))return value.map(stableCloudValue);if(value&&typeof value==='object')return Object.keys(value).sort().reduce((output,key)=>(output[key]=stableCloudValue(value[key]),output),{});return value}
-function cloudComparablePayload(payload){if(!payload)return null;let sorted=(items,key)=>[...(items||[])].sort((a,b)=>String(key(a)).localeCompare(String(key(b))));return {version:payload.version||2,records:sorted(payload.records,item=>item.id||item.date),notes:sorted(payload.notes,item=>item.id),diaries:sorted(payload.diaries,item=>item.id||item.date),plans:payload.plans||{},deleted:sorted(payload.deleted,item=>`${item.kind}:${item.id}`),images:sorted(payload.images,item=>item.id)}}
+function cloudComparablePayload(payload){if(!payload)return null;let sorted=(items,key)=>[...(items||[])].sort((a,b)=>String(key(a)).localeCompare(String(key(b))));return {version:payload.version||2,records:sorted(payload.records,item=>item.id||item.date),notes:sorted(payload.notes,item=>item.id),diaries:sorted(payload.diaries,item=>item.id||item.date),plans:payload.plans||{},summaries:payload.summaries||{},deleted:sorted(payload.deleted,item=>`${item.kind}:${item.id}`),images:sorted(payload.images,item=>item.id)}}
 function cloudPayloadSignature(payload){return payload?JSON.stringify(stableCloudValue(cloudComparablePayload(payload))):''}
 function cloudPayloadEqual(left,right){return !!left&&!!right&&cloudPayloadSignature(left)===cloudPayloadSignature(right)}
-function cloudLocalSignature(){return cloudPayloadSignature({version:2,records,notes,diaries,plans:window.getInsightPlansForSync?.()||{},deleted:cloudDeletions(),images:[]})}
+function cloudLocalSignature(){return cloudPayloadSignature({version:2,records,notes,diaries,plans:window.getInsightPlansForSync?.()||{},summaries:window.getInsightSummariesForSync?.()||{},deleted:cloudDeletions(),images:[]})}
 function cloudCleanupDue(){let last=Number(localStorage.getItem(CLOUD_CLEANUP_LAST_KEY)||0);if(!last){localStorage.setItem(CLOUD_CLEANUP_LAST_KEY,String(Date.now()));return false}return Date.now()-last>=CLOUD_CLEANUP_INTERVAL}
 function cloudConflictError(){let error=new Error('检测到另一台设备刚刚更新了数据');error.cloudConflict=true;return error}
 async function saveCloudPayload(payload){
@@ -266,6 +266,7 @@ async function pullCloudData(){
   notes=mergeCloudList(notes,remote.notes||[],'id');
   diaries=mergeCloudList(diaries,remote.diaries||[],'date');
   if(remote.plans)window.mergeInsightPlansFromCloud?.(remote.plans);
+  if(remote.summaries)window.mergeInsightSummariesFromCloud?.(remote.summaries);
   await applyCloudDeletions(deleted);
   localStorage.setItem('phd-review-records',JSON.stringify(records));
   localStorage.setItem('phd-quick-notes',JSON.stringify(notes));
