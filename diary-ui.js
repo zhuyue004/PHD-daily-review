@@ -84,7 +84,7 @@ function bindDiaryRows(){
   $$('.delete-diary').forEach(button=>button.onclick=async event=>{
     event.preventDefault();event.stopPropagation();
     let id=button.closest('.diary-swipe').dataset.id;
-    if(confirm('确定删除这篇日记吗？此操作无法撤销。')){
+    if(await confirmFourDigitDelete('日记')){
       diaries=diaries.filter(item=>item.id!==id);await deleteDiaryImages([id]);
       saveDiaries();
       renderDiary();
@@ -92,7 +92,7 @@ function bindDiaryRows(){
   });
   $$('.diary-swipe').forEach(row=>{
     let start=0,delta=0,card=row.querySelector('.diary-row');
-    row.addEventListener('pointerdown',event=>{start=event.clientX;delta=0;row.setPointerCapture?.(event.pointerId)});
+    row.addEventListener('pointerdown',event=>{if(event.target.closest('.diary-row-actions'))return;start=event.clientX;delta=0;row.setPointerCapture?.(event.pointerId)});
     row.addEventListener('pointermove',event=>{
       if(!start)return;
       delta=Math.min(0,Math.max(-168,event.clientX-start));
