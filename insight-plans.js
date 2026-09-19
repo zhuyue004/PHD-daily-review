@@ -46,5 +46,41 @@ function renderInsightPlan(bounds){
   section.querySelectorAll('.edit-plan').forEach(button=>button.onclick=()=>{let row=button.closest('li'),item=entry.items.find(value=>value.id===row.dataset.planId);if(!item||row.classList.contains('editing'))return;row.classList.add('editing');row.innerHTML=`<textarea class="plan-edit-input">${esc(item.text)}</textarea><div><button class="save-plan" type="button">保存</button><button class="plain delete-plan" type="button">删除</button></div>`;let input=row.querySelector('textarea');input.focus();input.setSelectionRange(input.value.length,input.value.length);row.querySelector('.save-plan').onclick=()=>{let text=input.value.trim();if(!text)return row.querySelector('.delete-plan').click();item.text=text;item.updatedAt=planNow();writePlan(bounds,kind,entry);renderInsightPlan(bounds)};row.querySelector('.delete-plan').onclick=()=>{entry.items=entry.items.filter(value=>value.id!==item.id);writePlan(bounds,kind,entry);renderInsightPlan(bounds)}});
   $('#summary')?.closest('article')?.before(section);
 }
+// 周一及每月 1 日承接上一周期的「行动重点」。只追加一次，不改动本期已有推进。
+function previousInsightPeriod(bounds){
+  let kind=bounds.key.startsWith('week:')?'week':'month',start=insightDate(bounds.start),previousStart,previousEnd=new Date(start);
+  previousEnd.setDate(previousEnd.getDate()-1);
+  if(kind==='week'){previousStart=new Date(start);previousStart.setDate(previousStart.getDate()-7)}
+  else previousStart=new Date(previousEnd.getFullYear(),previousEnd.getMonth(),1);
+  return {kind,key:`${kind}:${dateKey(previousStart)}`,start:previousStart,end:previousEnd};
+}
+function previousActionItems(period){
+  let state=insightState()[period.key]?.tomorrow||{},removed=new Set(state.removed||[]),rows=insightRows(period);
+  let automatic=summaryItems(rows,'tomorrow').slice(0,10).filter(item=>!removed.has(`${item.date}:${item.index}`)).map(item=>({id:`${item.date}:${item.index}`,text:state.changes?.[`${item.date}:${item.index}`]??item.text}));
+  return [...automatic,...(state.added||[])].filter(item=>item.text?.trim()&&item.text.trim()!=='新建条目');
+}
+function ensureInsightCarryover(bounds){
+  if(insightDate(dateKey(new Date()))<bounds.start)return;
+  let previous=previousInsightPeriod(bounds),all=insightState(),current=all[bounds.key]||{};
+  if(current.carryoverApplied===previous.key)return;
+  let source=previousActionItems(previous);
+  if(!source.length)return;
+  let completed=current.completed||{removed:[],changes:{},added:[]};completed.added=[...(completed.added||[])];
+  let existing=new Set(completed.added.map(item=>String(item.text||'').trim()));
+  for(let item of source){let text=item.text.trim(),id=`carry:${previous.key}:${item.id}`;if(existing.has(text))continue;completed.added.push({id,text});existing.add(text)}
+  current.completed=completed;current.carryoverApplied=previous.key;all[bounds.key]=current;saveInsightState(all);
+}
+const renderSummaryBeforeCarryover=renderPeriodSummary;
+renderPeriodSummary=function(rows,period,label){
+  let bounds=insightBounds();
+  if(bounds.key===period)ensureInsightCarryover(bounds);
+  renderSummaryBeforeCarryover(rows,period,label);
+  let month=period.startsWith('month:');
+  $('#summary .summary-group[data-group="completed"] h3').textContent=month?'本月推进':'本周推进';
+  $('#summary .summary-group[data-group="tomorrow"] h3').textContent=month?'下月行动重点':'下周行动重点';
+  $('#summary').querySelectorAll('.summary-group[data-group="completed"] .summary-item[data-id^="carry:"]').forEach(row=>{
+    let label=document.createElement('time');label.textContent=month?'承接自上月 · 待推进':'承接自上周 · 待推进';row.querySelector('span')?.after(label);
+  });
+};
 const insightPlansDashboard=insights;
 insights=function(){insightPlansDashboard();let toolbar=$('#insights .segmented');if(toolbar){let buttons=$$('[data-insight-mode]',toolbar);if(buttons[0])buttons[0].textContent='周视图';if(buttons[1])buttons[1].textContent='月视图'}$('#summary')?.closest('article')?.querySelector('h2')?.classList.add('insight-section-title');renderInsightPlan(insightBounds())};
