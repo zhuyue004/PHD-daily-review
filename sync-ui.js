@@ -18,7 +18,7 @@ function cloudTransferSize(bytes=null){let target=$('#cloudTransferSize');if(tar
 function cloudWait(ms){return new Promise(resolve=>setTimeout(resolve,ms))}
 async function cloudTimed(task,timeout,label){let timer;try{return await Promise.race([Promise.resolve().then(task),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(`${label}超时，请检查网络后重试`)),timeout)})])}finally{clearTimeout(timer)}}
 async function cloudOperation(task,label,{timeout=CLOUD_REQUEST_TIMEOUT,retries=1}={}){let lastError;for(let attempt=0;attempt<=retries;attempt++){try{let result=await cloudTimed(task,timeout,label);if(result?.error)throw result.error;return result}catch(error){lastError=error;if(attempt<retries){cloudStatus(`${label}未完成，正在重试…`);await cloudWait(500*(attempt+1))}}}let message=lastError?.message||String(lastError||'未知错误');throw new Error(message.startsWith(label)?message:`${label}失败：${message}`)}
-function cloudHasContent(){let plans=window.getInsightPlansForSync?.(),summaries=window.getInsightSummariesForSync?.();return records.length||notes.length||diaries.length||Object.keys(plans?.week||{}).length||Object.keys(plans?.month||{}).length||Object.keys(summaries||{}).length}
+function cloudHasContent(){let plans=window.getInsightPlansForSync?.(),summaries=window.getInsightSummariesForSync?.();return records.length||notes.length||diaries.length||observations.length||Object.keys(plans?.week||{}).length||Object.keys(plans?.month||{}).length||Object.keys(summaries||{}).length}
 function cloudRestorePending(){return !!localStorage.getItem(CLOUD_RESTORE_PENDING_KEY)}
 function markCloudRestorePending(){localStorage.setItem(CLOUD_RESTORE_PENDING_KEY,new Date().toISOString());refreshCloudDeleteWatch()}
 window.markCloudRestorePending=markCloudRestorePending;
@@ -33,8 +33,8 @@ function rememberCloudDeletion(kind,id,imageIds=[]){if(!id)return;saveCloudDelet
 function deletionSet(items=cloudDeletions()){return new Set(items.map(item=>`${item.kind}:${item.id}`))}
 function keepRestoredItems(items){
   if(!cloudRestorePending())return items;
-  let recordIds=new Set(records.map(item=>item.id||item.date)),noteIds=new Set(notes.map(item=>item.id)),diaryIds=new Set(diaries.map(item=>item.id));
-  return (items||[]).filter(item=>!((item.kind==='record'&&recordIds.has(item.id))||(item.kind==='note'&&noteIds.has(item.id))||(item.kind==='diary'&&diaryIds.has(item.id))));
+  let recordIds=new Set(records.map(item=>item.id||item.date)),noteIds=new Set(notes.map(item=>item.id)),diaryIds=new Set(diaries.map(item=>item.id)),observationIds=new Set(observations.map(item=>item.id));
+  return (items||[]).filter(item=>!((item.kind==='record'&&recordIds.has(item.id))||(item.kind==='note'&&noteIds.has(item.id))||(item.kind==='diary'&&diaryIds.has(item.id))||(item.kind==='observation'&&observationIds.has(item.id))));
 }
 let applyingCloudDeletions=false;
 const originalDeleteStoredImages=deleteNoteImages;
@@ -46,20 +46,21 @@ deleteNoteImages=async function(noteIds){
 async function applyCloudDeletions(items=cloudDeletions()){
   let removed=deletionSet(items),recordKey=item=>item.id||item.date,noteIds=notes.filter(item=>removed.has(`note:${item.id}`)).map(item=>item.id),diaryIds=diaries.filter(item=>removed.has(`diary:${item.id}`)).map(item=>item.id);
   applyingCloudDeletions=true;
-  try{if(noteIds.length)await deleteNoteImages(noteIds);if(diaryIds.length)await deleteDiaryImages(diaryIds);records=records.filter(item=>!removed.has(`record:${recordKey(item)}`));notes=notes.filter(item=>!removed.has(`note:${item.id}`));diaries=diaries.filter(item=>!removed.has(`diary:${item.id}`))}finally{applyingCloudDeletions=false}
+  try{if(noteIds.length)await deleteNoteImages(noteIds);if(diaryIds.length)await deleteDiaryImages(diaryIds);records=records.filter(item=>!removed.has(`record:${recordKey(item)}`));notes=notes.filter(item=>!removed.has(`note:${item.id}`));diaries=diaries.filter(item=>!removed.has(`diary:${item.id}`));observations=observations.filter(item=>!removed.has(`observation:${item.id}`))}finally{applyingCloudDeletions=false}
 }
-let knownCloudRecordKeys=new Set(records.map(item=>item.id||item.date)),knownCloudNoteIds=new Set(notes.map(item=>item.id)),knownCloudDiaryIds=new Set(diaries.map(item=>item.id));
+let knownCloudRecordKeys=new Set(records.map(item=>item.id||item.date)),knownCloudNoteIds=new Set(notes.map(item=>item.id)),knownCloudDiaryIds=new Set(diaries.map(item=>item.id)),knownCloudObservationIds=new Set(observations.map(item=>item.id));
 function watchCloudDeletes(){
   // A restore replaces local lists in one operation. It is not a user deletion
   // and must never create cloud deletion tombstones.
   if(cloudRestorePending()){refreshCloudDeleteWatch();return}
-  let currentRecords=new Set(records.map(item=>item.id||item.date)),currentNotes=new Set(notes.map(item=>item.id)),currentDiaries=new Set(diaries.map(item=>item.id));
+  let currentRecords=new Set(records.map(item=>item.id||item.date)),currentNotes=new Set(notes.map(item=>item.id)),currentDiaries=new Set(diaries.map(item=>item.id)),currentObservations=new Set(observations.map(item=>item.id));
   for(let id of knownCloudRecordKeys)if(!currentRecords.has(id))rememberCloudDeletion('record',id);
   for(let id of knownCloudNoteIds)if(!currentNotes.has(id))rememberCloudDeletion('note',id);
   for(let id of knownCloudDiaryIds)if(!currentDiaries.has(id))rememberCloudDeletion('diary',id);
-  knownCloudRecordKeys=currentRecords;knownCloudNoteIds=currentNotes;knownCloudDiaryIds=currentDiaries;
+  for(let id of knownCloudObservationIds)if(!currentObservations.has(id))rememberCloudDeletion('observation',id);
+  knownCloudRecordKeys=currentRecords;knownCloudNoteIds=currentNotes;knownCloudDiaryIds=currentDiaries;knownCloudObservationIds=currentObservations;
 }
-function refreshCloudDeleteWatch(){knownCloudRecordKeys=new Set(records.map(item=>item.id||item.date));knownCloudNoteIds=new Set(notes.map(item=>item.id));knownCloudDiaryIds=new Set(diaries.map(item=>item.id))}
+function refreshCloudDeleteWatch(){knownCloudRecordKeys=new Set(records.map(item=>item.id||item.date));knownCloudNoteIds=new Set(notes.map(item=>item.id));knownCloudDiaryIds=new Set(diaries.map(item=>item.id));knownCloudObservationIds=new Set(observations.map(item=>item.id))}
 
 function renderCloudSettings(){
   let connected=!!cloudUser,recovering=connected&&cloudPasswordRecovery;
@@ -82,7 +83,7 @@ function ensureCloudSettings(){
   if($('#cloudSettings'))return;
   let section=document.createElement('article');
   section.id='cloudSettings';
-  section.innerHTML='<h2>多端自动同步</h2><label class="cloud-image-mode" style="display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;margin:8px 0 12px"><span>图片同步方式</span><select id="cloudImageMode" style="width:auto;max-width:62vw;margin:0"><option value="compressed">自动压缩至 500 KB（推荐）</option><option value="original">保留原图</option></select></label><p>使用同一账号登录后，iPhone 网页版与 Windows 桌面版会自动同步复盘、随手记、日记和图片。</p><div class="cloud-credentials" style="display:grid;gap:10px;margin:12px 0 4px"><input id="cloudEmail" class="cloud-field" style="width:100%;box-sizing:border-box;border:0;border-radius:11px;padding:12px;background:#e5e5ea;color:#1c1c1e;font:inherit;margin:0" type="email" placeholder="登录邮箱"><input id="cloudPassword" class="cloud-field" style="width:100%;box-sizing:border-box;border:0;border-radius:11px;padding:12px;background:#e5e5ea;color:#1c1c1e;font:inherit;margin:0" type="password" placeholder="密码（Windows 与 iPhone 使用同一密码）"></div><button id="cloudPasswordLogin" type="button">邮箱密码登录</button><button id="cloudResetPassword" class="plain" type="button">忘记密码</button><button id="cloudRegister" class="plain" type="button">首次注册账号</button><button id="cloudLogin" class="plain" type="button">或发送登录链接</button><div id="cloudRecovery" hidden><p>请设置至少 6 位的新密码：</p><input id="cloudNewPassword" class="cloud-field" type="password" placeholder="新密码（至少 6 位）"><input id="cloudNewPasswordConfirm" class="cloud-field" type="password" placeholder="再次输入新密码"><button id="cloudUpdatePassword" type="button">保存新密码</button></div><button id="cloudSyncNow" type="button">立即同步</button><button id="cloudSignOut" class="plain" type="button">退出登录</button><p id="cloudStatus" class="status"></p><button id="cloudLocateProblem" class="plain" type="button" hidden>查看问题图片位置</button><button id="cloudSkipProblem" class="plain" type="button" hidden>跳过此图片并继续同步</button>';
+  section.innerHTML='<h2>多端自动同步</h2><label class="cloud-image-mode" style="display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;margin:8px 0 12px"><span>图片同步方式</span><select id="cloudImageMode" style="width:auto;max-width:62vw;margin:0"><option value="compressed">自动压缩至 500 KB（推荐）</option><option value="original">保留原图</option></select></label><p>使用同一账号登录后，iPhone 网页版与 Windows 桌面版会自动同步复盘、随手记、日记、观察练习和图片。</p><div class="cloud-credentials" style="display:grid;gap:10px;margin:12px 0 4px"><input id="cloudEmail" class="cloud-field" style="width:100%;box-sizing:border-box;border:0;border-radius:11px;padding:12px;background:#e5e5ea;color:#1c1c1e;font:inherit;margin:0" type="email" placeholder="登录邮箱"><input id="cloudPassword" class="cloud-field" style="width:100%;box-sizing:border-box;border:0;border-radius:11px;padding:12px;background:#e5e5ea;color:#1c1c1e;font:inherit;margin:0" type="password" placeholder="密码（Windows 与 iPhone 使用同一密码）"></div><button id="cloudPasswordLogin" type="button">邮箱密码登录</button><button id="cloudResetPassword" class="plain" type="button">忘记密码</button><button id="cloudRegister" class="plain" type="button">首次注册账号</button><button id="cloudLogin" class="plain" type="button">或发送登录链接</button><div id="cloudRecovery" hidden><p>请设置至少 6 位的新密码：</p><input id="cloudNewPassword" class="cloud-field" type="password" placeholder="新密码（至少 6 位）"><input id="cloudNewPasswordConfirm" class="cloud-field" type="password" placeholder="再次输入新密码"><button id="cloudUpdatePassword" type="button">保存新密码</button></div><button id="cloudSyncNow" type="button">立即同步</button><button id="cloudSignOut" class="plain" type="button">退出登录</button><p id="cloudStatus" class="status"></p><button id="cloudLocateProblem" class="plain" type="button" hidden>查看问题图片位置</button><button id="cloudSkipProblem" class="plain" type="button" hidden>跳过此图片并继续同步</button>';
   let transferSize=document.createElement('small');transferSize.id='cloudTransferSize';transferSize.style.cssText='font-size:13px;font-weight:400;color:#8e8e93';section.querySelector('h2').append(' ',transferSize);
   $('#preferences').prepend(section);
   $('#cloudImageMode').onchange=event=>{localStorage.setItem(CLOUD_IMAGE_MODE_KEY,event.target.value);saveDesktopSyncSettings();cloudStatus(event.target.value==='original'?'下次同步将上传原图。':'下次同步将把图片压缩至 500 KB。');window.scheduleCloudSync?.()};
@@ -174,14 +175,14 @@ async function signOutCloud(){
 
 function cloudSnapshot(images=[],skipped=new Set()){
   let withoutSkipped=item=>({...item,images:(item.images||[]).filter(id=>!skipped.has(id))});
-  return {version:2,records,notes:notes.map(withoutSkipped),diaries:diaries.map(withoutSkipped),plans:window.getInsightPlansForSync?.()||{},summaries:window.getInsightSummariesForSync?.()||{},deleted:cloudDeletions(),images};
+  return {version:2,records,notes:notes.map(withoutSkipped),diaries:diaries.map(withoutSkipped),observations,plans:window.getInsightPlansForSync?.()||{},summaries:window.getInsightSummariesForSync?.()||{},deleted:cloudDeletions(),images};
 }
 
 function stableCloudValue(value){if(Array.isArray(value))return value.map(stableCloudValue);if(value&&typeof value==='object')return Object.keys(value).sort().reduce((output,key)=>(output[key]=stableCloudValue(value[key]),output),{});return value}
-function cloudComparablePayload(payload){if(!payload)return null;let sorted=(items,key)=>[...(items||[])].sort((a,b)=>String(key(a)).localeCompare(String(key(b))));return {version:payload.version||2,records:sorted(payload.records,item=>item.id||item.date),notes:sorted(payload.notes,item=>item.id),diaries:sorted(payload.diaries,item=>item.id||item.date),plans:payload.plans||{},summaries:payload.summaries||{},deleted:sorted(payload.deleted,item=>`${item.kind}:${item.id}`),images:sorted(payload.images,item=>item.id)}}
+function cloudComparablePayload(payload){if(!payload)return null;let sorted=(items,key)=>[...(items||[])].sort((a,b)=>String(key(a)).localeCompare(String(key(b))));return {version:payload.version||2,records:sorted(payload.records,item=>item.id||item.date),notes:sorted(payload.notes,item=>item.id),diaries:sorted(payload.diaries,item=>item.id||item.date),observations:sorted(payload.observations,item=>item.id),plans:payload.plans||{},summaries:payload.summaries||{},deleted:sorted(payload.deleted,item=>`${item.kind}:${item.id}`),images:sorted(payload.images,item=>item.id)}}
 function cloudPayloadSignature(payload){return payload?JSON.stringify(stableCloudValue(cloudComparablePayload(payload))):''}
 function cloudPayloadEqual(left,right){return !!left&&!!right&&cloudPayloadSignature(left)===cloudPayloadSignature(right)}
-function cloudLocalSignature(){return cloudPayloadSignature({version:2,records,notes,diaries,plans:window.getInsightPlansForSync?.()||{},summaries:window.getInsightSummariesForSync?.()||{},deleted:cloudDeletions(),images:[]})}
+function cloudLocalSignature(){return cloudPayloadSignature({version:2,records,notes,diaries,observations,plans:window.getInsightPlansForSync?.()||{},summaries:window.getInsightSummariesForSync?.()||{},deleted:cloudDeletions(),images:[]})}
 function cloudCleanupDue(){let last=Number(localStorage.getItem(CLOUD_CLEANUP_LAST_KEY)||0);if(!last){localStorage.setItem(CLOUD_CLEANUP_LAST_KEY,String(Date.now()));return false}return Date.now()-last>=CLOUD_CLEANUP_INTERVAL}
 function cloudConflictError(){let error=new Error('检测到另一台设备刚刚更新了数据');error.cloudConflict=true;return error}
 async function saveCloudPayload(payload){
@@ -265,12 +266,14 @@ async function pullCloudData(){
   records=mergeCloudList(records,remote.records||[],'date');
   notes=mergeCloudList(notes,remote.notes||[],'id');
   diaries=mergeCloudList(diaries,remote.diaries||[],'date');
+  observations=mergeCloudList(observations,remote.observations||[],'id');
   if(remote.plans)window.mergeInsightPlansFromCloud?.(remote.plans);
   if(remote.summaries)window.mergeInsightSummariesFromCloud?.(remote.summaries);
   await applyCloudDeletions(deleted);
   localStorage.setItem('phd-review-records',JSON.stringify(records));
   localStorage.setItem('phd-quick-notes',JSON.stringify(notes));
   localStorage.setItem('phd-diary-records',JSON.stringify(diaries));
+  localStorage.setItem('phd-observation-records',JSON.stringify(observations));
   refreshCloudDeleteWatch();
   let deletedIds=deletionSet(deleted);
   let downloadedImages=await downloadCloudImages((remote.images||[]).filter(image=>!deletedIds.has(`note:${image.noteId}`)&&!deletedIds.has(`diary:${image.noteId}`)));

@@ -1,7 +1,7 @@
 let observations=JSON.parse(localStorage.getItem('phd-observation-records')||'[]');
 const observationDraftKey='phd-observation-drafts';
 let observationEditingId=null,observationDraftTimer=null,observationStatusTimer=null,observationFilterDate=null,observationPickerMonth=new Date();
-const saveObservations=()=>{localStorage.setItem('phd-observation-records',JSON.stringify(observations));if($('#diary').classList.contains('observation-mode'))updateObservationHeader()};
+const saveObservations=()=>{localStorage.setItem('phd-observation-records',JSON.stringify(observations));if($('#diary').classList.contains('observation-mode'))updateObservationHeader();window.scheduleCloudSync?.()};
 const observationDrafts=()=>{try{return JSON.parse(localStorage.getItem(observationDraftKey)||'{}')}catch{return {}}};
 const observationWords=text=>[...(text||'').replace(/\s/g,'')].length;
 const observationEditorKey=()=>observationEditingId||'new';
