@@ -17,8 +17,9 @@ async function restoreExcel(file){
   try{
     if(!window.XLSX)throw new Error('Excel 组件未加载，请联网后重试。');
     let book=XLSX.read(await file.arrayBuffer(),{type:'array'}),sheet=book.Sheets[book.SheetNames[0]],rows=XLSX.utils.sheet_to_json(sheet,{defval:''});
-    if(!rows.length)throw new Error('Excel 中没有可恢复的数据。');
-    let imported=[],importedNotes=[],importedDiaries=[],noteDates=new Set(),diaryDates=new Set(),restoredAt=new Date().toISOString();
+    let observationRows=book.Sheets['观察练习']?XLSX.utils.sheet_to_json(book.Sheets['观察练习'],{defval:''}):[];
+    if(!rows.length&&!observationRows.length)throw new Error('Excel 中没有可恢复的数据。');
+    let imported=[],importedNotes=[],importedDiaries=[],importedObservations=[],noteDates=new Set(),diaryDates=new Set(),restoredAt=new Date().toISOString();
     for(let row of rows){
       let date=restoreDate(row['日期']); if(!date)continue;
       let record={id:crypto.randomUUID(),date,updatedAt:restoredAt};
@@ -29,10 +30,16 @@ async function restoreExcel(file){
       if(Object.prototype.hasOwnProperty.call(row,'随手记')){noteDates.add(date);importedNotes.push(...importNotes(row['随手记'],date,row['随手记记录时间']).map(note=>({...note,updatedAt:restoredAt})));}
       if(Object.prototype.hasOwnProperty.call(row,'日记')){diaryDates.add(date);let text=(row['日记']??'').toString().trim(),place=(row['日记地点']??'').toString().trim();if(text)importedDiaries.push({id:crypto.randomUUID(),date,text,place,updatedAt:restoredAt});}
     }
-    if(!imported.length&&!importedNotes.length&&!importedDiaries.length)throw new Error('未识别到“博士日课”记录，请确认选择了导出的 Excel。');
+    for(let row of observationRows){
+      let date=restoreDate(row['日期']),title=(row['标题']??'').toString().trim(),text=(row['正文']??'').toString().trim();
+      if(!date||!title||!text)continue;
+      let createdAt=(row['记录时间']??'').toString().trim(),id=(row['记录ID']??'').toString().trim();
+      importedObservations.push({id:id||crypto.randomUUID(),date,title,text,place:(row['地点']??'').toString().trim(),createdAt:!Number.isNaN(Date.parse(createdAt))?createdAt:restoredAt,updatedAt:restoredAt});
+    }
+    if(!imported.length&&!importedNotes.length&&!importedDiaries.length&&!importedObservations.length)throw new Error('未识别到“博士日课”记录，请确认选择了导出的 Excel。');
     let mode=$('#restoreMode').value,word=mode==='replace'?'完全恢复会清空本机现有记录，确定继续吗？':'合并恢复会用 Excel 中相同日期的内容覆盖本机对应内容，确定继续吗？';
     if(!confirm(word))return;
-    if(mode==='replace'){records=imported;notes=importedNotes;diaries=importedDiaries}
+    if(mode==='replace'){records=imported;notes=importedNotes;diaries=importedDiaries;observations=importedObservations}
     else{
       let map=new Map(records.map(r=>[r.date,r]));
       for(let record of imported)map.set(record.date,{...(map.get(record.date)||{}),...record,id:map.get(record.date)?.id||record.id});
@@ -45,8 +52,11 @@ async function restoreExcel(file){
       let diaryMap=new Map(diaries.map(item=>[item.date,item]));
       for(let diary of importedDiaries)diaryMap.set(diary.date,diary);
       diaries=[...diaryMap.values()];
+      let observationMap=new Map(observations.map(item=>[item.id,item]));
+      for(let item of importedObservations)observationMap.set(item.id,item);
+      observations=[...observationMap.values()];
     }
-    window.markCloudRestorePending?.();localStorage.setItem('phd-cloud-restore-pending',restoredAt);save();saveNotes();saveDiaries();page('home');restoreStatus(`恢复完成：${imported.length} 天复盘，${importedNotes.length} 条随手记，${importedDiaries.length} 篇日记。下一次同步会优先保留本次恢复的数据。${mode==='merge'&&!importedNotes.length?' 未识别到随手记时已保留本机随手记。':''}${mode==='merge'&&!importedDiaries.length?' 未识别到日记时已保留本机日记。':''}`);
+    window.markCloudRestorePending?.();localStorage.setItem('phd-cloud-restore-pending',restoredAt);save();saveNotes();saveDiaries();saveObservations();page('home');restoreStatus(`恢复完成：${imported.length} 天复盘，${importedNotes.length} 条随手记，${importedDiaries.length} 篇日记，${importedObservations.length} 篇观察练习。观察练习已恢复到本机，请另存完整备份包；其云端同步将在桌面版兼容后启用。${mode==='merge'&&!importedNotes.length?' 未识别到随手记时已保留本机随手记。':''}${mode==='merge'&&!importedDiaries.length?' 未识别到日记时已保留本机日记。':''}`);
   }catch(error){restoreStatus(`恢复失败：${error.message}`)}
 }
 

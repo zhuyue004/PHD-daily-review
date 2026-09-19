@@ -1,0 +1,41 @@
+.diary-subview{display:flex;gap:3px;margin:13px 0;padding:3px;border-radius:11px;background:#e5e5ea}
+.diary-subview button{flex:1;margin:0;padding:9px 8px;border-radius:8px;background:transparent;color:#3a3a3c;font-size:14px}
+.diary-subview button.active{background:#fff;color:#007aff;box-shadow:0 1px 3px #0002}
+#observationPane{display:none}
+#diary.observation-mode .diary-editor,#diary.observation-mode #diaryHistory,#diary.observation-mode #diaryList,#diary.observation-mode>.diary-editor~h2{display:none}
+#diary.observation-mode #observationPane{display:block}
+.observation-editor{padding:17px}
+.observation-write-date{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px;color:#8e8e93;font-size:13px}
+.observation-write-date label{display:flex;align-items:center;gap:5px;white-space:nowrap;font-size:12px}
+.observation-write-date input{width:auto;max-width:145px;border:0;background:transparent;color:#007aff;font:inherit;font-weight:600;text-align:right}
+.observation-write-date input::-webkit-date-and-time-value{text-align:right}
+.observation-editor-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.observation-editor-heading h2{margin:0}
+.observation-editor-heading button{white-space:nowrap;margin:0}
+.observation-editor .observation-title{width:100%;margin:0 0 11px;padding:12px;border:0;border-radius:12px;background:#f2f2f7;color:#1c1c1e;font:inherit;font-size:16px}
+.observation-editor textarea{display:block;width:100%;min-height:210px;margin:0 0 11px;padding:12px;border:0;border-radius:12px;background:#f2f2f7;color:#1c1c1e;font:inherit;font-size:16px;line-height:1.5;resize:vertical}
+.observation-editor-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:18px;color:#8e8e93;font-size:12px;line-height:18px}
+.observation-editor-meta .local-draft-status{margin:0;font-size:12px}
+.observation-editor-meta .local-draft-status.settled{color:#34c759}
+.observation-place-row{display:flex;align-items:center;gap:8px;margin:9px 0 5px}
+.observation-place-row input{flex:1;min-width:0;padding:10px 12px;border:0;border-radius:11px;background:#f2f2f7;color:#1c1c1e;font:inherit;font-size:13px}
+.observation-place-row button{flex:none;margin:0;padding:4px;font-size:13px}
+.observation-editor #saveObservation{display:block;margin:9px 0 0}
+.observation-backup-notice{margin:10px 0 0!important;color:#8e8e93!important;font-size:12px;line-height:1.45}
+.observation-list-heading{font-size:20px;margin:25px 4px 12px}
+.observation-date-heading{margin:18px 4px 8px;font-size:14px;color:#8e8e93}
+.observation-item{margin:0;padding:17px 16px 15px;border-radius:0;border-bottom:8px solid #f2f2f7}
+.observation-item-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:11px;color:#8e8e93;font-size:12px}
+.observation-item-top time{color:#1c1c1e;font-size:16px;font-weight:700}
+.observation-item h3{margin:0 0 8px;font-size:16px;color:#1c1c1e}
+.observation-item-text{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;overflow:hidden;color:#111;font-size:14px;line-height:1.76;letter-spacing:.01em}
+.observation-item-text p{margin:0 0 5px;color:inherit;line-height:inherit;text-indent:2em}
+.observation-item-text p:last-child{margin-bottom:0}
+.observation-item.expanded .observation-item-text{display:block}
+.observation-more{display:block;margin:4px 0 0!important;padding:0!important;font-size:14px}
+.observation-more[hidden]{display:none!important}
+.observation-item-place{display:block;margin:10px 0 0!important;padding-top:9px;border-top:1px solid #e5e5ea;color:#8e8e93!important;font-size:12px}
+.observation-item-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:8px}
+.observation-item-actions button{margin:0}
+.observation-item-actions .observation-delete{color:#ff3b30}
+@media (prefers-color-scheme:dark){.diary-subview{background:#2c2c2e}.diary-subview button{color:#aeaeb2}.diary-subview button.active{background:#48484a;color:#0a84ff}.observation-write-date{color:#98989d}.observation-write-date input{color:#0a84ff}.observation-editor .observation-title,.observation-editor textarea,.observation-place-row input{background:#2c2c2e;color:#f2f2f7}.observation-item{border-bottom-color:#000}.observation-item-top time,.observation-item h3,.observation-item-text{color:#f2f2f7}.observation-item-place{border-top-color:#38383a;color:#98989d!important}}

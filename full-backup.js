@@ -4,7 +4,7 @@ async function exportFullBackup(){
   try{
     let zip=new JSZip(),images=await allNoteImages(),manifest=[];
     let usedNames=new Set();for(let image of images){let note=notes.find(item=>item.id===image.noteId),diary=diaries.find(item=>item.id===image.noteId),extension=(image.name||'').split('.').pop()||'jpg',base=note?`随手记${imageStamp(note.createdAt)}`:diary?`日记${diary.date.replaceAll('-','')}`:`图片${image.id}`,name=`${base}.${extension}`,number=2;while(usedNames.has(name)){name=`${base}_${number++}.${extension}`}usedNames.add(name);let path=`images/${name}`;zip.file(path,image.blob);manifest.push({id:image.id,noteId:image.noteId,name,type:image.type,path})}
-    zip.file('backup.json',JSON.stringify({version:1,exportedAt:new Date().toISOString(),records,notes,diaries,plans:window.getInsightPlansForSync?.()||{},summaries:window.getInsightSummariesForSync?.()||{},images:manifest},null,2));
+    zip.file('backup.json',JSON.stringify({version:1,exportedAt:new Date().toISOString(),records,notes,diaries,observations,plans:window.getInsightPlansForSync?.()||{},summaries:window.getInsightSummariesForSync?.()||{},images:manifest},null,2));
     zip.file('博士日课复盘.xlsx',excelBlob());
     download(await zip.generateAsync({type:'blob'}),`博士日课完整备份_${backupStamp()}.zip`,'application/zip');
   }catch(error){alert(`生成完整备份失败：${error.message}`)}
@@ -19,13 +19,14 @@ async function restoreFullBackup(file){
   for(let meta of data.images||[]){let item=zip.file(meta.path);if(item)images.push({...meta,blob:await item.async('blob')})}
   let mode=$('#restoreMode').value,word=mode==='replace'?'完全恢复会清空本机现有记录和图片，确定继续吗？':'合并恢复会用备份中相同日期的内容及图片覆盖本机内容，确定继续吗？';
   if(!confirm(word))return;
-  let restoredRecords=data.records.map(item=>({...item,updatedAt:restoredAt})),restoredNotes=data.notes.map(item=>({...item,updatedAt:restoredAt})),restoredDiaries=(data.diaries||[]).map(item=>({...item,updatedAt:restoredAt}));
-  if(mode==='replace'){records=restoredRecords;notes=restoredNotes;diaries=restoredDiaries;await clearNoteImages()}
+  let restoredRecords=data.records.map(item=>({...item,updatedAt:restoredAt})),restoredNotes=data.notes.map(item=>({...item,updatedAt:restoredAt})),restoredDiaries=(data.diaries||[]).map(item=>({...item,updatedAt:restoredAt})),restoredObservations=(data.observations||[]).map(item=>({...item,updatedAt:restoredAt}));
+  if(mode==='replace'){records=restoredRecords;notes=restoredNotes;diaries=restoredDiaries;observations=restoredObservations;await clearNoteImages()}
   else{
     let recordMap=new Map(records.map(record=>[record.date,record]));for(let record of restoredRecords)recordMap.set(record.date,{...(recordMap.get(record.date)||{}),...record,id:recordMap.get(record.date)?.id||record.id});records=[...recordMap.values()];
     let noteMap=new Map(notes.map(note=>[note.id,note]));for(let note of restoredNotes)noteMap.set(note.id,note);notes=[...noteMap.values()];
     let diaryMap=new Map(diaries.map(diary=>[diary.date,diary]));for(let diary of restoredDiaries)diaryMap.set(diary.date,diary);diaries=[...diaryMap.values()];
+    let observationMap=new Map(observations.map(item=>[item.id,item]));for(let item of restoredObservations)observationMap.set(item.id,item);observations=[...observationMap.values()];
   }
-  let planCount=window.restoreInsightPlans?.(data.plans,mode,restoredAt)||0,summaryCount=window.restoreInsightSummaries?.(data.summaries,mode,restoredAt)||0;await restoreNoteImages(images);window.markCloudRestorePending?.();localStorage.setItem('phd-cloud-restore-pending',restoredAt);save();saveNotes();saveDiaries();page('home');restoreStatus(`恢复完成：${data.records.length} 天复盘，${data.notes.length} 条随手记，${images.length} 张图片，${(data.diaries||[]).length} 篇日记${planCount?`，${planCount} 条计划`:''}${summaryCount?`，${summaryCount} 个洞见周期`:''}。下一次同步会优先保留本次恢复的数据。`);
+  let planCount=window.restoreInsightPlans?.(data.plans,mode,restoredAt)||0,summaryCount=window.restoreInsightSummaries?.(data.summaries,mode,restoredAt)||0;await restoreNoteImages(images);window.markCloudRestorePending?.();localStorage.setItem('phd-cloud-restore-pending',restoredAt);save();saveNotes();saveDiaries();saveObservations();page('home');restoreStatus(`恢复完成：${data.records.length} 天复盘，${data.notes.length} 条随手记，${images.length} 张图片，${(data.diaries||[]).length} 篇日记，${restoredObservations.length} 篇观察练习${planCount?`，${planCount} 条计划`:''}${summaryCount?`，${summaryCount} 个洞见周期`:''}。观察练习已恢复到本机，请另存完整备份包；其云端同步将在桌面版兼容后启用。`);
 }
 $('#fullBackup').onclick=exportFullBackup;
