@@ -34,7 +34,7 @@ async function restoreExcel(file){
       let date=restoreDate(row['日期']),title=(row['标题']??'').toString().trim(),text=(row['正文']??'').toString().trim();
       if(!date||!title||!text)continue;
       let createdAt=(row['记录时间']??'').toString().trim(),id=(row['记录ID']??'').toString().trim();
-      importedObservations.push({id:id||crypto.randomUUID(),date,title,text,place:(row['地点']??'').toString().trim(),createdAt:!Number.isNaN(Date.parse(createdAt))?createdAt:restoredAt,updatedAt:restoredAt});
+      importedObservations.push({id:id||crypto.randomUUID(),date,title,text,analysis:(row['分析']??'').toString().trim(),place:(row['地点']??'').toString().trim(),createdAt:!Number.isNaN(Date.parse(createdAt))?createdAt:restoredAt,updatedAt:restoredAt});
     }
     if(!imported.length&&!importedNotes.length&&!importedDiaries.length&&!importedObservations.length)throw new Error('未识别到“博士日课”记录，请确认选择了导出的 Excel。');
     let mode=$('#restoreMode').value,word=mode==='replace'?'完全恢复会清空本机现有记录，确定继续吗？':'合并恢复会用 Excel 中相同日期的内容覆盖本机对应内容，确定继续吗？';
