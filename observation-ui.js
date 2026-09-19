@@ -34,7 +34,7 @@ function openObservationEditor(entry=null){
   const source=useDraft?draft:entry||{};
   $('#observationTitle').value=source.title||'';
   $('#observationText').value=source.text||'';
-  $('#saveObservation').textContent=entry?'保存修改':'保存这篇观察';
+  $('#saveObservation').textContent='保存';
   $('#observationWordCount').textContent=`已写 ${observationWords(source.text)} 字`;
   $('#observationDraftStatus').textContent='';
   if(entry)$('#observationEditor').scrollIntoView({block:'start',behavior:'smooth'});
@@ -95,7 +95,7 @@ const diaryQuote=$('#diary .quote-card');
 const observationTabs=document.createElement('div');observationTabs.className='diary-subview';observationTabs.setAttribute('role','tablist');
 observationTabs.innerHTML='<button type="button" data-diary-subview="diary" role="tab" aria-selected="true">日记</button><button type="button" data-diary-subview="observation" role="tab" aria-selected="false">观察练习</button>';
 const observationPane=document.createElement('section');observationPane.id='observationPane';
-observationPane.innerHTML='<article id="observationEditor" class="observation-editor"><input id="observationTitle" class="observation-title" type="text" maxlength="80" aria-label="观察标题" placeholder="给这篇观察起个标题"><textarea id="observationText" aria-label="观察正文" placeholder="留意一个人、一种动作、一处声音或一个瞬间……"></textarea><div class="observation-editor-meta"><span id="observationDraftStatus" class="local-draft-status"></span><span id="observationWordCount">已写 0 字</span></div><button id="saveObservation" type="button">保存这篇观察</button><p class="observation-backup-notice">目前仅保存在本机；请定期导出完整备份包。云端同步将在桌面版兼容后启用。</p></article><section id="observationHistory" class="diary-history"><div class="archive-date-control"><span>按日期查看</span><button id="observationDateButton" class="plain" type="button">选择日期</button></div><div id="observationCalendar" class="archive-calendar diary-calendar hidden"></div><button id="observationShowAll" type="button" class="plain" hidden>查看全部观察记录</button></section><h2 class="observation-list-heading">观察记录</h2><div id="observationList"></div>';
+observationPane.innerHTML='<article id="observationEditor" class="observation-editor"><input id="observationTitle" class="observation-title" type="text" maxlength="80" aria-label="观察标题" placeholder="给这篇观察起个标题"><textarea id="observationText" aria-label="观察正文" placeholder="留意一个人、一种动作、一处声音或一个瞬间……"></textarea><div class="observation-editor-actions"><button id="saveObservation" type="button">保存</button><div class="observation-editor-meta"><span id="observationWordCount">已写 0 字</span><span id="observationDraftStatus" class="local-draft-status"></span></div></div></article><section id="observationHistory" class="diary-history"><div class="archive-date-control"><span>按日期查看</span><button id="observationDateButton" class="plain" type="button">选择日期</button></div><div id="observationCalendar" class="archive-calendar diary-calendar hidden"></div><button id="observationShowAll" type="button" class="plain" hidden>查看全部观察记录</button></section><h2 class="observation-list-heading">观察记录</h2><div id="observationList"></div>';
 diaryQuote.after(observationTabs,observationPane);
 openObservationEditor();
 $$('.diary-subview button').forEach(button=>button.onclick=()=>showDiarySubview(button.dataset.diarySubview));
