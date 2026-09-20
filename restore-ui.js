@@ -6,6 +6,20 @@ function restoreDate(value){
   return match?`${match[1]}-${match[2]}-${match[3]}`:'';
 }
 
+function joinExcelContinuationCells(row){
+  let bases=new Set();
+  for(let key of Object.keys(row)){
+    let match=key.match(/^(.*)（续(\d+)）$/);
+    if(match&&Object.prototype.hasOwnProperty.call(row,match[1]))bases.add(match[1]);
+  }
+  for(let base of bases){
+    let text=(row[base]??'').toString();
+    for(let index=1;Object.prototype.hasOwnProperty.call(row,`${base}（续${index}）`);index++)text+=(row[`${base}（续${index}）`]??'').toString();
+    row[base]=text;
+  }
+  return row;
+}
+
 function importNotes(value,date,times){
   let timeRows=(times??'').toString().split(/\r?\n/).map(line=>line.trim()).filter(Boolean),items=[],current=null,fallback=0,add=()=>{if(current&&current.text.trim())items.push({...current,text:current.text.trim()})};
   for(let raw of (value??'').toString().split(/\r?\n/)){let line=raw.trim(),bracket=line.match(/^【(\d{1,2}:\d{2}(?::\d{2})?)】$/),inline=line.match(/^(\d{1,2}:\d{2}(?::\d{2})?)\s+(.+)$/),time=bracket?.[1]||inline?.[1];if(time){add();let parts=time.split(':');current={time:`${parts[0].padStart(2,'0')}:${parts[1]}:${parts[2]||'00'}`,text:inline?.[2]||''};fallback++;continue}if(!current){if(!line)continue;let match=timeRows[fallback]?.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/),time=match?`${match[1].padStart(2,'0')}:${match[2]}:${match[3]||'00'}`:'12:00:00';current={time,text:''};fallback++}if(!line){if(current.text)current.text+='\n';continue}current.text+=`${current.text?'\n':''}${line}`}
@@ -16,8 +30,8 @@ async function restoreExcel(file){
   if(!file)return;
   try{
     if(!window.XLSX)throw new Error('Excel 组件未加载，请联网后重试。');
-    let book=XLSX.read(await file.arrayBuffer(),{type:'array'}),sheet=book.Sheets[book.SheetNames[0]],rows=XLSX.utils.sheet_to_json(sheet,{defval:''});
-    let hasObservationSheet=!!book.Sheets['观察练习'],observationRows=hasObservationSheet?XLSX.utils.sheet_to_json(book.Sheets['观察练习'],{defval:''}):[];
+    let book=XLSX.read(await file.arrayBuffer(),{type:'array'}),sheet=book.Sheets[book.SheetNames[0]],rows=XLSX.utils.sheet_to_json(sheet,{defval:''}).map(joinExcelContinuationCells);
+    let hasObservationSheet=!!book.Sheets['观察练习'],observationRows=hasObservationSheet?XLSX.utils.sheet_to_json(book.Sheets['观察练习'],{defval:''}).map(joinExcelContinuationCells):[];
     if(!rows.length&&!observationRows.length)throw new Error('Excel 中没有可恢复的数据。');
     let imported=[],importedNotes=[],importedDiaries=[],importedObservations=[],noteDates=new Set(),diaryDates=new Set(),restoredAt=new Date().toISOString();
     for(let row of rows){
