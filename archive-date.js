@@ -83,24 +83,26 @@ const archiveWithSearch=archive;
 async function renderArchiveNoteThumbnails(){for(let card of $$('.archive-note[data-note-id]')){let note=notes.find(item=>item.id===card.dataset.noteId),images=note?await getNoteImages(note.id):[];card.querySelector('small')?.remove();if(!images.length)continue;let used=window.hydrateNoteInlineImages?.(card,images)||new Set(),remaining=images.filter(image=>!used.has(image.id));if(!remaining.length)continue;let holder=document.createElement('div');holder.className='archive-note-images';holder.innerHTML=remaining.map((image,index)=>`<button data-index="${index}" type="button"><img src="${URL.createObjectURL(image.blob)}" alt="随手记图片"></button>`).join('');holder.querySelectorAll('button').forEach(button=>button.onclick=event=>{event.stopPropagation();openNoteImage(remaining[+button.dataset.index].blob)});card.append(holder)}}
 function bindArchiveNoteSwipe(){
   if(window.phdDesktop)return;
+  const readingScroller=(target,card)=>{for(let element=target;element&&element!==card;element=element.parentElement){if(element.matches?.('.note-display-math,.note-code-block,.note-format-preview'))return true;let style=getComputedStyle(element);if((style.overflowX==='auto'||style.overflowX==='scroll')&&element.scrollWidth>element.clientWidth+3)return true}return false};
   $$('.archive-note[data-note-id]').forEach(card=>{
     const noteId=card.dataset.noteId,row=document.createElement('div');
     row.className='swipe-row archive-note-swipe';
     row.innerHTML='<div class="archive-note-actions"><button type="button" class="edit-archive-note">编辑</button><button type="button" class="delete-archive-note">删除</button></div>';
     card.before(row);row.append(card);
     card.setAttribute('aria-label','随手记，左滑可编辑或删除');
-    card.onclick=event=>{if(event.target.closest('.archive-note-images button'))return;row.classList.remove('swiped')};
+    let suppressClick=false;
+    card.onclick=event=>{if(suppressClick){event.preventDefault();event.stopPropagation();suppressClick=false;return}if(event.target.closest('.archive-note-images button'))return;row.classList.remove('swiped')};
     row.querySelector('.edit-archive-note').onclick=()=>{row.classList.remove('swiped');openArchiveNoteEditor(notes.find(item=>item.id===noteId))};
     row.querySelector('.delete-archive-note').onclick=async()=>{
       if(!await confirmFourDigitDelete('随手记')){row.classList.remove('swiped');return}
       if(!notes.some(item=>item.id===noteId))return;
       await deleteNoteImages([noteId]);notes=notes.filter(item=>item.id!==noteId);saveNotes();archive();
     };
-    let start=null,delta=0;
-    row.addEventListener('pointerdown',event=>{if(!event.target.closest('.archive-note'))return;start=event.clientX;delta=0;row.setPointerCapture?.(event.pointerId)});
-    row.addEventListener('pointermove',event=>{if(start===null)return;delta=Math.max(-168,Math.min(168,event.clientX-start));if(delta<0)card.style.transform=`translateX(${delta}px)`});
-    row.addEventListener('pointerup',()=>{if(start===null)return;card.style.transform='';if(delta<-42)row.classList.add('swiped');else if(delta>42)row.classList.remove('swiped');start=null});
-    row.addEventListener('pointercancel',()=>{card.style.transform='';start=null});
+    let start=null,delta=0,dragging=false;
+    row.addEventListener('pointerdown',event=>{if(!event.target.closest('.archive-note')||readingScroller(event.target,card)||event.target.closest('a,.archive-note-images button'))return;start={x:event.clientX,y:event.clientY,id:event.pointerId};delta=0;dragging=false});
+    row.addEventListener('pointermove',event=>{if(!start||event.pointerId!==start.id)return;let dx=event.clientX-start.x,dy=event.clientY-start.y;if(!dragging){if(Math.abs(dy)>12&&Math.abs(dy)>Math.abs(dx)){start=null;return}if(Math.abs(dx)<18||Math.abs(dx)<Math.abs(dy)*1.35)return;if(dx>0&&!row.classList.contains('swiped')){start=null;return}dragging=true;try{row.setPointerCapture(event.pointerId)}catch{}}event.preventDefault();delta=Math.max(-168,Math.min(168,dx));card.style.transform=`translateX(${Math.min(0,delta)}px)`});
+    row.addEventListener('pointerup',event=>{if(!start||event.pointerId!==start.id)return;card.style.transform='';if(dragging){if(delta<-70)row.classList.add('swiped');else if(delta>70)row.classList.remove('swiped');suppressClick=true;setTimeout(()=>suppressClick=false,300)}start=null;dragging=false});
+    row.addEventListener('pointercancel',()=>{card.style.transform='';start=null;dragging=false});
   });
 }
 archive=function(){archiveWithSearch();let heading=$$('.archive-heading').find(item=>item.textContent.includes('· 随手记'));if(heading)heading.textContent=heading.textContent.replace('· 随手记',`· 随手记（${$$('.archive-note[data-note-id]').length}）`);bindArchiveNoteSwipe();renderArchiveNoteThumbnails()};

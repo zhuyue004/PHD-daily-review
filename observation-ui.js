@@ -1,6 +1,6 @@
 let observations=JSON.parse(localStorage.getItem('phd-observation-records')||'[]');
 const observationDraftKey='phd-observation-drafts';
-let observationEditingId=null,observationDraftTimer=null,observationStatusTimer=null,observationFilterDate=null,observationPickerMonth=new Date();
+let observationEditingId=null,observationDraftTimer=null,observationStatusTimer=null,observationFilterDate=null,observationPickerMonth=new Date(),observationEditPlace='';
 const saveObservations=()=>{localStorage.setItem('phd-observation-records',JSON.stringify(observations));if($('#diary').classList.contains('observation-mode'))updateObservationHeader();window.scheduleCloudSync?.()};
 const observationDrafts=()=>{try{return JSON.parse(localStorage.getItem(observationDraftKey)||'{}')}catch{return {}}};
 const observationWords=text=>[...(text||'').replace(/\s/g,'')].length;
@@ -22,7 +22,7 @@ function saveObservationDraftNow(){
   clearTimeout(observationDraftTimer);
   const drafts=observationDrafts(),key=observationEditorKey();
   const entry=observations.find(item=>item.id===observationEditingId);
-  drafts[key]={date:entry?.date||day(),title:$('#observationTitle').value,text:$('#observationText').value,analysis:$('#observationAnalysis').value,place:entry?.place||'',updatedAt:new Date().toISOString()};
+  drafts[key]={date:entry?.date||day(),title:$('#observationTitle').value,text:$('#observationText').value,analysis:$('#observationAnalysis').value,place:observationEditPlace||entry?.place||'',updatedAt:new Date().toISOString()};
   localStorage.setItem(observationDraftKey,JSON.stringify(drafts));showObservationDraftStatus('草稿已保存到本机',true);
 }
 function queueObservationDraft(){
@@ -38,6 +38,8 @@ function openObservationEditor(entry=null){
   const key=observationEditorKey(),draft=observationDrafts()[key];
   const useDraft=draft&&(!entry||Date.parse(draft.updatedAt)>Date.parse(entry.updatedAt||0));
   const source=useDraft?draft:entry||{};
+  observationEditPlace=source.place||entry?.place||'';
+  $('#observationEditPlaceStatus').textContent=observationEditPlace?`记录地点：${observationEditPlace}`:'尚未记录地点；保存时会尝试定位。';
   $('#observationTitle').value=source.title||'';
   $('#observationText').value=source.text||'';
   $('#observationAnalysis').value=source.analysis||'';
@@ -104,6 +106,7 @@ const observationTabs=document.createElement('div');observationTabs.className='d
 observationTabs.innerHTML='<button type="button" data-diary-subview="diary" role="tab" aria-selected="true">日记</button><button type="button" data-diary-subview="observation" role="tab" aria-selected="false">观察练习</button>';
 const observationPane=document.createElement('section');observationPane.id='observationPane';
 observationPane.innerHTML='<article id="observationEditor" class="observation-editor"><input id="observationTitle" class="observation-title" type="text" maxlength="80" aria-label="观察标题" placeholder="给这篇观察起个标题"><textarea id="observationText" aria-label="观察正文" placeholder="留意一个人、一种动作、一处声音或一个瞬间……"></textarea><div class="observation-editor-actions"><button id="saveObservation" type="button">保存</button><button id="toggleObservationAnalysis" type="button" aria-controls="observationAnalysisPanel" aria-expanded="false">分析</button><div class="observation-editor-meta"><span id="observationWordCount">已写 0 字</span><span id="observationDraftStatus" class="local-draft-status"></span></div></div><div id="observationAnalysisPanel" class="observation-analysis-panel" hidden><label for="observationAnalysis">分析</label><textarea id="observationAnalysis" aria-label="观察分析" placeholder="这件事让我想到什么？还有哪些疑问或值得继续观察的地方？"></textarea></div></article><section id="observationHistory" class="diary-history"><div class="archive-date-control"><span>按日期查看</span><button id="observationDateButton" class="plain" type="button">选择日期</button></div><div id="observationCalendar" class="archive-calendar diary-calendar hidden"></div><button id="observationShowAll" type="button" class="plain" hidden>查看全部观察记录</button></section><h2 class="observation-list-heading">观察记录</h2><div id="observationList"></div>';
+const observationEditPlaceRow=document.createElement('div');observationEditPlaceRow.className='observation-edit-place';observationEditPlaceRow.innerHTML='<p id="observationEditPlaceStatus" class="status"></p><button id="refreshObservationPlace" class="plain" type="button">更新为当前位置</button>';observationPane.querySelector('#observationAnalysisPanel').after(observationEditPlaceRow);
 diaryQuote.after(observationTabs,observationPane);
 openObservationEditor();
 $$('.diary-subview button').forEach(button=>button.onclick=()=>showDiarySubview(button.dataset.diarySubview));
@@ -111,6 +114,7 @@ $('#observationDateButton').onclick=()=>{const panel=$('#observationCalendar');p
 $('#observationShowAll').onclick=()=>{observationFilterDate=null;renderObservations()};
 $$('#observationEditor input,#observationEditor textarea').forEach(input=>input.addEventListener('input',queueObservationDraft));
 $('#toggleObservationAnalysis').onclick=()=>{const open=$('#observationAnalysisPanel').hidden;setObservationAnalysisOpen(open);if(open)$('#observationAnalysis').focus()};
+$('#refreshObservationPlace').onclick=async()=>{let button=$('#refreshObservationPlace');button.disabled=true;$('#observationEditPlaceStatus').textContent='正在获取当前位置…';let location=await diaryPlaceResult();button.disabled=false;if(location.place)observationEditPlace=location.place;$('#observationEditPlaceStatus').textContent=location.place?`记录地点：${observationEditPlace}`:`未能更新地点：${location.reason}`;queueObservationDraft()};
 $('#saveObservation').onclick=async()=>{
   const title=$('#observationTitle').value.trim(),text=$('#observationText').value.trim(),analysis=$('#observationAnalysis').value.trim();
   if(!title)return $('#observationTitle').focus();
@@ -118,7 +122,7 @@ $('#saveObservation').onclick=async()=>{
   const old=observations.find(item=>item.id===observationEditingId),button=$('#saveObservation');
   button.disabled=true;
   button.textContent='正在记录地点…';
-  const location=old?.place?{place:old.place,reason:''}:await diaryPlaceResult(),place=location.place||old?.place||'',date=old?.date||day();
+  const location=observationEditPlace?{place:observationEditPlace,reason:''}:await diaryPlaceResult(),place=location.place||old?.place||'',date=old?.date||day();
   const now=new Date().toISOString();
   const entry={id:old?.id||crypto.randomUUID(),date,title,text,analysis,place,createdAt:old?.createdAt||now,updatedAt:now};
   if(old)observations[observations.findIndex(item=>item.id===old.id)]=entry;else observations.push(entry);
