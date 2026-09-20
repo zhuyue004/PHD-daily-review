@@ -24,6 +24,7 @@ const {chromium,webkit}=require('playwright');
     assert.strictEqual(await page.locator('.observation-compare-text').nth(2).textContent(),'首次正文');
     assert.strictEqual(await page.locator('.observation-compare-text').first().locator('.observation-field').count(),1);
     assert.strictEqual(await page.locator('.observation-compare-text').first().locator('.observation-number-row').count(),1);
+    assert.strictEqual(await page.locator('.observation-compare-text').first().locator('.observation-display-math .katex').count(),1);
     if(process.env.OBS_COMPARE_SCREENSHOT)await page.screenshot({path:process.env.OBS_COMPARE_SCREENSHOT});
     await page.locator('.observation-compare-close').click();
     const row=page.locator('.observation-swipe').first();
