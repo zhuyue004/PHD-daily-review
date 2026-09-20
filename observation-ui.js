@@ -98,7 +98,7 @@ function showDiarySubview(mode){
   const observation=mode==='observation';
   $('#diary').classList.toggle('observation-mode',observation);
   $$('.diary-subview button').forEach(button=>{const active=button.dataset.diarySubview===mode;button.classList.toggle('active',active);button.setAttribute('aria-selected',String(active))});
-  if(observation){updateObservationHeader();renderObservations()}else{$('header h1').textContent='日记';updateHeaderStat('diary')}
+  if(observation){updateObservationHeader();renderObservations()}else{$('header h1').textContent='日记';updateHeaderStat('diary');bindDiaryReadMore()}
 }
 
 const diaryQuote=$('#diary .quote-card');

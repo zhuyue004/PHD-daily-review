@@ -58,7 +58,21 @@ async function editDiary(entry){
   $('#modal').classList.remove('hidden');
 }
 async function renderDiaryImageGrids(){for(let card of $$('.diary-feed-card[data-diary-id]')){let images=await getDiaryImages(card.dataset.diaryId),holder=card.querySelector('.diary-feed-images'),meta=card.querySelector('[data-diary-meta]');if(!holder||!images.length)continue;holder.innerHTML=diaryImageGrid(images);if(meta){let words=meta.dataset.words||'0',total=images.reduce((sum,image)=>sum+(image.blob?.size||0),0);meta.textContent=`${words} 字 / 图片 ${diaryImageSize(total)}`}$$('[data-image-index]',holder).forEach(button=>button.onclick=event=>{event.stopPropagation();openNoteImage(images[+button.dataset.imageIndex].blob)})}}
-function bindDiaryReadMore(){for(let card of $$('.diary-feed-card')){let text=card.querySelector('.diary-feed-text'),button=card.querySelector('.diary-read-more');if(!text||!button)continue;let clippedHeight=text.getBoundingClientRect().height;card.classList.add('diary-measuring');let fullHeight=text.getBoundingClientRect().height;card.classList.remove('diary-measuring');let overflow=fullHeight>clippedHeight+2;if(overflow){button.hidden=false;button.textContent='全文';button.onclick=event=>{event.preventDefault();event.stopPropagation();let expanded=card.classList.toggle('diary-expanded');button.textContent=expanded?'收起':'全文'}}else button.remove()}}
+function bindDiaryReadMore(){for(let card of $$('.diary-feed-card')){
+  let text=card.querySelector('.diary-feed-text'),button=card.querySelector('.diary-read-more');
+  if(!text||!button)continue;
+  // The observation tab hides the diary list. Zero-height measurements there
+  // must not permanently remove a read-more button.
+  if(!text.getClientRects().length)continue;
+  button.onclick=event=>{event.preventDefault();event.stopPropagation();let expanded=card.classList.toggle('diary-expanded');button.textContent=expanded?'收起':'全文'};
+  if(card.classList.contains('diary-expanded')){button.hidden=false;button.textContent='收起';continue}
+  let clippedHeight=text.getBoundingClientRect().height;
+  card.classList.add('diary-measuring');
+  let fullHeight=text.getBoundingClientRect().height;
+  card.classList.remove('diary-measuring');
+  if(fullHeight>clippedHeight+2){button.hidden=false;button.textContent='全文'}
+  else button.hidden=true;
+}}
 
 function renderDiary(){
   ensureDiaryHistory();
@@ -104,7 +118,7 @@ function bindDiaryRows(){
   });
   $$('.diary-swipe').forEach(row=>{
     let start=0,delta=0,card=row.querySelector('.diary-row');
-    row.addEventListener('pointerdown',event=>{if(event.target.closest('.diary-row-actions'))return;start=event.clientX;delta=0;row.setPointerCapture?.(event.pointerId)});
+    row.addEventListener('pointerdown',event=>{if(event.target.closest('.diary-row-actions,.diary-read-more,.diary-feed-images'))return;start=event.clientX;delta=0;row.setPointerCapture?.(event.pointerId)});
     row.addEventListener('pointermove',event=>{
       if(!start)return;
       delta=Math.min(0,Math.max(-168,event.clientX-start));
