@@ -6,6 +6,17 @@ const observationDrafts=()=>{try{return JSON.parse(localStorage.getItem(observat
 const observationWords=text=>[...(text||'').replace(/\s/g,'')].length;
 const observationEditorKey=()=>observationEditingId||'new';
 const observationEsc=text=>esc(String(text||''));
+const observationCompareEscape=text=>String(text??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+const observationCompareInline=text=>{
+  const stash=[],hold=html=>`\u0000OBS${stash.push(html)-1}\u0000`;
+  let html=observationCompareEscape(text);
+  html=html.replace(/\\+\[([\s\S]*?)\\+\]/g,(_,formula)=>hold(`<span class="observation-display-math">${window.katex?.renderToString(formula.replace(/\\_/g,'_'),{displayMode:true,throwOnError:false,strict:'ignore'})||observationCompareEscape(formula)}</span>`));
+  html=html.replace(/\\+\(([\s\S]*?)\\+\)/g,(_,formula)=>hold(window.katex?.renderToString(formula.replace(/\\_/g,'_'),{throwOnError:false,strict:'ignore'})||observationCompareEscape(formula)));
+  html=html.replace(/\*\*([^*\n]+)\*\*/g,'<strong>$1</strong>');
+  return html.replace(/\u0000OBS(\d+)\u0000/g,(_,index)=>stash[Number(index)]||'');
+};
+const observationCompareFormat=text=>`<div class="observation-formatted">${String(text??'').replace(/\r/g,'').split('\n').filter(line=>line.trim()).map(raw=>{const line=raw.trim(),field=line.match(/^(问题|现象|我猜|下一步|方法|结果|可能原因|关键观点|和我课题的关系|要核实|做了什么|研究问题|当前结果|不确定处|尝试|结论|修改前|修改后|分析|地点|时间|人物|动作|感受|细节)[：:](.*)$/),numbered=line.match(/^((?:\d+|[一二三四五六七八九十]+)[\.、]|[①②③④⑤⑥⑦⑧⑨⑩]|[（(]\d+[)）])\s*(.*)$/);if(field)return `<p class="observation-field"><b>${observationCompareInline(field[1]+'：')}</b><span>${observationCompareInline(field[2])}</span></p>`;if(numbered)return `<p class="observation-number-row"><b>${observationCompareInline(numbered[1])}</b><span>${observationCompareInline(numbered[2])}</span></p>`;if(/^#{1,3}\s+/.test(line))return `<h4 class="observation-heading">${observationCompareInline(line.replace(/^#{1,3}\s+/,''))}</h4>`;return `<p class="observation-paragraph">${observationCompareInline(line.replace(/^　{1,2}/,''))}</p>`;}).join('')}</div>`;
+window.renderObservationComparisonText=observationCompareFormat;
 const observationParagraphs=text=>String(text||'').split(/\r?\n/).filter(line=>line.trim()).map(line=>`<p>${observationEsc(line.trim().replace(/^　　/,''))}</p>`).join('');
 function observationComparison(entry){
   const original=typeof entry.originalText==='string'?entry.originalText:null;
@@ -15,11 +26,11 @@ function openObservationComparison(entry){
   if(!entry)return;
   const data=observationComparison(entry),overlay=document.createElement('div');
   overlay.className='observation-compare-overlay';overlay.setAttribute('role','dialog');overlay.setAttribute('aria-modal','true');overlay.setAttribute('aria-label','观察练习对比');
-  overlay.innerHTML='<div class="observation-compare-sheet"><header><div><small>观察练习对比</small><h2></h2></div><button type="button" class="observation-compare-close" aria-label="关闭对比">×</button></header><section class="observation-compare-column"><h3>修改前</h3><small class="observation-original-note"></small><div class="observation-compare-text"></div></section><section class="observation-compare-column"><h3>分析</h3><div class="observation-compare-text"></div></section><section class="observation-compare-column"><h3>修改后</h3><div class="observation-compare-text"></div></section></div>';
+  overlay.innerHTML='<div class="observation-compare-sheet"><header><div><small>观察练习对比</small><h2></h2></div><button type="button" class="observation-compare-close" aria-label="关闭对比">×</button></header><section class="observation-compare-column"><h3>修改后</h3><div class="observation-compare-text"></div></section><section class="observation-compare-column"><h3>分析</h3><div class="observation-compare-text"></div></section><section class="observation-compare-column"><h3>修改前</h3><small class="observation-original-note"></small><div class="observation-compare-text"></div></section></div>';
   overlay.querySelector('h2').textContent=data.title;
   overlay.querySelector('.observation-original-note').textContent=data.originalSource==='legacy-baseline'?'旧记录：从首次再次编辑前的版本开始保留':data.originalText===null?'旧记录未留存首次原文':'';
-  const columns=overlay.querySelectorAll('.observation-compare-text');
-  columns[0].textContent=data.originalText??'旧记录未留存首次原文';columns[1].textContent=data.analysis||'尚未填写分析';columns[2].textContent=data.text;
+  const columns=overlay.querySelectorAll('.observation-compare-text'),render=window.renderObservationComparisonText||observationParagraphs;
+  columns[0].innerHTML=render(data.text);columns[1].innerHTML=render(data.analysis||'尚未填写分析');columns[2].innerHTML=render(data.originalText??'旧记录未留存首次原文');
   const close=()=>overlay.remove();overlay.querySelector('.observation-compare-close').onclick=close;overlay.addEventListener('click',event=>{if(event.target===overlay)close()});
   document.body.append(overlay);
 }

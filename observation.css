@@ -59,5 +59,6 @@
 .observation-compare-column:nth-of-type(2) h3{color:#bf4d48}
 .observation-original-note{display:block;margin:-3px 0 7px;color:#8e8e93;font-size:12px}
 .observation-original-note:empty{display:none}
-.observation-compare-text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7;font-size:14px}
+.observation-compare-text{overflow-wrap:anywhere;line-height:1.72;font-size:14px}
+.observation-formatted{color:inherit}.observation-formatted p{margin:0;color:inherit}.observation-paragraph{line-height:1.8;text-indent:2em}.observation-field,.observation-number-row{display:grid;grid-template-columns:max-content minmax(0,1fr);column-gap:.45em;line-height:1.8}.observation-field b,.observation-number-row b{font-weight:650}.observation-heading{margin:0;font-size:15px;line-height:1.8;font-weight:700}.observation-display-math{display:block;margin:4px 0;text-align:center;overflow:auto}.observation-math-source{font:inherit;color:inherit}
 @media (prefers-color-scheme:dark){.observation-analysis-badge{background:#4a2929;color:#ff9b94}.observation-compare-sheet,.observation-compare-sheet>header{background:#1c1c1e;color:#f2f2f7}.observation-compare-column{background:#2c2c2e}.observation-compare-column:nth-of-type(2) h3{color:#ff9b94}}
