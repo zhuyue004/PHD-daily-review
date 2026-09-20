@@ -1,5 +1,16 @@
 const backupStamp=()=>{let d=new Date(),p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`};
 function backupImageReferences(noteItems,diaryItems){return [...noteItems,...diaryItems].flatMap(item=>(item.images||[]).map(id=>({id,owner:item})))}
+function backupOwnedImages(images,noteItems,diaryItems){
+  let owners=new Set([...noteItems,...diaryItems].map(item=>item.id));
+  let referenced=new Set(backupImageReferences(noteItems,diaryItems).map(ref=>ref.id));
+  return images.filter(image=>owners.has(image.noteId)||referenced.has(image.id));
+}
+function backupImageLocation(image,noteItems,diaryItems){
+  let note=noteItems.find(item=>item.id===image.noteId||(item.images||[]).includes(image.id));
+  if(note)return `随手记 · ${note.date||'日期未知'} · ${(note.text||'').slice(0,20)||'无文字'}`;
+  let diary=diaryItems.find(item=>item.id===image.noteId||(item.images||[]).includes(image.id));
+  return diary?`日记 · ${diary.date||'日期未知'}`:'无关联记录';
+}
 function backupDrafts(){return {notes:noteDrafts(),diaries:diaryDrafts(),observations:observationDrafts()}}
 function restoreBackupDrafts(drafts,mode){
   if(!drafts||typeof drafts!=='object')return;
@@ -14,15 +25,17 @@ function restoreBackupDrafts(drafts,mode){
 async function exportFullBackup(){
   if(!window.JSZip)return alert('备份组件未加载，请联网后重试。');
   try{
-    let zip=new JSZip(),images=await allNoteImages(),manifest=[],imageIds=new Set(images.map(image=>image.id));
+    let zip=new JSZip(),allImages=await allNoteImages(),images=backupOwnedImages(allImages,notes,diaries),manifest=[],imageIds=new Set(images.map(image=>image.id));
     let missing=backupImageReferences(notes,diaries).find(ref=>!imageIds.has(ref.id));
-    if(missing)throw new Error(`记录“${missing.owner.text?.slice(0,20)||missing.owner.date}”引用的图片 ${missing.id} 在本机不存在；请先检查该记录，备份未生成`);
+    if(missing)throw new Error(`${backupImageLocation({id:missing.id,noteId:missing.owner.id},notes,diaries)} 引用的图片 ${missing.id} 在本机不存在；备份未生成`);
     let empty=images.find(image=>!image.blob||!Number.isFinite(image.blob.size)||image.blob.size<=0);
-    if(empty)throw new Error(`图片“${empty.name||empty.id}”内容为空；备份未生成`);
+    if(empty)throw new Error(`${backupImageLocation(empty,notes,diaries)} 的图片“${empty.name||empty.id}”内容为空；请重新添加图片，备份未生成`);
     let usedNames=new Set();for(let image of images){let note=notes.find(item=>item.id===image.noteId),diary=diaries.find(item=>item.id===image.noteId),extension=(image.name||'').split('.').pop()||'jpg',base=note?`随手记${imageStamp(note.createdAt)}`:diary?`日记${diary.date.replaceAll('-','')}`:`图片${image.id}`,name=`${base}.${extension}`,number=2;while(usedNames.has(name)){name=`${base}_${number++}.${extension}`}usedNames.add(name);let path=`images/${name}`;zip.file(path,image.blob);manifest.push({id:image.id,noteId:image.noteId,name,type:image.type,path})}
     zip.file('backup.json',JSON.stringify({version:1,exportedAt:new Date().toISOString(),records,notes,diaries,observations,plans:window.getInsightPlansForSync?.()||{},summaries:window.getInsightSummariesForSync?.()||{},drafts:backupDrafts(),images:manifest},null,2));
     zip.file('博士日课复盘.xlsx',excelBlob());
     download(await zip.generateAsync({type:'blob'}),`博士日课完整备份_${backupStamp()}.zip`,'application/zip');
+    let orphanCount=allImages.length-images.length;
+    if(orphanCount)alert(`备份包已生成。已跳过 ${orphanCount} 张不属于任何现存记录的残留图片；记录和关联图片均已备份。`);
   }catch(error){alert(`生成完整备份失败：${error.message}`)}
 }
 async function restoreFullBackup(file){
