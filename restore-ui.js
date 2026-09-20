@@ -59,7 +59,7 @@ async function restoreExcel(file){
       let date=restoreDate(row['日期']),title=(row['标题']??'').toString().trim(),text=(row['正文']??'').toString().trim();
       if(!date||!title||!text)continue;
       let createdAt=(row['记录时间']??'').toString().trim(),id=(row['记录ID']??'').toString().trim();
-      importedObservations.push({id:id||crypto.randomUUID(),date,title,text,analysis:(row['分析']??'').toString().trim(),place:(row['地点']??'').toString().trim(),createdAt:!Number.isNaN(Date.parse(createdAt))?createdAt:restoredAt,updatedAt:restoredAt});
+      importedObservations.push({id:id||crypto.randomUUID(),date,title,text,analysis:(row['分析']??'').toString().trim(),place:(row['地点']??'').toString().trim(),createdAt:!Number.isNaN(Date.parse(createdAt))?createdAt:restoredAt,updatedAt:restoredAt,...((row['原文来源']??'').toString().trim()?{originalText:(row['修改前']??'').toString(),originalSource:(row['原文来源']??'').toString().trim()}:{})});
     }
     if(!imported.length&&!importedNotes.length&&!importedDiaries.length&&!importedObservations.length)throw new Error('未识别到“博士日课”记录，请确认选择了导出的 Excel。');
     let mode=$('#restoreMode').value,word=mode==='replace'?'完全恢复会清空本机现有记录，确定继续吗？':'合并恢复会用 Excel 中相同日期的内容覆盖本机对应内容，确定继续吗？';
@@ -79,7 +79,7 @@ async function restoreExcel(file){
       for(let diary of importedDiaries){let old=diaryMap.get(diary.date);diaryMap.set(diary.date,{...old,...diary,images:old?.images||diary.images});}
       diaries=[...diaryMap.values()];
       let observationMap=new Map(observations.map(item=>[item.id,item]));
-      for(let item of importedObservations)observationMap.set(item.id,item);
+      for(let item of importedObservations){let old=observationMap.get(item.id);observationMap.set(item.id,{...old,...item,...(old?.originalText!==undefined&&item.originalText===undefined?{originalText:old.originalText,originalSource:old.originalSource}:{})});}
       observations=[...observationMap.values()];
     }
     window.markCloudRestorePending?.();localStorage.setItem('phd-cloud-restore-pending',restoredAt);save();saveNotes();saveDiaries();saveObservations();page('home');restoreStatus(`恢复完成：${imported.length} 天复盘，${importedNotes.length} 条随手记，${importedDiaries.length} 篇日记，${importedObservations.length} 篇观察练习。${!hasObservationSheet?'旧版 Excel 不含观察练习，已保留本机观察记录。':''}Excel 不含图片和草稿；完整还原请使用完整备份包。下一次同步会优先保留本次恢复的数据。${mode==='merge'&&!importedNotes.length?' 未识别到随手记时已保留本机随手记。':''}${mode==='merge'&&!importedDiaries.length?' 未识别到日记时已保留本机日记。':''}`);

@@ -25,6 +25,7 @@ window.markCloudRestorePending=markCloudRestorePending;
 function cloudStamp(item){return new Date(item?.updatedAt||item?.createdAt||0).getTime()||0}
 function cloudItemSignature(item){return JSON.stringify(stableCloudValue(item||{}))}
 function mergeCloudList(local,remote,key){let output=new Map(local.map(item=>[item[key],item]));for(let item of remote||[]){let existing=output.get(item[key]);if(!existing){output.set(item[key],item);continue}let remoteStamp=cloudStamp(item),localStamp=cloudStamp(existing);if(remoteStamp>localStamp){output.set(item[key],item);continue}if(remoteStamp===localStamp){let remoteValue=cloudItemSignature(item),localValue=cloudItemSignature(existing);if(remoteValue!==localValue&&(remoteValue.length>localValue.length||(remoteValue.length===localValue.length&&remoteValue>localValue)))output.set(item[key],item)}}return [...output.values()]}
+function mergeCloudObservations(local,remote){let merged=mergeCloudList(local,remote,'id'),originals=new Map();for(let item of [...(local||[]),...(remote||[])]){if(typeof item.originalText!=='string')continue;let current=originals.get(item.id);if(!current||item.originalSource==='first-save'&&current.originalSource!=='first-save')originals.set(item.id,item)}return merged.map(item=>{let original=originals.get(item.id);return original?{...item,originalText:original.originalText,originalSource:original.originalSource}:item})}
 function cloudDeletions(){try{return JSON.parse(localStorage.getItem(CLOUD_DELETIONS_KEY)||'[]').filter(item=>item?.kind&&item?.id)}catch{return []}}
 function cloudSkippedImages(){try{return new Set(JSON.parse(localStorage.getItem(CLOUD_SKIPPED_IMAGES_KEY)||'[]').filter(Boolean))}catch{return new Set()}}
 function saveCloudSkippedImages(ids){let values=[...new Set(ids||[])];if(values.length)localStorage.setItem(CLOUD_SKIPPED_IMAGES_KEY,JSON.stringify(values));else localStorage.removeItem(CLOUD_SKIPPED_IMAGES_KEY);return new Set(values)}
@@ -266,7 +267,7 @@ async function pullCloudData(){
   records=mergeCloudList(records,remote.records||[],'date');
   notes=mergeCloudList(notes,remote.notes||[],'id');
   diaries=mergeCloudList(diaries,remote.diaries||[],'date');
-  observations=mergeCloudList(observations,remote.observations||[],'id');
+  observations=mergeCloudObservations(observations,remote.observations||[]);
   if(remote.plans)window.mergeInsightPlansFromCloud?.(remote.plans);
   if(remote.summaries)window.mergeInsightSummariesFromCloud?.(remote.summaries);
   await applyCloudDeletions(deleted);

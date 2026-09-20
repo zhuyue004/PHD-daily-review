@@ -65,8 +65,8 @@ function buildExportBook(){
     planSheet['!cols']=[{wch:12},{wch:18},{wch:12},{wch:50},{wch:22}];
     XLSX.utils.book_append_sheet(wb,planSheet,'周月计划');
   }
-  let observationRows=observations.slice().sort((a,b)=>a.date.localeCompare(b.date)||(a.createdAt||'').localeCompare(b.createdAt||'')).map(item=>({'日期':item.date,'记录时间':item.createdAt||'','标题':item.title||'','正文':item.text||'','分析':item.analysis||'','地点':item.place||'','记录ID':item.id}));
-  appendExportSheet(wb,'观察练习',observationRows,['日期','记录时间','标题','正文','分析','地点','记录ID'],[{wch:14},{wch:25},{wch:32},{wch:70},{wch:70},{wch:38},{wch:38,hidden:true}]);
+  let observationRows=observations.slice().sort((a,b)=>a.date.localeCompare(b.date)||(a.createdAt||'').localeCompare(b.createdAt||'')).map(item=>({'日期':item.date,'记录时间':item.createdAt||'','标题':item.title||'','正文':item.text||'','分析':item.analysis||'','修改前':item.originalText??'','原文来源':item.originalSource||'','地点':item.place||'','记录ID':item.id}));
+  appendExportSheet(wb,'观察练习',observationRows,['日期','记录时间','标题','正文','分析','修改前','原文来源','地点','记录ID'],[{wch:14},{wch:25},{wch:32},{wch:70},{wch:70},{wch:70},{wch:22},{wch:38},{wch:38,hidden:true}]);
   return wb;
 }
 function exportExcel(){if(!records.length&&!notes.length&&!diaries.length&&!observations.length)return alert('还没有可导出的记录。');if(!window.__styledXlsxReady)return alert('正在加载 Excel 排版组件，请稍后再试。');let wb=buildExportBook(),d=new Date(),p=n=>String(n).padStart(2,'0'),stamp=`${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;XLSX.writeFile(wb,`博士日课复盘记录_${stamp}.xlsx`,{cellStyles:true})}
