@@ -70,7 +70,7 @@ async function renderTimelineImages(note,holder){
   holder.querySelectorAll('button').forEach(button=>button.onclick=()=>openNoteImage(remaining[+button.dataset.index].blob));
 }
 window.renderNotesTimeline=async function(){
-  updateHeaderStat?.('notesTimeline');
+  if($('#notesTimeline')?.classList.contains('active'))updateHeaderStat?.('notesTimeline');
   let input=$('#notesTimelineSearch'),term=(input?.value||'').trim().toLowerCase();
   let list=notes.slice().sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).filter(note=>!term||`${note.text||''} ${(note.template||'')}`.toLowerCase().includes(term));
   let root=$('#notesTimelineList');

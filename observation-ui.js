@@ -118,15 +118,16 @@ $('#saveObservation').onclick=async()=>{
   const old=observations.find(item=>item.id===observationEditingId),button=$('#saveObservation');
   button.disabled=true;
   button.textContent='正在记录地点…';
-  const place=await diaryPlace()||old?.place||'',date=old?.date||day();
+  const location=old?.place?{place:old.place,reason:''}:await diaryPlaceResult(),place=location.place||old?.place||'',date=old?.date||day();
   const now=new Date().toISOString();
   const entry={id:old?.id||crypto.randomUUID(),date,title,text,analysis,place,createdAt:old?.createdAt||now,updatedAt:now};
   if(old)observations[observations.findIndex(item=>item.id===old.id)]=entry;else observations.push(entry);
   if(!old)observationFilterDate=null;
   saveObservations();clearObservationDraft();button.disabled=false;
   openObservationEditor();renderObservations();
-  showObservationDraftStatus(place?'已保存这篇观察':'已保存；未能获取地点，请检查定位权限与高德 Key',true);
+  showObservationLocationStatus(place?`已保存 · ${place}`:`已保存，但未记录地点。${location.reason}`);
 };
+function showObservationLocationStatus(message){let status=$('#observationLocationStatus');if(!status){status=document.createElement('p');status.id='observationLocationStatus';status.className='status';$('#observationEditor').append(status)}status.textContent=message}
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&$('#diary').classList.contains('observation-mode'))saveObservationDraftNow()});
 window.addEventListener('pagehide',()=>{if($('#diary').classList.contains('observation-mode'))saveObservationDraftNow()});
 const pageBeforeObservation=page;
