@@ -74,15 +74,14 @@ function renderObservations(){
   list.innerHTML=sorted.length?sorted.map(entry=>{
     const heading=entry.date===lastDate?'':`<h3 class="observation-date-heading">${observationEsc(fmt(entry.date))}</h3>`;
     lastDate=entry.date;
-    const time=entry.createdAt?new Date(entry.createdAt).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}):'';
     const analysis=entry.analysis?.trim()?'<span class="observation-analysis-badge">已有分析</span>':'';
-    return `${heading}<div class="swipe-row observation-swipe" data-observation-id="${observationEsc(entry.id)}"><div class="observation-compare-actions"><button type="button" class="observation-compare-action">查看对比</button></div><div class="diary-row-actions"><button type="button" class="edit-record observation-edit" aria-label="编辑观察练习">编辑</button><button type="button" class="delete-record observation-delete" aria-label="删除观察练习">删除</button></div><article class="observation-item"><h3>${observationEsc(entry.title)}</h3>${analysis}</article></div>`;
+    return `${heading}<div class="swipe-row observation-swipe" data-observation-id="${observationEsc(entry.id)}"><div class="diary-row-actions"><button type="button" class="edit-record observation-edit" aria-label="编辑观察练习">编辑</button><button type="button" class="delete-record observation-delete" aria-label="删除观察练习">删除</button></div><article class="observation-item" role="button" tabindex="0" aria-label="查看${observationEsc(entry.title)}的修改对比"><h3>${observationEsc(entry.title)}</h3>${analysis}</article></div>`;
   }).join(''):observationFilterDate?'<p class="empty">这一天还没有观察练习。</p>':'<p class="empty">还没有观察练习。今天有什么值得仔细看的细节？</p>';
   $$('.observation-swipe').forEach(row=>{
     const card=row.querySelector('.observation-item');
     const id=row.dataset.observationId;
-    row.onclick=event=>{if(event.target.closest('.diary-row-actions,.observation-compare-actions')||Date.now()-Number(row.dataset.swipeAt||0)<400)return;openObservationComparison(observations.find(item=>item.id===id))};
-    row.querySelector('.observation-compare-action').onclick=event=>{event.stopPropagation();row.classList.remove('compare-swiped');openObservationComparison(observations.find(item=>item.id===id))};
+    row.onclick=event=>{if(event.target.closest('.diary-row-actions')||Date.now()-Number(row.dataset.swipeAt||0)<400)return;openObservationComparison(observations.find(item=>item.id===id))};
+    card.onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();card.click()}};
     row.querySelector('.observation-edit').onclick=event=>{event.stopPropagation();saveObservationDraftNow();openObservationEditor(observations.find(item=>item.id===id))};
     row.querySelector('.observation-delete').onclick=async event=>{
       event.stopPropagation();
@@ -90,10 +89,10 @@ function renderObservations(){
       observations=observations.filter(item=>item.id!==id);saveObservations();clearObservationDraft(id);
       if(observationEditingId===id)openObservationEditor();renderObservations();
     };
-    let start=null,delta=0;
-    row.addEventListener('pointerdown',event=>{if(event.target.closest('.diary-row-actions,.observation-compare-actions'))return;start=event.clientX;delta=0;row.setPointerCapture?.(event.pointerId)});
-    row.addEventListener('pointermove',event=>{if(start===null)return;delta=Math.min(104,Math.max(-168,event.clientX-start));card.style.transform=`translateX(${delta}px)`});
-    row.addEventListener('pointerup',event=>{if(start===null)return;card.style.transform='';if(Math.abs(delta)>12)row.dataset.swipeAt=Date.now();if(delta<-42){row.classList.add('swiped');row.classList.remove('compare-swiped')}else if(delta>42){row.classList.add('compare-swiped');row.classList.remove('swiped')}else if(Math.abs(delta)<12){row.classList.remove('swiped','compare-swiped')}start=null});
+    let start=null,delta=0,moved=0;
+    row.addEventListener('pointerdown',event=>{if(event.target.closest('.diary-row-actions'))return;start=event.clientX;delta=0;moved=0;row.setPointerCapture?.(event.pointerId)});
+    row.addEventListener('pointermove',event=>{if(start===null)return;moved=event.clientX-start;delta=Math.min(0,Math.max(-168,moved));if(delta<0)card.style.transform=`translateX(${delta}px)`});
+    row.addEventListener('pointerup',event=>{if(start===null)return;card.style.transform='';if(Math.abs(moved)>12)row.dataset.swipeAt=Date.now();if(delta<-42)row.classList.add('swiped');else if(moved>42||Math.abs(moved)<12)row.classList.remove('swiped');start=null});
     row.addEventListener('pointercancel',()=>{card.style.transform='';start=null});
   });
 }
