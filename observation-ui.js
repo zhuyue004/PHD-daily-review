@@ -74,7 +74,7 @@ function renderObservations(){
       if(observationEditingId===id)openObservationEditor();renderObservations();
     };
     let start=null,delta=0;
-    row.addEventListener('pointerdown',event=>{if(event.target.closest('.diary-row-actions'))return;start=event.clientX;delta=0;row.setPointerCapture?.(event.pointerId)});
+    row.addEventListener('pointerdown',event=>{if(event.target.closest('.diary-row-actions,.observation-more'))return;start=event.clientX;delta=0;row.setPointerCapture?.(event.pointerId)});
     row.addEventListener('pointermove',event=>{if(start===null)return;delta=Math.min(0,Math.max(-168,event.clientX-start));if(delta<0)card.style.transform=`translateX(${delta}px)`});
     row.addEventListener('pointerup',event=>{if(start===null)return;card.style.transform='';if(event.target.closest('.diary-row-actions')){start=null;return}if(row.classList.contains('swiped')&&delta>-12){row.classList.remove('swiped');start=null;return}if(delta<-42)row.classList.add('swiped');start=null});
     row.addEventListener('pointercancel',()=>{card.style.transform='';start=null});
