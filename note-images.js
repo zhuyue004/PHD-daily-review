@@ -1,4 +1,17 @@
-const imageDb=()=>new Promise((resolve,reject)=>{let request=indexedDB.open('phd-daily-images',1);request.onupgradeneeded=()=>request.result.createObjectStore('images',{keyPath:'id'});request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});
+let imageDbConnection;
+const imageDb=()=>{
+  if(!imageDbConnection)imageDbConnection=new Promise((resolve,reject)=>{
+    let request=indexedDB.open('phd-daily-images',2);
+    request.onupgradeneeded=()=>{
+      let db=request.result,store=db.objectStoreNames.contains('images')?request.transaction.objectStore('images'):db.createObjectStore('images',{keyPath:'id'});
+      if(!store.indexNames.contains('byNoteId'))store.createIndex('byNoteId','noteId',{unique:false});
+    };
+    request.onsuccess=()=>{let db=request.result;db.onversionchange=()=>{db.close();imageDbConnection=null};resolve(db)};
+    request.onerror=()=>{imageDbConnection=null;reject(request.error)};
+    request.onblocked=()=>{imageDbConnection=null;reject(new Error('图片库正在被旧版页面占用，请关闭其他日迹页面后重试。'))};
+  });
+  return imageDbConnection;
+};
 const imageRequest=request=>new Promise((resolve,reject)=>{request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});
 const imageExtension=file=>file.name?.split('.').pop()?.toLowerCase()||file.type?.split('/').pop()?.replace('jpeg','jpg')||'jpg';
 const imageStamp=date=>{let d=new Date(date),p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`};
@@ -14,7 +27,7 @@ async function compressImageForStorage(file){
 }
 function notifyOriginalImages(count){if(count)alert(`为保证图片清晰，${count} 张图片未压缩，已保留原图。`)}
 async function saveNoteImages(noteId,files,createdAt=new Date()){let db=await imageDb(),ids=[],originals=0,stamp=imageStamp(createdAt);for(let [index,entry] of [...files].entries()){let source=entry?.file||entry,result=await compressImageForStorage(source),file=result.file;if(result.keptOriginal)originals++;let id=entry?.id||crypto.randomUUID(),suffix=files.length>1?`_${index+1}`:'',name=`随手记${stamp}${suffix}.${imageExtension(file)}`,blob=file?.slice?file.slice(0,file.size,file.type):file;await imageRequest(db.transaction('images','readwrite').objectStore('images').put({id,noteId,name,type:file.type||'image/jpeg',blob}));ids.push(id)}notifyOriginalImages(originals);return ids}
-async function getNoteImages(noteId){let db=await imageDb(),all=await imageRequest(db.transaction('images').objectStore('images').getAll());return all.filter(image=>image.noteId===noteId)}
+async function getNoteImages(noteId){let db=await imageDb();return imageRequest(db.transaction('images').objectStore('images').index('byNoteId').getAll(noteId))}
 async function allNoteImages(){let db=await imageDb();return imageRequest(db.transaction('images').objectStore('images').getAll())}
 async function allNoteImageIds(){let db=await imageDb();return imageRequest(db.transaction('images').objectStore('images').getAllKeys())}
 async function noteImagesByIds(ids){if(!ids?.length)return [];let db=await imageDb(),store=db.transaction('images').objectStore('images'),items=await Promise.all(ids.map(id=>imageRequest(store.get(id))));return items.filter(Boolean)}
