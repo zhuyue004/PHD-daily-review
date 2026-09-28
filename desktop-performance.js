@@ -20,5 +20,5 @@ if(window.phdDesktop){
   keepRendered('home',()=>`${day()}|${versions.records}|${versions.notes}`);
   keepRendered('archive',()=>`${versions.records}|${versions.notes}|${versions.diaries}|${$('#archiveDate')?.value||''}|${$('#search')?.value||''}`);
   keepRendered('renderDiary',()=>`${day()}|${diaryEditingDate}|${versions.diaries}`);
-  keepRendered('renderObservations',()=>`${versions.observations}|${observationFilterDate||''}`);
+  keepRendered('renderObservations',()=>`${versions.observations}|${observationFilterDate||''}|${localStorage.getItem('phd-observation-sort')||''}`);
 }

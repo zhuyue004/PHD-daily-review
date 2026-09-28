@@ -1,5 +1,6 @@
 let observations=JSON.parse(localStorage.getItem('phd-observation-records')||'[]');
 const observationDraftKey='phd-observation-drafts';
+const observationSortKey='phd-observation-sort';
 let observationEditingId=null,observationDraftTimer=null,observationStatusTimer=null,observationFilterDate=null,observationPickerMonth=new Date();
 const saveObservations=()=>{localStorage.setItem('phd-observation-records',JSON.stringify(observations));window.desktopDataChanged?.('observations');if($('#diary').classList.contains('observation-mode'))updateObservationHeader();window.scheduleCloudSync?.()};
 const observationDrafts=()=>{try{return JSON.parse(localStorage.getItem(observationDraftKey)||'{}')}catch{return {}}};
@@ -16,6 +17,14 @@ function writingChapter(title){
   return number===null?{key:'unassigned',label:'未分章',number:Number.MAX_SAFE_INTEGER}:{key:`chapter-${number}`,label:`第${number}章`,number};
 }
 function writingOrder(entry){return Number.isFinite(entry.writingOrder)?entry.writingOrder:Number.MAX_SAFE_INTEGER}
+function observationSortSettings(){
+  try{const value=JSON.parse(localStorage.getItem(observationSortKey)||'{}');return {by:['custom','date','title'].includes(value.by)?value.by:'custom',direction:value.direction==='desc'?'desc':'asc'}}catch{return {by:'custom',direction:'asc'}}
+}
+function compareWritingEntries(a,b,by){
+  if(by==='date')return String(a.date||'').localeCompare(String(b.date||''))||String(a.createdAt||'').localeCompare(String(b.createdAt||''))||a.id.localeCompare(b.id);
+  if(by==='title')return String(a.title||'').localeCompare(String(b.title||''),'zh-CN',{numeric:true})||a.id.localeCompare(b.id);
+  return writingOrder(a)-writingOrder(b)||(a.createdAt||'').localeCompare(b.createdAt||'')||a.id.localeCompare(b.id);
+}
 const observationEditorKey=()=>observationEditingId||'new';
 const observationEsc=text=>esc(String(text||''));
 const observationParagraphs=text=>String(text||'').split(/\r?\n/).filter(line=>line.trim()).map(line=>`<p>${observationEsc(line.trim().replace(/^　　/,''))}</p>`).join('');
@@ -74,11 +83,14 @@ function openObservationEditor(entry=null){
 }
 function renderObservations(){
   const list=$('#observationList');if(!list)return;
+  const sort=observationSortSettings(),direction=sort.direction==='desc'?-1:1;
+  if($('#observationSortBy'))$('#observationSortBy').value=sort.by;
+  if($('#observationSortDirection'))$('#observationSortDirection').value=sort.direction;
   const groups=new Map();
   for(const entry of observations){const chapter=writingChapter(entry.title);if(!groups.has(chapter.key))groups.set(chapter.key,{...chapter,entries:[]});groups.get(chapter.key).entries.push(entry)}
-  const sortedGroups=[...groups.values()].sort((a,b)=>a.number-b.number);
+  const sortedGroups=[...groups.values()].sort((a,b)=>(a.number-b.number)*direction);
   list.innerHTML=sortedGroups.length?sortedGroups.map(group=>{
-    const entries=group.entries.sort((a,b)=>writingOrder(a)-writingOrder(b)||(a.createdAt||'').localeCompare(b.createdAt||'')||a.id.localeCompare(b.id));
+    const entries=group.entries.sort((a,b)=>compareWritingEntries(a,b,sort.by)*direction);
     return `<section class="writing-chapter" data-chapter-key="${group.key}"><h3 class="observation-date-heading">${observationEsc(group.label)}<span>${entries.length} 篇</span></h3>${entries.map(entry=>`<div class="swipe-row observation-swipe" data-observation-id="${observationEsc(entry.id)}" data-chapter-key="${group.key}"><div class="diary-row-actions"><button type="button" class="edit-record observation-edit" aria-label="编辑写作">编辑</button><button type="button" class="delete-record observation-delete" aria-label="删除写作">删除</button></div><article class="observation-item" role="button" tabindex="0" aria-label="查看${observationEsc(entry.title)}的修改对比"><div class="observation-item-main"><h3>${observationEsc(entry.title)}</h3><p class="writing-record-meta"><time datetime="${observationEsc(entry.date)}">${observationEsc(fmt(entry.date))}</time><span>${observationWords(entry.text)} 字</span></p></div></article></div>`).join('')}</section>`;
   }).join(''):'<p class="empty">还没有写作记录。可以从一个场景、一段对话或一个人物开始写。</p>';
   $$('.observation-swipe').forEach(row=>{
@@ -115,10 +127,11 @@ function enableWritingSorting(row){
     if(event.pointerId!==pointerId)return;cancelHold();window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',finish);window.removeEventListener('pointercancel',finish);card.releasePointerCapture?.(pointerId);card.style.touchAction='';pointerId=null;
     if(!sorting)return;sorting=false;row.classList.remove('writing-sorting');row.dataset.justSorted='1';setTimeout(()=>delete row.dataset.justSorted,180);
     const ids=[...row.closest('.writing-chapter').querySelectorAll('.observation-swipe')].map(item=>item.dataset.observationId),stamp=new Date().toISOString();
+    if(observationSortSettings().direction==='desc')ids.reverse();
     ids.forEach((id,index)=>{const entry=observations.find(item=>item.id===id);if(entry){entry.writingOrder=index;entry.updatedAt=stamp}});saveObservations();
   };
   card.addEventListener('pointerdown',event=>{
-    if(event.button!==undefined&&event.button!==0)return;pointerId=event.pointerId;startX=event.clientX;startY=event.clientY;
+    if(observationSortSettings().by!=='custom'||event.button!==undefined&&event.button!==0)return;pointerId=event.pointerId;startX=event.clientX;startY=event.clientY;
     window.addEventListener('pointermove',move,{passive:false});window.addEventListener('pointerup',finish);window.addEventListener('pointercancel',finish);
     holdTimer=setTimeout(()=>{sorting=true;row.classList.add('writing-sorting');card.style.touchAction='none';card.setPointerCapture?.(pointerId);navigator.vibrate?.(10)},320);
   });
@@ -148,10 +161,12 @@ const diaryQuote=$('#diary .quote-card');
 const observationTabs=document.createElement('div');observationTabs.className='diary-subview';observationTabs.setAttribute('role','tablist');
 observationTabs.innerHTML='<button type="button" data-diary-subview="diary" role="tab" aria-selected="true">日记</button><button type="button" data-diary-subview="observation" role="tab" aria-selected="false">写作</button>';
 const observationPane=document.createElement('section');observationPane.id='observationPane';
-observationPane.innerHTML='<article id="observationEditor" class="observation-editor"><input id="observationTitle" class="observation-title" type="text" maxlength="80" aria-label="写作标题" placeholder="标题中写明第几章，例如：第1章 初见"><textarea id="observationText" aria-label="写作正文" placeholder="写下这一章的片段、场景、对话或修改稿……"></textarea><div class="observation-editor-actions"><button id="saveObservation" type="button">保存</button><button id="toggleObservationAnalysis" type="button" aria-controls="observationAnalysisPanel" aria-expanded="false">分析</button><div class="observation-editor-meta"><span id="observationWordCount">已写 0 字</span><span id="observationDraftStatus" class="local-draft-status"></span></div></div><div id="observationAnalysisPanel" class="observation-analysis-panel" hidden><label for="observationAnalysis">分析</label><textarea id="observationAnalysis" aria-label="写作分析" placeholder="这段文字有哪些优点、问题，以及下一步准备怎样修改？"></textarea></div></article><h2 class="observation-list-heading">写作记录</h2><div id="observationList"></div>';
+observationPane.innerHTML='<article id="observationEditor" class="observation-editor"><input id="observationTitle" class="observation-title" type="text" maxlength="80" aria-label="写作标题" placeholder="标题中写明第几章，例如：第1章 初见"><textarea id="observationText" aria-label="写作正文" placeholder="写下这一章的片段、场景、对话或修改稿……"></textarea><div class="observation-editor-actions"><button id="saveObservation" type="button">保存</button><button id="toggleObservationAnalysis" type="button" aria-controls="observationAnalysisPanel" aria-expanded="false">分析</button><div class="observation-editor-meta"><span id="observationWordCount">已写 0 字</span><span id="observationDraftStatus" class="local-draft-status"></span></div></div><div id="observationAnalysisPanel" class="observation-analysis-panel" hidden><label for="observationAnalysis">分析</label><textarea id="observationAnalysis" aria-label="写作分析" placeholder="这段文字有哪些优点、问题，以及下一步准备怎样修改？"></textarea></div></article><h2 class="observation-list-heading">写作记录</h2><div class="observation-sort-controls"><label>按什么排<select id="observationSortBy" aria-label="写作记录排序依据"><option value="custom">自定义</option><option value="date">日期</option><option value="title">标题</option></select></label><label>顺序<select id="observationSortDirection" aria-label="写作记录排序方向"><option value="asc">正序</option><option value="desc">倒序</option></select></label></div><div id="observationList"></div>';
 diaryQuote.after(observationTabs,observationPane);
 openObservationEditor();
 $$('.diary-subview button').forEach(button=>button.onclick=()=>showDiarySubview(button.dataset.diarySubview));
+const initialObservationSort=observationSortSettings();$('#observationSortBy').value=initialObservationSort.by;$('#observationSortDirection').value=initialObservationSort.direction;
+$$('#observationSortBy,#observationSortDirection').forEach(select=>select.onchange=()=>{localStorage.setItem(observationSortKey,JSON.stringify({by:$('#observationSortBy').value,direction:$('#observationSortDirection').value}));renderObservations()});
 $$('#observationEditor input,#observationEditor textarea').forEach(input=>input.addEventListener('input',queueObservationDraft));
 $('#toggleObservationAnalysis').onclick=()=>{const open=$('#observationAnalysisPanel').hidden;setObservationAnalysisOpen(open);if(open)$('#observationAnalysis').focus()};
 $('#saveObservation').onclick=async()=>{
