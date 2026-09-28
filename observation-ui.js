@@ -19,11 +19,18 @@ function writingOrder(entry){return Number.isFinite(entry.writingOrder)?entry.wr
 const observationEditorKey=()=>observationEditingId||'new';
 const observationEsc=text=>esc(String(text||''));
 const observationParagraphs=text=>String(text||'').split(/\r?\n/).filter(line=>line.trim()).map(line=>`<p>${observationEsc(line.trim().replace(/^　　/,''))}</p>`).join('');
-function observationComparison(entry){return {title:entry.title||'',date:entry.date||'',originalText:typeof entry.originalText==='string'?entry.originalText:null,originalSource:entry.originalSource||'',analysis:entry.analysis||'',text:entry.text||''}}
-function openObservationComparison(entry){if(entry)window.phdDesktop?.openObservationCompare?.(observationComparison(entry))}
 function observationComparison(entry){
   const original=typeof entry.originalText==='string'?entry.originalText:null;
   return {title:entry.title||'',date:entry.date||'',originalText:original,originalSource:entry.originalSource||'',analysis:entry.analysis||'',text:entry.text||''};
+}
+function openObservationComparison(entry){
+  if(!entry)return;
+  const comparison=observationComparison(entry);
+  if(window.phdDesktop?.openObservationCompare){window.phdDesktop.openObservationCompare(comparison);return}
+  const render=window.renderObservationComparisonText||observationParagraphs;
+  const original=comparison.originalText===null?'旧记录未留存首次原文':comparison.originalText;
+  $('#detail').innerHTML=`<section class="observation-mobile-detail"><p class="diary-detail-label">写作 · 修改对比</p><h2>${observationEsc(comparison.title||'未命名写作')}</h2><p class="writing-record-meta"><time datetime="${observationEsc(comparison.date)}">${observationEsc(fmt(comparison.date))}</time><span>${observationWords(comparison.text)} 字</span></p><section><h3>修改后</h3>${render(comparison.text)}</section><section class="analysis"><h3>分析</h3>${render(comparison.analysis||'尚未填写分析')}</section><section><h3>修改前</h3>${comparison.originalSource==='legacy-baseline'?'<p class="observation-original-note">旧记录：从首次再次编辑前的版本开始保留</p>':''}${render(original)}</section></section>`;
+  $('#modal').classList.remove('hidden');
 }
 function setObservationAnalysisOpen(open){
   $('#observationAnalysisPanel').hidden=!open;
@@ -72,13 +79,13 @@ function renderObservations(){
   const sortedGroups=[...groups.values()].sort((a,b)=>a.number-b.number);
   list.innerHTML=sortedGroups.length?sortedGroups.map(group=>{
     const entries=group.entries.sort((a,b)=>writingOrder(a)-writingOrder(b)||(a.createdAt||'').localeCompare(b.createdAt||'')||a.id.localeCompare(b.id));
-    return `<section class="writing-chapter" data-chapter-key="${group.key}"><h3 class="observation-date-heading">${observationEsc(group.label)}<span>${entries.length} 篇</span></h3>${entries.map(entry=>`<div class="swipe-row observation-swipe" data-observation-id="${observationEsc(entry.id)}" data-chapter-key="${group.key}"><div class="diary-row-actions"><button type="button" class="edit-record observation-edit" aria-label="编辑写作">编辑</button><button type="button" class="delete-record observation-delete" aria-label="删除写作">删除</button></div><article class="observation-item" role="button" tabindex="0" aria-label="查看${observationEsc(entry.title)}的修改对比"><div class="observation-item-main"><h3>${observationEsc(entry.title)}</h3><p class="writing-record-meta"><time datetime="${observationEsc(entry.date)}">${observationEsc(fmt(entry.date))}</time><span>${observationWords(entry.text)} 字</span></p></div><span class="writing-drag-handle" role="button" tabindex="0" aria-label="拖动调整顺序">⋮⋮</span></article></div>`).join('')}</section>`;
+    return `<section class="writing-chapter" data-chapter-key="${group.key}"><h3 class="observation-date-heading">${observationEsc(group.label)}<span>${entries.length} 篇</span></h3>${entries.map(entry=>`<div class="swipe-row observation-swipe" data-observation-id="${observationEsc(entry.id)}" data-chapter-key="${group.key}"><div class="diary-row-actions"><button type="button" class="edit-record observation-edit" aria-label="编辑写作">编辑</button><button type="button" class="delete-record observation-delete" aria-label="删除写作">删除</button></div><article class="observation-item" role="button" tabindex="0" aria-label="查看${observationEsc(entry.title)}的修改对比"><div class="observation-item-main"><h3>${observationEsc(entry.title)}</h3><p class="writing-record-meta"><time datetime="${observationEsc(entry.date)}">${observationEsc(fmt(entry.date))}</time><span>${observationWords(entry.text)} 字</span></p></div></article></div>`).join('')}</section>`;
   }).join(''):'<p class="empty">还没有写作记录。可以从一个场景、一段对话或一个人物开始写。</p>';
   $$('.observation-swipe').forEach(row=>{
     const card=row.querySelector('.observation-item');
     const id=row.dataset.observationId;
-    card.onclick=event=>{if(event.target.closest('.writing-drag-handle')||row.dataset.justSorted)return;openObservationComparison(observations.find(item=>item.id===id))};
-    card.onkeydown=event=>{if(event.target.closest('.writing-drag-handle'))return;if(event.key==='Enter'||event.key===' '){event.preventDefault();card.click()}};
+    card.onclick=()=>{if(row.dataset.justSorted)return;openObservationComparison(observations.find(item=>item.id===id))};
+    card.onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();card.click()}};
     row.querySelector('.observation-edit').onclick=event=>{event.stopPropagation();saveObservationDraftNow();openObservationEditor(observations.find(item=>item.id===id))};
     row.querySelector('.observation-delete').onclick=async event=>{
       event.stopPropagation();
@@ -89,26 +96,32 @@ function renderObservations(){
     enableWritingSorting(row);
     if(window.phdDesktop){row.oncontextmenu=event=>{event.preventDefault();event.stopPropagation();document.querySelector('#desktopNoteMenu')?.remove();const menu=document.createElement('div');menu.id='desktopNoteMenu';menu.className='desktop-note-menu';menu.innerHTML='<button type="button" data-action="edit">编辑</button><button type="button" data-action="delete">删除</button>';document.body.append(menu);menu.style.left=`${Math.max(12,Math.min(event.clientX,window.innerWidth-menu.offsetWidth-12))}px`;menu.style.top=`${Math.max(12,Math.min(event.clientY,window.innerHeight-menu.offsetHeight-12))}px`;menu.querySelector('[data-action="edit"]').onclick=()=>{menu.remove();row.querySelector('.observation-edit').click()};menu.querySelector('[data-action="delete"]').onclick=()=>{menu.remove();row.querySelector('.observation-delete').click()};setTimeout(()=>document.addEventListener('pointerdown',click=>{if(!click.target.closest('#desktopNoteMenu'))menu.remove()},{once:true,capture:true}),0)};return}
     let start=null,delta=0;
-    row.addEventListener('pointerdown',event=>{if(event.target.closest('.diary-row-actions,.writing-drag-handle'))return;start=event.clientX;delta=0;row.setPointerCapture?.(event.pointerId)});
+    row.addEventListener('pointerdown',event=>{if(event.target.closest('.diary-row-actions'))return;start=event.clientX;delta=0});
     row.addEventListener('pointermove',event=>{if(start===null)return;delta=Math.min(0,Math.max(-168,event.clientX-start));if(delta<0)card.style.transform=`translateX(${delta}px)`});
     row.addEventListener('pointerup',event=>{if(start===null)return;card.style.transform='';if(event.target.closest('.diary-row-actions')){start=null;return}if(row.classList.contains('swiped')&&delta>-12){row.classList.remove('swiped');start=null;return}if(delta<-42)row.classList.add('swiped');start=null});
     row.addEventListener('pointercancel',()=>{card.style.transform='';start=null});
   });
 }
 function enableWritingSorting(row){
-  const handle=row.querySelector('.writing-drag-handle');let pointerId=null,sorting=false;
+  const card=row.querySelector('.observation-item');let pointerId=null,sorting=false,startX=0,startY=0,holdTimer=null;
+  const cancelHold=()=>{clearTimeout(holdTimer);holdTimer=null};
   const move=event=>{
     if(event.pointerId!==pointerId)return;event.preventDefault();
+    if(!sorting){if(Math.hypot(event.clientX-startX,event.clientY-startY)>8)cancelHold();return}
     const chapter=row.closest('.writing-chapter'),siblings=[...chapter.querySelectorAll('.observation-swipe')].filter(item=>item!==row),next=siblings.find(item=>{const rect=item.getBoundingClientRect();return event.clientY<rect.top+rect.height/2});
     if(next)chapter.insertBefore(row,next);else chapter.append(row);
   };
   const finish=event=>{
-    if(event.pointerId!==pointerId)return;window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',finish);window.removeEventListener('pointercancel',finish);handle.releasePointerCapture?.(pointerId);pointerId=null;
+    if(event.pointerId!==pointerId)return;cancelHold();window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',finish);window.removeEventListener('pointercancel',finish);card.releasePointerCapture?.(pointerId);card.style.touchAction='';pointerId=null;
     if(!sorting)return;sorting=false;row.classList.remove('writing-sorting');row.dataset.justSorted='1';setTimeout(()=>delete row.dataset.justSorted,180);
     const ids=[...row.closest('.writing-chapter').querySelectorAll('.observation-swipe')].map(item=>item.dataset.observationId),stamp=new Date().toISOString();
     ids.forEach((id,index)=>{const entry=observations.find(item=>item.id===id);if(entry){entry.writingOrder=index;entry.updatedAt=stamp}});saveObservations();
   };
-  handle.addEventListener('pointerdown',event=>{if(event.button!==undefined&&event.button!==0)return;event.preventDefault();event.stopPropagation();pointerId=event.pointerId;sorting=true;row.classList.add('writing-sorting');handle.setPointerCapture?.(pointerId);window.addEventListener('pointermove',move,{passive:false});window.addEventListener('pointerup',finish);window.addEventListener('pointercancel',finish);navigator.vibrate?.(10)});
+  card.addEventListener('pointerdown',event=>{
+    if(event.button!==undefined&&event.button!==0)return;pointerId=event.pointerId;startX=event.clientX;startY=event.clientY;
+    window.addEventListener('pointermove',move,{passive:false});window.addEventListener('pointerup',finish);window.addEventListener('pointercancel',finish);
+    holdTimer=setTimeout(()=>{sorting=true;row.classList.add('writing-sorting');card.style.touchAction='none';card.setPointerCapture?.(pointerId);navigator.vibrate?.(10)},320);
+  });
 }
 function updateObservationHeader(){
   $('header h1').textContent='写作';
