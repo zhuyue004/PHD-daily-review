@@ -69,56 +69,76 @@ async function renderTimelineImages(note,holder){
   holder.innerHTML=remaining.map((image,index)=>`<button type="button" data-index="${index}" aria-label="查看原图"><img src="${URL.createObjectURL(image.blob)}" alt="随手记图片 ${index+1}"></button>`).join('');
   holder.querySelectorAll('button').forEach(button=>button.onclick=()=>openNoteImage(remaining[+button.dataset.index].blob));
 }
-const timelineBatchSize=24;
-let timelineGeneration=0,timelineMoreObserver=null,timelineImageObserver=null;
-window.renderNotesTimeline=function(){
+window.renderNotesTimeline=async function(){
   if($('#notesTimeline')?.classList.contains('active'))updateHeaderStat?.('notesTimeline');
-  timelineMoreObserver?.disconnect();timelineImageObserver?.disconnect();
-  let generation=++timelineGeneration,term=($('#notesTimelineSearch')?.value||'').trim().toLowerCase();
+  let input=$('#notesTimelineSearch'),term=(input?.value||'').trim().toLowerCase();
   let list=notes.slice().sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).filter(note=>!term||`${note.text||''} ${(note.template||'')}`.toLowerCase().includes(term));
   let root=$('#notesTimelineList');
   if(!list.length){root.innerHTML=`<p class="empty">${term?'没有匹配的随手记。':'还没有随手记。'}</p>`;return}
-  root.innerHTML='<button type="button" class="timeline-load-more plain">加载更多</button>';
-  let more=root.querySelector('.timeline-load-more'),next=0;
-  if('IntersectionObserver'in window)timelineImageObserver=new IntersectionObserver(entries=>{
-    for(let observed of entries){
-      if(!observed.isIntersecting||generation!==timelineGeneration)continue;
-      timelineImageObserver.unobserve(observed.target);
-      let note=list[Number(observed.target.dataset.noteIndex)],holder=observed.target.querySelector('.timeline-images');
-      if(note&&holder)renderTimelineImages(note,holder);
-    }
-  },{root,rootMargin:'220px'});
-  function appendBatch(){
-    if(generation!==timelineGeneration||next>=list.length)return;
-    let start=next,batch=list.slice(start,start+timelineBatchSize);next+=batch.length;
-    more.insertAdjacentHTML('beforebegin',batch.map((note,index)=>`<article class="timeline-entry" data-note-index="${start+index}" data-note-id="${esc(note.id)}"><div class="timeline-stamp"><b>${timelineDate(note.createdAt)}</b><span>${timelineWeekday(note.createdAt)}</span><time>${timelineTime(note.createdAt)}</time></div><i class="timeline-dot" aria-hidden="true"></i><div class="timeline-card">${timelineText(note.text)}<div class="timeline-images"></div></div></article>`).join(''));
-    let entry=more.previousElementSibling;
-    for(let index=batch.length-1;index>=0;index--){
-      let current=entry;entry=entry.previousElementSibling;
-      if(timelineImageObserver)timelineImageObserver.observe(current);
-      else renderTimelineImages(batch[index],current.querySelector('.timeline-images'));
-      requestAnimationFrame(()=>{
-        if(generation!==timelineGeneration||!current.isConnected)return;
-        let textBlock=current.querySelector('.timeline-body');
-        if(!textBlock||textBlock.scrollHeight<=99)return;
-        textBlock.classList.add('timeline-collapsed');
-        let expand=document.createElement('button');expand.type='button';expand.className='timeline-expand';expand.textContent='展开全文';
-        expand.onclick=()=>{let collapsed=textBlock.classList.toggle('timeline-collapsed');expand.textContent=collapsed?'展开全文':'收起'};
-        textBlock.after(expand);
-      });
-    }
-    if(next>=list.length){timelineMoreObserver?.disconnect();more.remove()}
-  }
-  more.onclick=appendBatch;
-  appendBatch();
-  if(next<list.length&&'IntersectionObserver'in window){
-    timelineMoreObserver=new IntersectionObserver(entries=>{if(entries.some(entry=>entry.isIntersecting))appendBatch()},{root,rootMargin:'260px'});
-    timelineMoreObserver.observe(more);
+  root.innerHTML=list.map(note=>`<article class="timeline-entry" data-note-id="${note.id}"><div class="timeline-stamp"><b>${timelineDate(note.createdAt)}</b><span>${timelineWeekday(note.createdAt)}</span><time>${timelineTime(note.createdAt)}</time></div><i class="timeline-dot" aria-hidden="true"></i><div class="timeline-card">${timelineText(note.text)}<div class="timeline-images"></div></div></article>`).join('');
+  for(let note of list){
+    let entry=root.querySelector(`.timeline-entry[data-note-id="${note.id}"]`),holder=entry.querySelector('.timeline-images'),textBlock=entry.querySelector('.timeline-body');
+    // Measure after layout: a single long paragraph needs collapsing too.
+    requestAnimationFrame(()=>{
+      if(!textBlock?.isConnected||textBlock.scrollHeight<=99)return;
+      textBlock.classList.add('timeline-collapsed');
+      let expand=document.createElement('button');expand.type='button';expand.className='timeline-expand';expand.textContent='展开全文';
+      expand.onclick=()=>{let collapsed=textBlock.classList.toggle('timeline-collapsed');expand.textContent=collapsed?'展开全文':'收起';};
+      textBlock.after(expand);
+    });
+    renderTimelineImages(note,holder);
   }
 };
-const timelineBatchStyle=document.createElement('style');
-timelineBatchStyle.textContent='.timeline-load-more{display:block;margin:12px auto 0;padding:8px 12px;color:#007aff;font-size:13px}#notesTimeline .timeline-entry:last-of-type::after{display:none}';
-document.head.append(timelineBatchStyle);
+if(window.phdDesktop){
+  const desktopTimelineBatch=30;
+  let timelineState={key:'',generation:0,moreObserver:null,imageObserver:null};
+  window.renderNotesTimeline=function(){
+    let root=$('#notesTimelineList'),term=($('#notesTimelineSearch')?.value||'').trim().toLowerCase();
+    let key=`${window.desktopDataVersion?.('notes')||0}|${term}`;
+    if(timelineState.key===key&&root.childElementCount)return;
+    timelineState.moreObserver?.disconnect();timelineState.imageObserver?.disconnect();
+    let generation=++timelineState.generation;
+    let list=notes.slice().sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).filter(note=>!term||`${note.text||''} ${(note.template||'')}`.toLowerCase().includes(term));
+    timelineState.key=key;
+    if(!list.length){root.innerHTML=`<p class="empty">${term?'没有匹配的随手记。':'还没有随手记。'}</p>`;return}
+    root.innerHTML='<button type="button" class="timeline-load-more plain">加载更多</button>';
+    let more=root.querySelector('.timeline-load-more'),next=0;
+    timelineState.imageObserver=new IntersectionObserver(entries=>{
+      for(let observed of entries){
+        if(!observed.isIntersecting||timelineState.generation!==generation)continue;
+        timelineState.imageObserver.unobserve(observed.target);
+        let note=list[Number(observed.target.dataset.noteIndex)],holder=observed.target.querySelector('.timeline-images');
+        if(note&&holder)renderTimelineImages(note,holder);
+      }
+    },{root,rootMargin:'250px'});
+    function appendBatch(){
+      if(timelineState.generation!==generation||next>=list.length)return;
+      let start=next,batch=list.slice(start,start+desktopTimelineBatch);next+=batch.length;
+      more.insertAdjacentHTML('beforebegin',batch.map((note,index)=>`<article class="timeline-entry" data-note-index="${start+index}" data-note-id="${esc(note.id)}"><div class="timeline-stamp"><b>${timelineDate(note.createdAt)}</b><span>${timelineWeekday(note.createdAt)}</span><time>${timelineTime(note.createdAt)}</time></div><i class="timeline-dot" aria-hidden="true"></i><div class="timeline-card">${timelineText(note.text)}<div class="timeline-images"></div></div></article>`).join(''));
+      let entry=more.previousElementSibling;
+      for(let index=batch.length-1;index>=0;index--){
+        let current=entry;entry=entry.previousElementSibling;
+        timelineState.imageObserver.observe(current);
+        requestAnimationFrame(()=>{
+          if(timelineState.generation!==generation||!current.isConnected)return;
+          let textBlock=current.querySelector('.timeline-body');
+          if(!textBlock||textBlock.scrollHeight<=99)return;
+          textBlock.classList.add('timeline-collapsed');
+          let expand=document.createElement('button');expand.type='button';expand.className='timeline-expand';expand.textContent='展开全文';
+          expand.onclick=()=>{let collapsed=textBlock.classList.toggle('timeline-collapsed');expand.textContent=collapsed?'展开全文':'收起'};
+          textBlock.after(expand);
+        });
+      }
+      if(next>=list.length){timelineState.moreObserver?.disconnect();more.remove()}
+    }
+    more.onclick=appendBatch;
+    appendBatch();
+    if(next<list.length){
+      timelineState.moreObserver=new IntersectionObserver(entries=>{if(entries.some(entry=>entry.isIntersecting))appendBatch()},{root,rootMargin:'300px'});
+      timelineState.moreObserver.observe(more);
+    }
+  };
+}
 $('#notesTimelineSearch').oninput=()=>window.renderNotesTimeline();
 // If iPhone restores this screen before note-format.js has executed, redraw it
 // after the formatter announces that KaTeX is available.

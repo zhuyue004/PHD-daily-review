@@ -1,0 +1,13 @@
+body.diary-lock-open > :not(#desktopDiaryLock){filter:blur(12px);pointer-events:none;user-select:none}
+body.diary-lock-open{overflow:hidden}
+#desktopDiaryLock{position:fixed;inset:0;z-index:3000;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(20,24,34,.36);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif}
+#desktopDiaryLock[hidden]{display:none}
+.diary-lock-card{box-sizing:border-box;width:min(100%,390px);padding:28px;border-radius:20px;background:#fff;box-shadow:0 18px 55px #0003;color:#1c1c1e}
+.diary-lock-card h2{margin:0 0 8px;font-size:22px}.diary-lock-card p{margin:0 0 18px;color:#636366;font-size:14px;line-height:1.55}
+.diary-lock-card label{display:block;margin:12px 0 5px;color:#3a3a3c;font-size:13px;font-weight:600}
+.diary-lock-card input{box-sizing:border-box;width:100%;height:43px;padding:0 12px;border:1px solid #d1d1d6;border-radius:10px;background:#f2f2f7;color:#1c1c1e;font-size:15px}
+.diary-lock-card .diary-lock-actions{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-top:19px}.diary-lock-card button{min-height:40px;padding:8px 13px;border:0;border-radius:9px;background:#007aff;color:#fff;font-size:14px;font-weight:600;cursor:pointer}
+.diary-lock-card button.secondary{background:#e5e5ea;color:#1c1c1e}.diary-lock-card button.link{margin-left:auto;padding:7px 0;background:transparent;color:#007aff}
+.diary-lock-error{min-height:19px;margin:11px 0 0!important;color:#c52a25!important;font-size:13px!important}.diary-lock-code{padding:13px;border-radius:9px;background:#f2f2f7;font-family:Consolas,monospace;font-size:17px;letter-spacing:.05em;word-break:break-all;user-select:text}
+.diary-lock-card .diary-lock-check{display:flex;gap:9px;align-items:center;margin-top:15px;font-weight:400}.diary-lock-check input{width:17px;height:17px}
+@media(prefers-color-scheme:dark){.diary-lock-card{background:#252529;color:#f2f2f7}.diary-lock-card p{color:#aeaeb2}.diary-lock-card label{color:#dedee3}.diary-lock-card input,.diary-lock-code{background:#34343a;border-color:#505056;color:#f2f2f7}.diary-lock-card button.secondary{background:#48484e;color:#f2f2f7}}

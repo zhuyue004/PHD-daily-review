@@ -3,9 +3,13 @@
   const renderArchive=archive;
   archive=function(){
     renderArchive();
-    document.querySelectorAll('#records .archive-note[data-diary-id]').forEach(card=>card.remove());
-    Array.from(document.querySelectorAll('#records .archive-heading'))
-      .find(heading=>heading.textContent.includes('· 日记'))?.remove();
+    const diaryHeading=Array.from(document.querySelectorAll('#records .archive-heading'))
+      .find(heading=>heading.textContent.includes('· 日记'));
+    if(diaryHeading){
+      let following=diaryHeading.nextElementSibling;
+      while(following){const next=following.nextElementSibling;following.remove();following=next}
+      diaryHeading.remove();
+    }
   };
   document.querySelector('#search').oninput=()=>archive();
 })();

@@ -8,7 +8,7 @@ const imageDb=()=>{
     };
     request.onsuccess=()=>{let db=request.result;db.onversionchange=()=>{db.close();imageDbConnection=null};resolve(db)};
     request.onerror=()=>{imageDbConnection=null;reject(request.error)};
-    request.onblocked=()=>{imageDbConnection=null;reject(new Error('图片库正在被旧版页面占用，请关闭其他日迹页面后重试。'))};
+    request.onblocked=()=>{imageDbConnection=null;reject(new Error('图片库正在被旧版窗口占用，请关闭其他日迹窗口后重试。'))};
   });
   return imageDbConnection;
 };

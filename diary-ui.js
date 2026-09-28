@@ -10,7 +10,7 @@ function quoteForToday(dateKey=day()){
   if(new Date(year,1,29).getMonth()===1&&month>1)index--;
   return PHD_QUOTES[index%PHD_QUOTES.length];
 }
-const saveDiaries=()=>{localStorage.setItem('phd-diary-records',JSON.stringify(diaries));window.scheduleCloudSync?.()};
+const saveDiaries=()=>{localStorage.setItem('phd-diary-records',JSON.stringify(diaries));window.desktopDataChanged?.('diaries');window.scheduleCloudSync?.()};
 const DIARY_DRAFTS_KEY='phd-diary-drafts';
 let diaryDraftTimer;
 let diaryDraftStatusTimer;
@@ -24,18 +24,9 @@ const basePage=page;
 page=id=>{basePage(id);if(id==='diary')renderDiary()};
 let diaryHistoryDate=day(),diaryEditingDate=day();
 function diaryParagraphs(text){return indentDiary(text).split(/\r?\n/).filter(line=>line.trim()).map(line=>`<p>${esc(line.trim().replace(/^　　/,''))}</p>`).join('')}
-const diaryPosition=(highAccuracy=false)=>new Promise(resolve=>{if(!navigator.geolocation)return resolve(null);navigator.geolocation.getCurrentPosition(position=>resolve(position),()=>resolve(null),{enableHighAccuracy:highAccuracy,timeout:10000,maximumAge:300000})});
+const diaryPosition=()=>new Promise(resolve=>{if(!navigator.geolocation)return resolve(null);navigator.geolocation.getCurrentPosition(position=>resolve(position),()=>resolve(null),{enableHighAccuracy:false,timeout:8000,maximumAge:300000})});
 async function placeFromCoordinates(latitude,longitude){let key=localStorage.getItem('phd-amap-key')||'';if(!key)return '';try{let response=await fetch(`https://restapi.amap.com/v3/geocode/regeo?key=${encodeURIComponent(key)}&location=${longitude},${latitude}&extensions=base&radius=1000&roadlevel=0`),data=await response.json();if(data.status!=='1')return '';let address=data.regeocode?.addressComponent||{},city=Array.isArray(address.city)?address.city[0]:address.city,neighborhood=address.neighborhood?.name,building=address.building?.name,street=address.streetNumber?.street,number=address.streetNumber?.number;return [address.province,city,address.district,address.township,neighborhood,street&&number?`${street}${number}`:street,building].filter((value,index,list)=>value&&list.indexOf(value)===index).join(' · ')}catch{return ''}}
-async function diaryPlaceResult(){
-  if(!localStorage.getItem('phd-amap-key'))return {place:'',reason:'请在设置中保存高德 Web 服务 Key，才能显示地点名称。'};
-  if(!navigator.geolocation)return {place:'',reason:'此浏览器不支持定位。'};
-  let position=await diaryPosition(true)||await diaryPosition(false);
-  if(!position)return {place:'',reason:'未能取得手机位置，请检查 Safari 和系统的定位权限。'};
-  let place=await placeFromCoordinates(position.coords.latitude,position.coords.longitude);
-  return place?{place,reason:''}:{place:'',reason:'已取得位置，但高德未返回地点名称；请检查 Key 和网络。'};
-}
-async function diaryPlace(){return (await diaryPlaceResult()).place}
-function showDiaryLocationStatus(message){let status=$('#diaryLocationStatus');if(!status){status=document.createElement('p');status.id='diaryLocationStatus';status.className='status';$('#saveDiary').after(status)}status.textContent=message}
+async function diaryPlace(){let position=await diaryPosition();return position?placeFromCoordinates(position.coords.latitude,position.coords.longitude):''}
 let diaryPickerMonth=new Date();
 function renderDiaryCalendar(){let panel=$('#diaryCalendar'),year=diaryPickerMonth.getFullYear(),month=diaryPickerMonth.getMonth(),first=(new Date(year,month,1).getDay()+6)%7,total=new Date(year,month+1,0).getDate(),dates=new Set(diaries.map(item=>item.date)),cells=[];for(let index=0;index<first;index++)cells.push('<button class="blank" disabled></button>');for(let date=1;date<=total;date++){let value=localDay(new Date(year,month,date));cells.push(`<button class="${dates.has(value)?'has-diary':''}" data-diary-date="${value}" type="button">${date}</button>`)}panel.innerHTML=`<div class="calendar-head"><button id="diaryPrevMonth" type="button">‹</button><b>${year} 年 ${month+1} 月</b><button id="diaryNextMonth" type="button">›</button></div><div class="calendar-week"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div><div class="calendar-grid">${cells.join('')}</div><p class="calendar-legend"><i></i>有日记</p>`;$('#diaryPrevMonth').onclick=()=>{diaryPickerMonth=new Date(year,month-1,1);renderDiaryCalendar()};$('#diaryNextMonth').onclick=()=>{diaryPickerMonth=new Date(year,month+1,1);renderDiaryCalendar()};$$('[data-diary-date]').forEach(button=>button.onclick=()=>{let value=button.dataset.diaryDate,entry=diaries.find(item=>item.date===value);$('#diaryCalendar').classList.add('hidden');if(entry)viewDiary(entry);else alert('这一天还没有日记。')})}
 function ensureDiaryHistory(){if($('#diaryHistory'))return;let section=document.createElement('section');section.id='diaryHistory';section.className='diary-history';section.innerHTML='<div class="archive-date-control"><span>按日期查看</span><button id="diaryDateButton" class="plain" type="button"></button></div><div id="diaryCalendar" class="archive-calendar diary-calendar hidden"></div>';let editor=$('.diary-editor');editor.insertAdjacentElement('afterend',section);$('#diaryDateButton').onclick=()=>{let panel=$('#diaryCalendar');panel.classList.toggle('hidden');if(!panel.classList.contains('hidden')){diaryPickerMonth=new Date();renderDiaryCalendar()}}}
@@ -47,32 +38,15 @@ function diaryImageGrid(images,limit=4){let shown=images.slice(0,limit),more=ima
 function diaryImageSize(bytes){return bytes>=1024*1024?`${(bytes/1024/1024).toFixed(bytes>=10*1024*1024?0:1)} MB`:`${Math.max(1,Math.round(bytes/1024))} KB`}
 async function editDiary(entry){
   let images=await getDiaryImages(entry.id),removed=[],added=[];
-  $('#detail').innerHTML=`<section class="diary-detail diary-edit"><p class="diary-detail-label">编辑日记</p><h2>${fmt(entry.date)}</h2><textarea id="editDiaryInput" aria-label="日记内容"></textarea><div class="diary-image-actions"><button id="editDiaryAddImages" class="plain" type="button">添加图片</button><input id="editDiaryImages" type="file" accept="image/*" multiple hidden></div><div id="editDiaryImagePreview" class="diary-image-preview"></div><p id="editDiaryPlaceStatus" class="status"></p><button id="refreshDiaryPlace" class="plain" type="button">更新为当前位置</button><button id="saveDiaryEdit" type="button">保存修改</button></section>`;
+  $('#detail').innerHTML=`<section class="diary-detail diary-edit"><p class="diary-detail-label">编辑日记</p><h2>${fmt(entry.date)}</h2><textarea id="editDiaryInput" aria-label="日记内容"></textarea><div class="diary-image-actions"><button id="editDiaryAddImages" class="plain" type="button">添加图片</button><input id="editDiaryImages" type="file" accept="image/*" multiple hidden></div><div id="editDiaryImagePreview" class="diary-image-preview"></div><button id="saveDiaryEdit" type="button">保存修改</button></section>`;
   let input=$('#editDiaryInput');input.value=indentDiary(entry.text)||INDENT;
-  let editPlace=entry.place||'';
-  $('#editDiaryPlaceStatus').textContent=editPlace?`记录地点：${editPlace}`:'尚未记录地点；保存修改时会尝试定位。';
-  $('#refreshDiaryPlace').onclick=async()=>{let button=$('#refreshDiaryPlace');button.disabled=true;$('#editDiaryPlaceStatus').textContent='正在获取当前位置…';let location=await diaryPlaceResult();button.disabled=false;if(location.place)editPlace=location.place;$('#editDiaryPlaceStatus').textContent=location.place?`记录地点：${editPlace}`:`未能更新地点：${location.reason}`};
   function preview(){let all=[...images.filter(image=>!removed.includes(image.id)).map(image=>({image,src:URL.createObjectURL(image.blob)})),...added.map(file=>({file,src:URL.createObjectURL(file)}))];$('#editDiaryImagePreview').innerHTML=all.map((item,index)=>`<div><img src="${item.src}" alt="日记图片"><button type="button" data-remove-image="${index}" aria-label="删除图片">×</button></div>`).join('');$$('[data-remove-image]').forEach(button=>button.onclick=()=>{let index=+button.dataset.removeImage,kept=images.filter(image=>!removed.includes(image.id));if(index<kept.length)removed.push(kept[index].id);else added.splice(index-kept.length,1);preview()})}
   preview();$('#editDiaryAddImages').onclick=()=>$('#editDiaryImages').click();$('#editDiaryImages').onchange=event=>{let current=images.length-removed.length+added.length,files=[...event.target.files].filter(file=>file.type.startsWith('image/')),accepted=files.slice(0,Math.max(0,4-current));added.push(...accepted);if(accepted.length<files.length)alert(`日记最多保存 4 张图片，另外 ${files.length-accepted.length} 张未保存。`);event.target.value='';preview()};
-  $('#saveDiaryEdit').onclick=async()=>{let button=$('#saveDiaryEdit');button.disabled=true;let text=input.value.replace(/　/g,'').trim()?indentDiary(input.value).replace(/\n+$/,''):'';if(!editPlace)$('#editDiaryPlaceStatus').textContent='正在获取当前位置…';let location=editPlace?{place:editPlace,reason:''}:await diaryPlaceResult();let index=diaries.findIndex(item=>item.id===entry.id);if(index<0){button.disabled=false;return}await Promise.all(removed.map(deleteNoteImage));let newImages=await saveDiaryImages(entry.id,added,new Date());let place=location.place||diaries[index].place||'';diaries[index]={...diaries[index],text,place,images:[...(diaries[index].images||[]).filter(id=>!removed.includes(id)),...newImages],updatedAt:new Date().toISOString()};saveDiaries();$('#modal').classList.add('hidden');renderDiary();showDiaryLocationStatus(place?`修改已保存 · ${place}`:`修改已保存，但未记录地点。${location.reason}`)};
+  $('#saveDiaryEdit').onclick=async()=>{let text=input.value.replace(/　/g,'').trim()?indentDiary(input.value).replace(/\n+$/,''):'';await Promise.all(removed.map(deleteNoteImage));let newImages=await saveDiaryImages(entry.id,added,new Date());let index=diaries.findIndex(item=>item.id===entry.id);if(index<0)return;diaries[index]={...diaries[index],text,images:[...(diaries[index].images||[]).filter(id=>!removed.includes(id)),...newImages],updatedAt:new Date().toISOString()};saveDiaries();$('#modal').classList.add('hidden');renderDiary()};
   $('#modal').classList.remove('hidden');
 }
 async function renderDiaryImageGrids(){for(let card of $$('.diary-feed-card[data-diary-id]')){let images=await getDiaryImages(card.dataset.diaryId),holder=card.querySelector('.diary-feed-images'),meta=card.querySelector('[data-diary-meta]');if(!holder||!images.length)continue;holder.innerHTML=diaryImageGrid(images);if(meta){let words=meta.dataset.words||'0',total=images.reduce((sum,image)=>sum+(image.blob?.size||0),0);meta.textContent=`${words} 字 / 图片 ${diaryImageSize(total)}`}$$('[data-image-index]',holder).forEach(button=>button.onclick=event=>{event.stopPropagation();openNoteImage(images[+button.dataset.imageIndex].blob)})}}
-function bindDiaryReadMore(){for(let card of $$('.diary-feed-card')){
-  let text=card.querySelector('.diary-feed-text'),button=card.querySelector('.diary-read-more');
-  if(!text||!button)continue;
-  // The observation tab hides the diary list. Zero-height measurements there
-  // must not permanently remove a read-more button.
-  if(!text.getClientRects().length)continue;
-  button.onclick=event=>{event.preventDefault();event.stopPropagation();let expanded=card.classList.toggle('diary-expanded');button.textContent=expanded?'收起':'全文'};
-  if(card.classList.contains('diary-expanded')){button.hidden=false;button.textContent='收起';continue}
-  let clippedHeight=text.getBoundingClientRect().height;
-  card.classList.add('diary-measuring');
-  let fullHeight=text.getBoundingClientRect().height;
-  card.classList.remove('diary-measuring');
-  if(fullHeight>clippedHeight+2){button.hidden=false;button.textContent='全文'}
-  else button.hidden=true;
-}}
+function bindDiaryReadMore(){for(let card of $$('.diary-feed-card')){let text=card.querySelector('.diary-feed-text'),button=card.querySelector('.diary-read-more');if(!text||!button)continue;let clippedHeight=text.getBoundingClientRect().height;card.classList.add('diary-measuring');let fullHeight=text.getBoundingClientRect().height;card.classList.remove('diary-measuring');let overflow=fullHeight>clippedHeight+2;if(overflow){button.hidden=false;button.textContent='全文';button.onclick=event=>{event.preventDefault();event.stopPropagation();let expanded=card.classList.toggle('diary-expanded');button.textContent=expanded?'收起':'全文'}}else button.remove()}}
 
 function renderDiary(){
   ensureDiaryHistory();
@@ -110,7 +84,7 @@ function bindDiaryRows(){
   $$('.delete-diary').forEach(button=>button.onclick=async event=>{
     event.preventDefault();event.stopPropagation();
     let id=button.closest('.diary-swipe').dataset.id;
-    if(await confirmFourDigitDelete('日记')){
+    if(confirm('确定删除这篇日记吗？此操作无法撤销。')){
       diaries=diaries.filter(item=>item.id!==id);await deleteDiaryImages([id]);
       saveDiaries();
       renderDiary();
@@ -118,7 +92,7 @@ function bindDiaryRows(){
   });
   $$('.diary-swipe').forEach(row=>{
     let start=0,delta=0,card=row.querySelector('.diary-row');
-    row.addEventListener('pointerdown',event=>{if(event.target.closest('.diary-row-actions,.diary-read-more,.diary-feed-images'))return;start=event.clientX;delta=0;row.setPointerCapture?.(event.pointerId)});
+    row.addEventListener('pointerdown',event=>{start=event.clientX;delta=0;row.setPointerCapture?.(event.pointerId)});
     row.addEventListener('pointermove',event=>{
       if(!start)return;
       delta=Math.min(0,Math.max(-168,event.clientX-start));
@@ -142,14 +116,13 @@ $('#saveDiary').onclick=async()=>{
     if(index>=0){diaries.splice(index,1);saveDiaries();clearDiaryDraft(targetDate);renderDiary()}
     return;
   }
-  let button=$('#saveDiary'),oldText=button.textContent,oldPlace=index>=0?diaries[index].place||'':'';button.disabled=true;if(!oldPlace)button.textContent='正在记录地点…';let text=raw.replace(/　/g,'').trim()?indentDiary(raw).replace(/\n+$/,''):'';let location=oldPlace?{place:oldPlace,reason:''}:await diaryPlaceResult(),place=location.place||oldPlace;button.disabled=false;button.textContent=oldText;
+  let button=$('#saveDiary'),oldText=button.textContent,isToday=targetDate===day();button.disabled=true;if(isToday)button.textContent='正在记录地点…';let text=raw.replace(/　/g,'').trim()?indentDiary(raw).replace(/\n+$/,''):'' ,place=isToday?(await diaryPlace()||(index>=0?diaries[index].place||'':'')):(index>=0?diaries[index].place||'':'');button.disabled=false;button.textContent=oldText;
   let id=index>=0?diaries[index].id:crypto.randomUUID(),newImages=await saveDiaryImages(id,pendingDiaryImages,new Date()),entry={id,date:targetDate,text,place,images:[...(index>=0?diaries[index].images||[]:[]),...newImages],updatedAt:new Date().toISOString()};
   if(index>=0)diaries[index]=entry;else diaries.push(entry);
   pendingDiaryImages=[];renderPendingDiaryImages();
   saveDiaries();
   clearDiaryDraft(targetDate);
   renderDiary();
-  showDiaryLocationStatus(place?`已保存 · ${place}`:`已保存，但未记录地点。${location.reason}`);
 };
 
 $('#diaryWriteDate').onchange=event=>{

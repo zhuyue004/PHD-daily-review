@@ -1,11 +1,13 @@
 {
   "name": "phd-daily-review",
-  "version": "1.1.31",
-  "description": "博士日课 Windows 桌面版",
+  "version": "1.1.78",
+  "description": "日迹 Windows 桌面版",
   "main": "electron-main.js",
   "private": true,
   "scripts": {
     "start": "electron .",
+    "test:format": "node tests/note-format.test.cjs",
+    "test:sync": "node tests/sync-logic.test.cjs",
     "dist:win": "electron-builder --win nsis --x64"
   },
   "devDependencies": {
@@ -14,10 +16,16 @@
   },
   "build": {
     "appId": "com.phddaily.review",
-    "productName": "博士日课",
+    "productName": "日迹",
     "directories": {
-      "output": "release-1.1.31"
+      "output": "release-1.1.78"
     },
+    "extraResources": [
+      {
+        "from": "build/icon.ico",
+        "to": "icon.ico"
+      }
+    ],
     "files": [
       "**/*",
       "!release{,/**}",
@@ -73,19 +81,57 @@
       "!release-1.1.29{,/**}",
       "!release-1.1.30{,/**}",
       "!release-1.1.31{,/**}",
+      "!release-1.1.32{,/**}",
+      "!release-1.1.33{,/**}",
+      "!release-1.1.34{,/**}",
+      "!release-1.1.35{,/**}",
+      "!release-1.1.36{,/**}",
+      "!release-1.1.37{,/**}",
+      "!release-1.1.38{,/**}",
+      "!release-1.1.39{,/**}",
+      "!release-1.1.40{,/**}",
+      "!release-1.1.41{,/**}",
+      "!release-1.1.42{,/**}",
+      "!release-1.1.43{,/**}",
+      "!release-1.1.44{,/**}",
+      "!release-1.1.45{,/**}",
+      "!release-1.1.46{,/**}",
+      "!release-1.1.47{,/**}",
+      "!release-1.1.48{,/**}",
+      "!release-1.1.49{,/**}",
+      "!release-1.1.51{,/**}",
+      "!release-1.1.52{,/**}",
+      "!release-1.1.59{,/**}",
+      "!release-1.1.60{,/**}",
+      "!release-1.1.62{,/**}",
+      "!release-1.1.64{,/**}",
+      "!release-1.1.65{,/**}",
+      "!release-1.1.67{,/**}",
+      "!release-1.1.68{,/**}",
+      "!release-1.1.71{,/**}",
+      "!release-1.1.72{,/**}",
+      "!release-1.1.73{,/**}",
+      "!release-1.1.74{,/**}",
+      "!release-1.1.75{,/**}",
+      "!release-1.1.76{,/**}",
+      "!release-1.1.77{,/**}",
       "!node_modules{,/**}/**/*.{md,map}",
       "!build-*.log",
       "!launch-*.log",
       "!CHANGELOG.md",
       "!README.md",
-      "!supabase-schema.sql"
+      "!supabase-schema.sql",
+      "!tests{,/**}"
     ],
+    "win": {
+      "icon": "build/icon.ico"
+    },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "博士日课"
+      "shortcutName": "日迹"
     }
   },
   "allowScripts": {
