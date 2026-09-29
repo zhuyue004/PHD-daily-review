@@ -88,7 +88,11 @@ function renderObservations(){
   if($('#observationSortDirection'))$('#observationSortDirection').value=sort.direction;
   const groups=new Map();
   for(const entry of observations){const chapter=writingChapter(entry.title);if(!groups.has(chapter.key))groups.set(chapter.key,{...chapter,entries:[]});groups.get(chapter.key).entries.push(entry)}
-  const sortedGroups=[...groups.values()].sort((a,b)=>(a.number-b.number)*direction);
+  const sortedGroups=[...groups.values()].sort((a,b)=>{
+    if(a.key==='unassigned')return 1;
+    if(b.key==='unassigned')return -1;
+    return (a.number-b.number)*direction;
+  });
   list.innerHTML=sortedGroups.length?sortedGroups.map(group=>{
     const entries=group.entries.sort((a,b)=>compareWritingEntries(a,b,sort.by)*direction);
     return `<section class="writing-chapter" data-chapter-key="${group.key}"><h3 class="observation-date-heading">${observationEsc(group.label)}<span>${entries.length} 篇</span></h3>${entries.map(entry=>`<div class="swipe-row observation-swipe" data-observation-id="${observationEsc(entry.id)}" data-chapter-key="${group.key}"><div class="diary-row-actions"><button type="button" class="edit-record observation-edit" aria-label="编辑写作">编辑</button><button type="button" class="delete-record observation-delete" aria-label="删除写作">删除</button></div><article class="observation-item" role="button" tabindex="0" aria-label="查看${observationEsc(entry.title)}的修改对比"><div class="observation-item-main"><h3>${observationEsc(entry.title)}</h3><p class="writing-record-meta"><time datetime="${observationEsc(entry.date)}">${observationEsc(fmt(entry.date))}</time><span>${observationWords(entry.text)} 字</span></p></div></article></div>`).join('')}</section>`;
