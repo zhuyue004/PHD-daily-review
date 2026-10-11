@@ -123,17 +123,21 @@
     if(document.querySelector('#notesTimeline.active'))window.renderNotesTimeline?.();
   }
   function announceFormatReady(){window.dispatchEvent(new Event('phd-note-format-ready'));requestAnimationFrame(redrawNoteSurfaces)}
-  let katexRetryCount=0;
+  // iPhone 的 PWA 从 Safari 缓存恢复时，界面可能先恢复而 KaTeX 还没有可用。
+  // 仅当引擎真实可用时重绘公式；回到前台时再补一次确认，避免保留原始公式文本。
+  let katexRetryCount=0,katexLoading=false;
   function ensureKatex(){
     if(window.katex){announceFormatReady();return}
-    if(document.querySelector('script[data-katex-retry]')||katexRetryCount>=2){announceFormatReady();return}
-    katexRetryCount++;
-    let script=document.createElement('script');script.src='vendor/katex/katex.min.js';script.dataset.katexRetry=String(katexRetryCount);
-    script.onload=()=>{script.remove();announceFormatReady()};
-    script.onerror=()=>{script.remove();setTimeout(ensureKatex,250)};
+    if(katexLoading||katexRetryCount>=5)return;
+    katexLoading=true;katexRetryCount++;
+    let script=document.createElement('script');script.src='vendor/katex/katex.min.js';script.async=true;script.dataset.katexRetry=String(katexRetryCount);
+    script.onload=()=>{katexLoading=false;script.remove();announceFormatReady()};
+    script.onerror=()=>{katexLoading=false;script.remove();let delay=Math.min(4000,250*(2**(katexRetryCount-1)));setTimeout(ensureKatex,delay)};
     document.head.append(script);
   }
   ensureKatex();
+  window.addEventListener?.('pageshow',ensureKatex);
+  document.addEventListener?.('visibilitychange',()=>{if(!document.hidden)ensureKatex()});
 
   let input=$('#noteInput');if(!input)return;
   let toolbar=document.createElement('div');toolbar.className='note-format-toolbar';toolbar.innerHTML='<div class="note-format-switch" role="tablist" aria-label="随手记显示模式"><i aria-hidden="true"></i><button type="button" class="selected" data-mode="edit" role="tab">编辑</button><button type="button" data-mode="preview" role="tab">预览</button></div><div class="note-annotate-wrap"><button type="button" class="note-annotate-toggle" aria-expanded="false">批注</button><div class="note-annotate-menu hidden"><button type="button" data-annotation="bold"><i></i>加粗</button><button type="button" data-annotation="yellow"><i></i>黄色</button><button type="button" data-annotation="green"><i></i>绿色</button><button type="button" data-annotation="red"><i></i>红色</button><button type="button" data-annotation="text-red"><i></i>红字</button><button type="button" data-annotation="underline"><i></i>下划线</button><button type="button" data-annotation="delete"><i></i>删除线</button><button type="button" data-annotation="clear">清除</button></div></div><small>支持批注与 $公式$</small>';
