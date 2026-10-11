@@ -39,7 +39,9 @@
   function fieldMatch(line){let info=indentInfo(line),match=info.body.match(/^([^：:\n]{1,24})([：:])([　 \t]*)(.*)$/);if(!match)return null;let label=match[1].replace(/\s+/g,' ').trim(),isLayer=/^第(?:[一二三四五六七八九十百]+|\d+)层$/.test(label);if(!FIELD_LABELS.has(label)&&!isLayer)return null;return {depth:info.depth,label:`${label}${match[2]}`,value:match[4]}}
   function numberMatch(line){let info=indentInfo(line),match=info.body.match(/^(\d{1,3}[.．](?=[　 \t])|\d{1,3}、|[一二三四五六七八九十百]+、|[（(](?:\d{1,3}|[一二三四五六七八九十百]+)[）)]|[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳])[　 \t]*(.+)$/);return match?{depth:info.depth,marker:match[1],value:match[2]}:null}
   function normalizeMath(source){
-    let value=decodeMathEntities(source).replace(/(?:&#x20;|&nbsp;)/gi,' ').trim();
+    // iOS 从 ChatGPT 的富文本剪贴板常夹带不可见字符、NBSP、全角反斜杠或 <br>。
+    // 这些字符对普通文字无害，却会让 KaTeX 把同一条公式解析成错误的命令。
+    let value=decodeMathEntities(source).replace(/(?:&#x20;|&nbsp;)/gi,' ').replace(/<br\s*\/?\s*>/gi,' ').replace(/[\u200B-\u200D\u2060\uFEFF]/g,'').replace(/\u00a0/g,' ').replace(/\uFF3C/g,'\\').replace(/\*\*\s*/g,'').trim();
     // 兼容把 \[...\] 再包进 $...$ 的常见写法；转换为 KaTeX 可识别的多行公式。
     if(/^\\+\[/.test(value)&&/\\+\]/.test(value)){
       value=value.replace(/^\\+\[\s*/,'').replace(/\\+\]\s*\[?/g,'\n').replace(/\]\s*$/,'').replace(/\\{2,}%/g,'\\%').trim();
@@ -86,7 +88,7 @@
     let stash=formula=>{let cleaned=formula.replace(/\*\*/g,'').replace(/(^|[^\\])\\[ \t]*\n/g,'$1 ').replace(/(?:&#x20;|&nbsp;)/gi,' ').replace(/[ \t]*\n[ \t]*/g,' ').replace(/[ \t]{2,}/g,' ').trim(),token=`\uE100${formulas.length}\uE101`;formulas.push(cleaned);return `\n${token}\n`};
     let process=segment=>segment
       .replace(/\$\$([\s\S]*?)\$\$/g,(_,formula)=>stash(formula))
-      .replace(/(?:\*\*\s*)?(?:\$\s*)?\\+\[([\s\S]*?)\\+\](?:\s*\$)?(?:\s*\*\*)?(?:\s*(?:&#x20;|&nbsp;))?/gi,(_,formula)=>stash(formula));
+      .replace(/(?:\*\*\s*)?(?:\$\s*)?[\\＼]+\[([\s\S]*?)[\\＼]+\](?:\s*\$)?(?:\s*\*\*)?(?:\s*(?:&#x20;|&nbsp;))?/gi,(_,formula)=>stash(formula));
     let source=String(text||'').replace(/\r/g,''),segments=source.split(/(```[\s\S]*?```)/g);
     source=segments.map((segment,index)=>index%2?segment:process(segment)).join('');
     return {source,formulas};
