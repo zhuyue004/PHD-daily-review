@@ -88,7 +88,10 @@
     let stash=formula=>{let cleaned=formula.replace(/\*\*/g,'').replace(/(^|[^\\])\\[ \t]*\n/g,'$1 ').replace(/(?:&#x20;|&nbsp;)/gi,' ').replace(/[ \t]*\n[ \t]*/g,' ').replace(/[ \t]{2,}/g,' ').trim(),token=`\uE100${formulas.length}\uE101`;formulas.push(cleaned);return `\n${token}\n`};
     let process=segment=>segment
       .replace(/\$\$([\s\S]*?)\$\$/g,(_,formula)=>stash(formula))
-      .replace(/(?:\*\*\s*)?(?:\$\s*)?[\\＼]+\[([\s\S]*?)[\\＼]+\](?:\s*\$)?(?:\s*\*\*)?(?:\s*(?:&#x20;|&nbsp;))?/gi,(_,formula)=>stash(formula));
+      .replace(/(?:\*\*\s*)?(?:\$\s*)?[\\＼]+\[([\s\S]*?)[\\＼]+\](?:\s*\$)?(?:\s*\*\*)?(?:\s*(?:&#x20;|&nbsp;))?/gi,(_,formula)=>stash(formula))
+      // ChatGPT 在手机窄屏复制时会把原本的 \(...\) 在等号处换行。
+      // 单行公式仍由 inline() 处理；只有跨行的才提升为完整的显示公式。
+      .replace(/(?:\*\*\s*)?[\\＼]+\(([\s\S]*?)[\\＼]+\)(?:\s*\*\*)?/g,(all,formula)=>/[\r\n]/.test(formula)?stash(formula):all);
     let source=String(text||'').replace(/\r/g,''),segments=source.split(/(```[\s\S]*?```)/g);
     source=segments.map((segment,index)=>index%2?segment:process(segment)).join('');
     return {source,formulas};
