@@ -41,10 +41,10 @@
   function normalizeMath(source){
     // iOS 从 ChatGPT 的富文本剪贴板常夹带不可见字符、NBSP、全角反斜杠或 <br>。
     // 这些字符对普通文字无害，却会让 KaTeX 把同一条公式解析成错误的命令。
-    let value=decodeMathEntities(source).replace(/(?:&#x20;|&nbsp;)/gi,' ').replace(/<br\s*\/?\s*>/gi,' ').replace(/[\u200B-\u200D\u2060\uFEFF]/g,'').replace(/\u00a0/g,' ').replace(/\uFF3C/g,'\\').replace(/\*\*\s*/g,'').trim();
+    let value=decodeMathEntities(source).replace(/(?:&#x20;|&nbsp;)/gi,' ').replace(/<br\s*\/?\s*>/gi,' ').replace(/[\u200B-\u200D\u2060\uFEFF]/g,'').replace(/\u00a0/g,' ').replace(/\uFF3C/g,'\\').replace(/\*\*\s*/g,'').replace(/\\{2,}%/g,'\\%').trim();
     // 兼容把 \[...\] 再包进 $...$ 的常见写法；转换为 KaTeX 可识别的多行公式。
     if(/^\\+\[/.test(value)&&/\\+\]/.test(value)){
-      value=value.replace(/^\\+\[\s*/,'').replace(/\\+\]\s*\[?/g,'\n').replace(/\]\s*$/,'').replace(/\\{2,}%/g,'\\%').trim();
+      value=value.replace(/^\\+\[\s*/,'').replace(/\\+\]\s*(?:\\+\[)?/g,'\n').replace(/\]\s*$/,'').replace(/\\{2,}%/g,'\\%').trim();
       let rows=value.split('\n').map(row=>row.trim()).filter(Boolean);
       return {source:rows.length>1?`\\begin{gathered}${rows.join('\\\\')}\\end{gathered}`:(rows[0]||''),display:true};
     }
@@ -85,13 +85,15 @@
   function numberGroup(lines,start){let first=numberMatch(lines[start]),depth=first.depth,rows=[],index=start;while(index<lines.length){let numbered=numberMatch(lines[index]);if(!numbered||numbered.depth!==depth)break;let values=[numbered.value],next=index+1;while(next<lines.length&&!isSpecialLine(lines[next])){values.push(indentInfo(lines[next]).body.trimStart());next++}rows.push(`<span class="note-number-marker">${inline(numbered.marker)}</span><span class="note-number-value">${values.map(value=>inline(value)).join('<br>')}</span>`);index=next}return {html:`<div class="note-number-group"${depthStyle(depth)}>${rows.join('')}</div>`,index}}
   // ChatGPT 有时只复制公式内容而丢掉外层的 \(...\)。连续的 LaTeX 指令
   // （如 \text、\rightarrow）仍应作为一条显示公式，而不是原样展示反斜杠。
-  const bareLatexLine=line=>/^\\(?:text|mathrm|mathbf|mathit|operatorname|rightarrow|leftarrow|Rightarrow|Longrightarrow|mapsto|cdot|times|frac|sqrt|sum|int|partial|rho|mu|lambda|epsilon|alpha|beta|gamma|delta|sigma|omega|theta|phi|psi|chi|eta|xi|zeta|tau|nu|pi|kappa|ell|infty|leq|geq|neq|approx|sim|pm|mp|ldots|cdots|dots|quad|qquad|begin|end)\b/.test(String(line||'').trim());
-  function bareLatexBlock(lines,start){let items=[],index=start;while(index<lines.length&&bareLatexLine(lines[index]))items.push(lines[index++].trim());return items.length?{source:items.join(' '),index}:null}
+  const BARE_MATH_COMMAND=/\\(?:text|mathrm|mathbf|mathit|operatorname|rightarrow|leftarrow|Rightarrow|Longrightarrow|leftrightarrow|mapsto|to|gg|ll|cdot|times|frac|sqrt|sum|int|partial|rho|mu|lambda|epsilon|alpha|beta|gamma|delta|sigma|omega|theta|phi|psi|chi|eta|xi|zeta|tau|nu|pi|kappa|ell|infty|leq|geq|neq|approx|sim|pm|mp|ldots|cdots|dots|quad|qquad|overline|underline|hat|bar|vec|begin|end)\b/;
+  const bareLatexLine=line=>{let value=String(line||'').trim();if(/[\\＼]+[\[(]|\[\[|\]\]/.test(value))return false;return BARE_MATH_COMMAND.test(value)||/^[A-Za-z](?:_(?:\{[^}]+\}|[A-Za-z0-9]+))?(?:\^[A-Za-z0-9{}]+)?\s*(?:=|\\(?:gg|ll|approx|sim|leq|geq|neq|rightarrow|to))/.test(value)};
+  function bareLatexBlock(lines,start){let items=[],index=start;while(index<lines.length&&bareLatexLine(lines[index]))items.push(lines[index++].trim());if(!items.length)return null;let equationCount=items.filter(item=>/^[A-Z](?:_(?:\{[^}]+\}|[A-Za-z0-9]+))?\s*=|=\s*\?/.test(item)).length,source=equationCount>1?`\\begin{gathered}${items.join('\\\\')}\\end{gathered}`:items.join(' ');return {source,index}}
   function prepareCopiedDisplayMath(text){
     let formulas=[];
     let stash=formula=>{let cleaned=formula.replace(/\*\*/g,'').replace(/(^|[^\\])\\[ \t]*\n/g,'$1 ').replace(/(?:&#x20;|&nbsp;)/gi,' ').replace(/[ \t]*\n[ \t]*/g,' ').replace(/[ \t]{2,}/g,' ').trim(),token=`\uE100${formulas.length}\uE101`;formulas.push(cleaned);return `\n${token}\n`};
     let process=segment=>segment
       .replace(/\$\$([\s\S]*?)\$\$/g,(_,formula)=>stash(formula))
+      .replace(/\$\s*(\\+\[[\s\S]*?\\+\](?:\s*\\+\[[\s\S]*?\\+\])+?)\s*\$/g,(_,formula)=>stash(formula))
       .replace(/(?:\*\*\s*)?(?:\$\s*)?[\\＼]+\[([\s\S]*?)[\\＼]+\](?:\s*\$)?(?:\s*\*\*)?(?:\s*(?:&#x20;|&nbsp;))?/gi,(_,formula)=>stash(formula))
       // ChatGPT 在手机窄屏复制时会把原本的 \(...\) 在等号处换行。
       // 单行公式仍由 inline() 处理；只有跨行的才提升为完整的显示公式。
