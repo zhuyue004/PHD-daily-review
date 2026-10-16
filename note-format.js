@@ -70,6 +70,14 @@
     // ChatGPT、MathJax 常复制为 \(...\)；也兼容复制后出现双反斜杠的文本。
     value=value.replace(/\\+\(([^\n]*?)\\+\)/g,(_,formula)=>put(mathHtml(formula.trim(),false)));
     value=value.replace(/(^|[^\\])\$([^$\n]+?)\$/g,(_,before,formula)=>`${before}${put(mathHtml(formula.trim(),false))}`);
+    // 变量下标和希腊字母常夹在中文句子中，ChatGPT/iOS 复制时又会丢掉
+    // 数学定界符。这里仅识别明确的科学记号，避免把普通正文误当公式。
+    const greek='alpha|beta|gamma|delta|epsilon|varepsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|pi|rho|sigma|tau|upsilon|phi|chi|psi|omega|Gamma|Delta|Theta|Lambda|Xi|Pi|Sigma|Phi|Psi|Omega';
+    value=value.replace(/\*([A-Za-z])\*\{([A-Za-z0-9]+)\}/g,(_,name,sub)=>put(mathHtml(`${name}_{${sub}}`,false)));
+    value=value.replace(/([A-Za-z])\*\{([A-Za-z0-9]+)\}/g,(_,name,sub)=>put(mathHtml(`${name}_{${sub}}`,false)));
+    value=value.replace(/([A-Za-z])\*([0-9]+)/g,(_,name,sub)=>put(mathHtml(`${name}_{${sub}}`,false)));
+    value=value.replace(/(?<![A-Za-z0-9])([A-Za-z](?:_\{[A-Za-z0-9]+\}|_[A-Za-z0-9]+|\^\{[A-Za-z0-9]+\}|\^[A-Za-z0-9]+))+(?![A-Za-z0-9])/g,(_,formula)=>put(mathHtml(formula,false)));
+    value=value.replace(new RegExp(`\\\\(?:${greek})\\b`,'g'),formula=>put(mathHtml(formula,false)));
     value=value.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,(_,label,url)=>`<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`);
     value=value.replace(/\*\*([^*\n]+)\*\*/g,'<strong>$1</strong>').replace(/__([^_\n]+)__/g,'<strong>$1</strong>');
     value=value.replace(/(^|[^*])\*([^*\n]+)\*/g,'$1<em>$2</em>').replace(/(^|[^_])_([^_\n]+)_/g,'$1<em>$2</em>');
@@ -85,7 +93,7 @@
   function numberGroup(lines,start){let first=numberMatch(lines[start]),depth=first.depth,rows=[],index=start;while(index<lines.length){let numbered=numberMatch(lines[index]);if(!numbered||numbered.depth!==depth)break;let values=[numbered.value],next=index+1;while(next<lines.length&&!isSpecialLine(lines[next])){values.push(indentInfo(lines[next]).body.trimStart());next++}rows.push(`<span class="note-number-marker">${inline(numbered.marker)}</span><span class="note-number-value">${values.map(value=>inline(value)).join('<br>')}</span>`);index=next}return {html:`<div class="note-number-group"${depthStyle(depth)}>${rows.join('')}</div>`,index}}
   // ChatGPT 有时只复制公式内容而丢掉外层的 \(...\)。连续的 LaTeX 指令
   // （如 \text、\rightarrow）仍应作为一条显示公式，而不是原样展示反斜杠。
-  const BARE_MATH_COMMAND=/\\(?:text|mathrm|mathbf|mathit|operatorname|rightarrow|leftarrow|Rightarrow|Longrightarrow|leftrightarrow|mapsto|to|gg|ll|cdot|times|frac|sqrt|sum|int|partial|rho|mu|lambda|epsilon|alpha|beta|gamma|delta|sigma|omega|theta|phi|psi|chi|eta|xi|zeta|tau|nu|pi|kappa|ell|infty|leq|geq|neq|approx|sim|pm|mp|ldots|cdots|dots|quad|qquad|overline|underline|hat|bar|vec|begin|end)\b/;
+  const BARE_MATH_COMMAND=/^\\(?:text|mathrm|mathbf|mathit|operatorname|rightarrow|leftarrow|Rightarrow|Longrightarrow|leftrightarrow|mapsto|to|gg|ll|cdot|times|frac|sqrt|sum|int|partial|rho|mu|lambda|epsilon|alpha|beta|gamma|delta|sigma|omega|theta|phi|psi|chi|eta|xi|zeta|tau|nu|pi|kappa|ell|infty|leq|geq|neq|approx|sim|pm|mp|ldots|cdots|dots|quad|qquad|overline|underline|hat|bar|vec|begin|end)\b/;
   const bareLatexLine=line=>{let value=String(line||'').trim();if(/[\\＼]+[\[(]|\[\[|\]\]/.test(value))return false;return BARE_MATH_COMMAND.test(value)||/^[A-Za-z](?:_(?:\{[^}]+\}|[A-Za-z0-9]+))?(?:\^[A-Za-z0-9{}]+)?\s*(?:=|\\(?:gg|ll|approx|sim|leq|geq|neq|rightarrow|to))/.test(value)};
   function bareLatexBlock(lines,start){let items=[],index=start;while(index<lines.length&&bareLatexLine(lines[index]))items.push(lines[index++].trim());if(!items.length)return null;let equationCount=items.filter(item=>/^[A-Z](?:_(?:\{[^}]+\}|[A-Za-z0-9]+))?\s*=|=\s*\?/.test(item)).length,source=equationCount>1?`\\begin{gathered}${items.join('\\\\')}\\end{gathered}`:items.join(' ');return {source,index}}
   function prepareCopiedDisplayMath(text){
