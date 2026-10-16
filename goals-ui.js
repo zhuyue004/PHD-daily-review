@@ -3,7 +3,7 @@ let suppressGoalClick=false,activeGoalPointer=null,goalSortSaving=false;
 
 home=()=>{baseHome();renderGoalList()};
 
-function currentGoalText(){return records.find(r=>r.date===day())?.goals||previousTomorrow()}
+function currentGoalText(){let record=records.find(r=>r.date===day());return record?record.goals||'':previousUnfinishedGoals()}
 function goalLines(text=currentGoalText()){return text.split(/\r?\n/).map(line=>line.trim()).filter(Boolean)}
 function todayGoalRecord(){return records.find(r=>r.date===day())}
 
