@@ -41,7 +41,7 @@
   function normalizeMath(source){
     // iOS 从 ChatGPT 的富文本剪贴板常夹带不可见字符、NBSP、全角反斜杠或 <br>。
     // 这些字符对普通文字无害，却会让 KaTeX 把同一条公式解析成错误的命令。
-    let value=decodeMathEntities(source).replace(/(?:&#x20;|&nbsp;)/gi,' ').replace(/<br\s*\/?\s*>/gi,' ').replace(/[\u200B-\u200D\u2060\uFEFF]/g,'').replace(/\u00a0/g,' ').replace(/\uFF3C/g,'\\').replace(/\*\*\s*/g,'').replace(/\\{2,}%/g,'\\%').trim();
+    let value=decodeMathEntities(source).replace(/(?:&#x20;|&nbsp;)/gi,' ').replace(/<br\s*\/?\s*>/gi,' ').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u2060\u2066-\u2069\uFE00-\uFE0F\uFEFF]/g,'').replace(/\u00a0/g,' ').replace(/\uFF3C/g,'\\').replace(/\*\*\s*/g,'').replace(/\\{2,}%/g,'\\%').trim();
     // 少数 iPhone 富文本会把 "\\sigma_x" 压成 "\\sigmax"。这些是固定的
     // 科学符号+坐标下标组合，恢复下标不会影响普通英文单词。
     value=value.replace(/\\(varepsilon|epsilon|sigma|gamma|tau|lambda|mu|rho)(xx|xy|yx|yy|x|y|z)\b/g,(_,name,sub)=>`\\${name}_{${sub}}`);
@@ -59,7 +59,9 @@
     // that should be a subscript rather than a printed underscore character.
     source=source.replace(/\\_/g,'_');
     if(!window.katex)return `<code class="note-math-source note-math-pending">${escapeHtml(source)}</code>`;
-    try{return window.katex.renderToString(source,{displayMode:display,throwOnError:false,strict:'ignore',trust:false})}
+    // KaTeX 默认会把解析错误标成红色，容易被误解为用户做了红色批注。
+    // 此处改为严格抛错并回退为普通黑色源码；常见的 iPhone 隐形字符已在上方清理。
+    try{return window.katex.renderToString(source,{displayMode:display,throwOnError:true,strict:'ignore',trust:false})}
     catch{return `<code class="note-math-source">${escapeHtml(source)}</code>`}
   }
   function inline(source){
