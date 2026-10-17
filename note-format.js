@@ -42,6 +42,9 @@
     // iOS 从 ChatGPT 的富文本剪贴板常夹带不可见字符、NBSP、全角反斜杠或 <br>。
     // 这些字符对普通文字无害，却会让 KaTeX 把同一条公式解析成错误的命令。
     let value=decodeMathEntities(source).replace(/(?:&#x20;|&nbsp;)/gi,' ').replace(/<br\s*\/?\s*>/gi,' ').replace(/[\u200B-\u200D\u2060\uFEFF]/g,'').replace(/\u00a0/g,' ').replace(/\uFF3C/g,'\\').replace(/\*\*\s*/g,'').replace(/\\{2,}%/g,'\\%').trim();
+    // 少数 iPhone 富文本会把 "\\sigma_x" 压成 "\\sigmax"。这些是固定的
+    // 科学符号+坐标下标组合，恢复下标不会影响普通英文单词。
+    value=value.replace(/\\(varepsilon|epsilon|sigma|gamma|tau|lambda|mu|rho)(xx|xy|yx|yy|x|y|z)\b/g,(_,name,sub)=>`\\${name}_{${sub}}`);
     // 兼容把 \[...\] 再包进 $...$ 的常见写法；转换为 KaTeX 可识别的多行公式。
     if(/^\\+\[/.test(value)&&/\\+\]/.test(value)){
       value=value.replace(/^\\+\[\s*/,'').replace(/\\+\]\s*(?:\\+\[)?/g,'\n').replace(/\]\s*$/,'').replace(/\\{2,}%/g,'\\%').trim();
@@ -73,11 +76,21 @@
     // 变量下标和希腊字母常夹在中文句子中，ChatGPT/iOS 复制时又会丢掉
     // 数学定界符。这里仅识别明确的科学记号，避免把普通正文误当公式。
     const greek='alpha|beta|gamma|delta|epsilon|varepsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|pi|rho|sigma|tau|upsilon|phi|chi|psi|omega|Gamma|Delta|Theta|Lambda|Xi|Pi|Sigma|Phi|Psi|Omega';
+    // 在段落内先修复被富文本压扁的 \sigmax 等形式；否则下面的希腊字母
+    // 匹配会先拿走 \sigma，而把 x 留成普通文字。
+    value=value.replace(/\\(varepsilon|epsilon|sigma|gamma|tau|lambda|mu|rho)(xx|xy|yx|yy|x|y|z)\b/g,(_,name,sub)=>`\\${name}_{${sub}}`);
+    // 关系式必须先于单个下标变量处理；否则 f_0 会先被替换，留下 W \leftrightarrow。
+    value=value.replace(/\b([A-Za-z][A-Za-z0-9]*(?:_(?:\{[^}]+\}|[A-Za-z0-9]+))?\s*\\(?:leftrightarrow|rightarrow|leftarrow|Rightarrow|Longrightarrow|approx|sim|to)\s*[A-Za-z][A-Za-z0-9]*(?:_(?:\{[^}]+\}|[A-Za-z0-9]+))?)/g,(_,formula)=>put(mathHtml(formula,false)));
+    value=value.replace(/\b([A-Za-z][A-Za-z0-9]*(?:_(?:\{[^}]+\}|[A-Za-z0-9]+))?\s*=\s*\\frac\{[^{}]+\}\{[^{}]+\})/g,(_,formula)=>put(mathHtml(formula,false)));
     value=value.replace(/\*([A-Za-z])\*\{([A-Za-z0-9]+)\}/g,(_,name,sub)=>put(mathHtml(`${name}_{${sub}}`,false)));
     value=value.replace(/([A-Za-z])\*\{([A-Za-z0-9]+)\}/g,(_,name,sub)=>put(mathHtml(`${name}_{${sub}}`,false)));
     value=value.replace(/([A-Za-z])\*([0-9]+)/g,(_,name,sub)=>put(mathHtml(`${name}_{${sub}}`,false)));
     value=value.replace(/(?<![A-Za-z0-9])([A-Za-z](?:_\{[A-Za-z0-9]+\}|_[A-Za-z0-9]+|\^\{[A-Za-z0-9]+\}|\^[A-Za-z0-9]+))+(?![A-Za-z0-9])/g,(_,formula)=>put(mathHtml(formula,false)));
-    value=value.replace(new RegExp(`\\\\(?:${greek})\\b`,'g'),formula=>put(mathHtml(formula,false)));
+    // 希腊字母带下标（如 \\sigma_x、\\tau_{xy}）也常直接出现在中文段落中。
+    // 旧规则只替换了命令本体，留下的 _x 会被 Markdown 当作强调符号。
+    value=value.replace(new RegExp(`\\\\(?:${greek})(?:_(?:\\{[^}]+\\}|[A-Za-z0-9]+))?(?:\\^(?:\\{[^}]+\\}|[A-Za-z0-9]+))?`,'g'),formula=>put(mathHtml(formula,false)));
+    // 没有定界符的短公式：只接受明确的分式，防止普通句子被误判。
+    value=value.replace(/(?<![A-Za-z\\])\\frac\{[^{}]+\}\{[^{}]+\}(?![A-Za-z])/g,formula=>put(mathHtml(formula,false)));
     value=value.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,(_,label,url)=>`<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`);
     value=value.replace(/\*\*([^*\n]+)\*\*/g,'<strong>$1</strong>').replace(/__([^_\n]+)__/g,'<strong>$1</strong>');
     value=value.replace(/(^|[^*])\*([^*\n]+)\*/g,'$1<em>$2</em>').replace(/(^|[^_])_([^_\n]+)_/g,'$1<em>$2</em>');
@@ -93,9 +106,10 @@
   function numberGroup(lines,start){let first=numberMatch(lines[start]),depth=first.depth,rows=[],index=start;while(index<lines.length){let numbered=numberMatch(lines[index]);if(!numbered||numbered.depth!==depth)break;let values=[numbered.value],next=index+1;while(next<lines.length&&!isSpecialLine(lines[next])){values.push(indentInfo(lines[next]).body.trimStart());next++}rows.push(`<span class="note-number-marker">${inline(numbered.marker)}</span><span class="note-number-value">${values.map(value=>inline(value)).join('<br>')}</span>`);index=next}return {html:`<div class="note-number-group"${depthStyle(depth)}>${rows.join('')}</div>`,index}}
   // ChatGPT 有时只复制公式内容而丢掉外层的 \(...\)。连续的 LaTeX 指令
   // （如 \text、\rightarrow）仍应作为一条显示公式，而不是原样展示反斜杠。
-  const BARE_MATH_COMMAND=/^\\(?:text|mathrm|mathbf|mathit|operatorname|rightarrow|leftarrow|Rightarrow|Longrightarrow|leftrightarrow|mapsto|to|gg|ll|cdot|times|frac|sqrt|sum|int|partial|rho|mu|lambda|epsilon|alpha|beta|gamma|delta|sigma|omega|theta|phi|psi|chi|eta|xi|zeta|tau|nu|pi|kappa|ell|infty|leq|geq|neq|approx|sim|pm|mp|ldots|cdots|dots|quad|qquad|overline|underline|hat|bar|vec|begin|end)\b/;
-  const bareLatexLine=line=>{let value=String(line||'').trim();if(/[\\＼]+[\[(]|\[\[|\]\]/.test(value))return false;return BARE_MATH_COMMAND.test(value)||/^[A-Za-z](?:_(?:\{[^}]+\}|[A-Za-z0-9]+))?(?:\^[A-Za-z0-9{}]+)?\s*(?:=|\\(?:gg|ll|approx|sim|leq|geq|neq|rightarrow|to))/.test(value)};
-  function bareLatexBlock(lines,start){let items=[],index=start;while(index<lines.length&&bareLatexLine(lines[index]))items.push(lines[index++].trim());if(!items.length)return null;let equationCount=items.filter(item=>/^[A-Z](?:_(?:\{[^}]+\}|[A-Za-z0-9]+))?\s*=|=\s*\?/.test(item)).length,source=equationCount>1?`\\begin{gathered}${items.join('\\\\')}\\end{gathered}`:items.join(' ');return {source,index}}
+  const BARE_MATH_COMMAND=/^\\(?:text|mathrm|mathbf|mathit|operatorname|boxed|rightarrow|leftarrow|Rightarrow|Longrightarrow|leftrightarrow|mapsto|to|gg|ll|cdot|times|frac|sqrt|sum|int|partial|rho|mu|lambda|epsilon|varepsilon|alpha|beta|gamma|delta|sigma|omega|theta|phi|Phi|psi|chi|eta|xi|zeta|tau|nu|pi|kappa|ell|infty|leq|geq|neq|approx|sim|pm|mp|ldots|cdots|dots|quad|qquad|overline|underline|hat|bar|vec|begin|end|ln|log|sin|cos|tan|exp)\b/;
+  const BARE_RELATION=/^[A-Za-z][A-Za-z0-9]*(?:_(?:\{[^}]+\}|[A-Za-z0-9]+))?(?:\^(?:\{[^}]+\}|[A-Za-z0-9]+))?\s*(?:=|\\(?:gg|ll|approx|sim|leq|geq|neq|rightarrow|leftarrow|leftrightarrow|to))/;
+  const bareLatexLine=line=>{let value=cleanDisplayLine(line).trim();if(/[\\＼]+[\[(]|\[\[|\]\]/.test(value))return false;return BARE_MATH_COMMAND.test(value)||BARE_RELATION.test(value)};
+  function bareLatexBlock(lines,start){let items=[],index=start;while(index<lines.length){let value=cleanDisplayLine(lines[index]).trim();if(bareLatexLine(value)||(items.length&&/^[+-]$|^=\s*(?:0|\?)$/.test(value))){items.push(value);index++;continue}break}if(!items.length)return null;let equationCount=items.filter(item=>/^[A-Za-z][A-Za-z0-9]*(?:_(?:\{[^}]+\}|[A-Za-z0-9]+))?\s*=|=\s*\?/.test(item)).length,source=equationCount>1?`\\begin{gathered}${items.join('\\\\')}\\end{gathered}`:items.join(' ');return {source,index}}
   function prepareCopiedDisplayMath(text){
     let formulas=[];
     let stash=formula=>{let cleaned=formula.replace(/\*\*/g,'').replace(/(^|[^\\])\\[ \t]*\n/g,'$1 ').replace(/(?:&#x20;|&nbsp;)/gi,' ').replace(/[ \t]*\n[ \t]*/g,' ').replace(/[ \t]{2,}/g,' ').trim(),token=`\uE100${formulas.length}\uE101`;formulas.push(cleaned);return `\n${token}\n`};
