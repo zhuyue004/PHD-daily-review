@@ -94,7 +94,21 @@ function openScreenCropper(blob,fileLabel='裁剪截图'){
   };
 }
 ensureScreenCaptureButton();
-noteInput.addEventListener('keydown',event=>{if(event.key!=='Enter'||event.isComposing)return;event.preventDefault();let start=noteInput.selectionStart,end=noteInput.selectionEnd,before=noteInput.value.slice(0,start),after=noteInput.value.slice(end),line=before.slice(before.lastIndexOf('\n')+1),leading=(line.match(/^[　 \t]*/)||[''])[0],field=line.match(/^([　 \t]*)[^：:\n]+[：:]/),numbered=line.match(/^([　 \t]*)(\d{1,3}[.．、]|[一二三四五六七八九十百]+、|[（(](?:\d{1,3}|[一二三四五六七八九十百]+)[）)]|[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳])[　 \t]*/),indent=field?'　'.repeat([...field[0]].length):numbered?`${numbered[1]}${'　'.repeat([...numbered[2]].length+1)}`:leading,insert=`\n${indent}`;noteInput.value=before+insert+after;noteInput.selectionStart=noteInput.selectionEnd=start+insert.length});
+const CIRCLED_NUMBERS='①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳',CHINESE_NUMBERS='一二三四五六七八九十';
+function nextChineseNumber(value){let index=CHINESE_NUMBERS.indexOf(value);return index>=0&&index<CHINESE_NUMBERS.length-1?CHINESE_NUMBERS[index+1]:value}
+function noteEditorLineBreak(line,{shiftKey=false}={}){
+  if(shiftKey)return {insert:'\n'};
+  let leading=(line.match(/^[　 \t]*/)||[''])[0],body=line.slice(leading.length),match;
+  if(match=body.match(/^([-*+])([ \t]+)(.*)$/))return match[3].trim()?{insert:`\n${leading}${match[1]} `}:{exit:true,leading};
+  if(match=body.match(/^(\d{1,3})([.．、])([ \t]+)(.*)$/)){let next=+match[1]+1;return match[4].trim()?{insert:`\n${leading}${next}${match[2]} `}:{exit:true,leading};}
+  if(match=body.match(/^[（(](\d{1,3})[）)]([ \t]*)(.*)$/)){let next=+match[1]+1;return match[3].trim()?{insert:`\n${leading}（${next}） `}:{exit:true,leading};}
+  if(match=body.match(/^([①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳])([ \t]*)(.*)$/)){let index=CIRCLED_NUMBERS.indexOf(match[1]);return match[3].trim()&&index<CIRCLED_NUMBERS.length-1?{insert:`\n${leading}${CIRCLED_NUMBERS[index+1]} `}:match[3].trim()?{insert:`\n${leading}${match[1]} `}:{exit:true,leading};}
+  if(match=body.match(/^([一二三四五六七八九十]+)、([ \t]*)(.*)$/))return match[3].trim()?{insert:`\n${leading}${nextChineseNumber(match[1])}、 `}:{exit:true,leading};
+  // 普通段落和“字段：内容”都只继承用户原本的行首缩进；不再按字段字符数补空格。
+  return {insert:`\n${leading}`};
+}
+window.noteEditorLineBreak=noteEditorLineBreak;
+noteInput.addEventListener('keydown',event=>{if(event.key!=='Enter'||event.isComposing)return;let start=noteInput.selectionStart,end=noteInput.selectionEnd,before=noteInput.value.slice(0,start),lineStart=before.lastIndexOf('\n')+1,line=before.slice(lineStart),action=noteEditorLineBreak(line,{shiftKey:event.shiftKey});if(event.shiftKey)return;event.preventDefault();if(action.exit){noteInput.setRangeText(action.leading,lineStart,start,'end')}else noteInput.setRangeText(action.insert,start,end,'end');noteInput.dispatchEvent(new Event('input',{bubbles:true}));});
 function syncNoteEditorImages(){let existing=(window.noteEditorImages||[]).filter(image=>!image.pending);window.noteEditorImages=[...existing,...pendingNoteImages.map(entry=>({id:entry.id,file:entry.file,pending:true}))]}
 function renderPendingNoteImages(){notePreview.innerHTML=pendingNoteImages.map((entry,index)=>`<div><img src="${URL.createObjectURL(entry.file)}" alt="待上传图片 ${index+1}">${entry.inline?'<small>文中</small>':''}<button data-index="${index}" aria-label="移除图片">×</button></div>`).join('');$$('#noteImagePreview button').forEach(button=>button.onclick=()=>{let [removed]=pendingNoteImages.splice(+button.dataset.index,1);if(removed?.inline){let marker=`[[图片::${removed.id}]]`;noteInput.value=noteInput.value.replace(new RegExp(`(^|\\n)${marker.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}(?=\\n|$)`),'$1').replace(/\n{3,}/g,'\n\n');noteInput.dispatchEvent(new Event('input',{bubbles:true}))}syncNoteEditorImages();renderPendingNoteImages()});syncNoteEditorImages()}
 function addPendingNoteImages(files,{inline=false,ids=[]}={}){let added=[...files].filter(file=>file?.type?.startsWith('image/')).map((file,index)=>({file,id:ids[index]||crypto.randomUUID(),inline}));pendingNoteImages.push(...added);renderPendingNoteImages();return added}
