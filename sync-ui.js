@@ -158,15 +158,26 @@ async function updateCloudPassword(){
   }catch(error){cloudStatus(`保存失败：${error.message||'请重新打开重设链接后再试。'}`)}
 }
 
+function cloudNetworkFailure(error){return /load failed|failed to fetch|fetch failed|network(?:error| request failed)?|network connection|timeout|aborted/i.test(String(error?.message||error||''))}
+function cloudLoginFailureText(error){let message=String(error?.message||error||'未知错误');return cloudNetworkFailure(error)?'无法连接同步服务。已自动重试，请检查 Wi‑Fi/蜂窝网络后再试。':message}
 async function passwordCloudLogin(register){
   if(!cloudClient)return cloudStatus('请先保存云端配置。');
   let email=$('#cloudEmail').value.trim(),password=$('#cloudPassword').value;
   if(!email||password.length<6)return cloudStatus('请输入邮箱和至少 6 位的密码。');
   localStorage.setItem(CLOUD_EMAIL_KEY,email);saveDesktopSyncSettings();
-  cloudStatus(register?'正在注册…':'正在登录…');
-  let result=register?await cloudClient.auth.signUp({email,password,options:{emailRedirectTo:location.href.split('#')[0]}}):await cloudClient.auth.signInWithPassword({email,password});
-  if(result.error)return cloudStatus(`${register?'注册':'登录'}失败：${result.error.message}`);
-  if(register&&!result.data.session)cloudStatus('注册成功，请在邮箱中完成验证后，再回来点击“邮箱密码登录”。');
+  let action=register?'注册':'登录',result,error;
+  for(let attempt=0;attempt<3;attempt++){
+    cloudStatus(attempt?`${action}连接未完成，正在重试…`:`正在${action}…`);
+    try{
+      result=await cloudTimed(()=>register?cloudClient.auth.signUp({email,password,options:{emailRedirectTo:location.href.split('#')[0]}}):cloudClient.auth.signInWithPassword({email,password}),20000,action);
+      error=result?.error;
+      if(!error)break;
+      if(!cloudNetworkFailure(error))return cloudStatus(`${action}失败：${error.message}`);
+    }catch(caught){error=caught;if(!cloudNetworkFailure(caught))break}
+    if(attempt<2)await cloudWait(700*(attempt+1));
+  }
+  if(error)return cloudStatus(`${action}失败：${cloudLoginFailureText(error)}`);
+  if(register&&!result?.data?.session)cloudStatus('注册成功，请在邮箱中完成验证后，再回来点击“邮箱密码登录”。');
 }
 
 async function signOutCloud(){
