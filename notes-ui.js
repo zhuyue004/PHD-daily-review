@@ -18,6 +18,7 @@ const noteTemplates={
   '读文献':'【读文献】\n论文题目：\n原文位置：\n① 这一部分在讨论什么问题？\n② 这一部分作者提出了什么观点、发现或结论？\n③ 作者用了什么方法、数据或证据支持这些观点？\n④ 这些观点成立的条件、适用范围或局限是什么？\n⑤ 这一部分对我的博士课题有什么用？\n⑥ 我还有什么没看懂或不确定？',
   '写论文':'【写论文】\n研究问题：\n方法：\n当前结果：\n不确定处：\n下一步：',
   '读书':'【读书】\n书 / 章节：\n核心内容：\n我的理解：\n和研究或生活的关联：\n想继续追问 / 行动：',
+  '总结':'【总结】',
   '沟通':'【沟通】\n和谁讨论：\n达成结论 / 仍有分歧：\n我准备采取的动作：',
   '选择 / 决策':'【选择 / 决策】\n要做的选择：\n备选方案：\n考虑因素：\n当前决定：\n之后验证：',
   '灵感':'【灵感】\n想到：\n为什么可能有用：\n最小验证：'
@@ -29,12 +30,15 @@ const noteExamples={
   '读文献':'【读文献】\n论文题目：某篇关于反演方法的论文。\n原文位置：第 6 页，图 3。\n① 这一部分在讨论什么问题？参数识别的稳定性。\n② 这一部分作者提出了什么观点、发现或结论？先验约束能提高稳定性。\n③ 作者用了什么方法、数据或证据支持这些观点？对比不同样本量下的反演结果。\n④ 这些观点成立的条件、适用范围或局限是什么？需要与数据质量和样本量一起考虑。\n⑤ 这一部分对我的博士课题有什么用？可用于当前参数识别。\n⑥ 我还有什么没看懂或不确定？样本量变化是否影响结论。',
   '写论文':'【写论文】\n研究问题：某方法在不同参数条件下，是否能更稳定地识别 X？\n方法：固定数据集 A，改变参数 α 为 0.1、0.2、0.3，对比方法 M 和基线 B。\n当前结果：α=0.2 时 M 的误差最低；但样本量较小时波动明显增大。\n不确定处：波动来自参数、数据划分，还是随机初始化？\n下一步：固定随机种子，重复 10 次 α=0.2 的实验，记录均值和方差。',
   '读书':'【读书】\n书 / 章节：《如何阅读一本书》第四篇。\n核心内容：阅读不是摘录，而是带着问题与作者对话。\n我的理解：读论文前先写下想回答的问题，能避免只记零散结论。\n和研究或生活的关联：下次精读文献时可先列出三个问题。\n想继续追问 / 行动：试着用这个方法读下一篇关键论文。',
+  '总结':'【总结】\n2026年10月18日\n\n在这里写下今天的总结。',
   '沟通':'【沟通】\n和谁讨论：与导师讨论阶段性结果。\n达成结论 / 仍有分歧：先验证基础假设；模型结构是否需要调整仍待讨论。\n我准备采取的动作：整理假设与验证清单。',
   '选择 / 决策':'【选择 / 决策】\n要做的选择：先扩充数据还是先调模型。\n备选方案：扩充数据；调整模型结构。\n考虑因素：当前误差主要来自样本不足。\n当前决定：先扩充数据。\n之后验证：比较扩充前后的稳定性。',
   '灵感':'【灵感】\n想到：把误差按频段分别评价。\n为什么可能有用：可定位问题主要来源。\n最小验证：先用已有两组数据画图比较。'
 };
 let selectedNoteTemplate='';
-function renderNoteTemplates(){let holder=$('#noteTemplates'),example=$('#noteTemplateExample');if(!holder||!example)return;holder.innerHTML=Object.keys(noteTemplates).map(name=>`<button class="${selectedNoteTemplate===name?'selected':''}" data-template="${name}" type="button">${name}</button>`).join('');example.innerHTML=selectedNoteTemplate?`<p>示例</p><pre>${esc(noteExamples[selectedNoteTemplate])}</pre>`:'';$$('#noteTemplates button').forEach(button=>button.onclick=()=>{let name=button.dataset.template,onlyTag=/^【[^】]+】\s*$/.test(noteInput.value);if(noteInput.value.trim()&&!onlyTag&&!confirm('切换分类会覆盖当前内容，继续吗？'))return;selectedNoteTemplate=name;noteInput.value=noteTemplates[name];renderNoteTemplates();queueNoteDraft();noteInput.focus()})}
+function summaryTemplateDate(){let now=new Date();return `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日`}
+function noteTemplateText(name){return name==='总结'?`【总结】\n${summaryTemplateDate()}\n\n`:noteTemplates[name]||''}
+function renderNoteTemplates(){let holder=$('#noteTemplates'),example=$('#noteTemplateExample');if(!holder||!example)return;holder.innerHTML=Object.keys(noteTemplates).map(name=>`<button class="${selectedNoteTemplate===name?'selected':''}" data-template="${name}" type="button">${name}</button>`).join('');example.innerHTML=selectedNoteTemplate?`<p>示例</p><pre>${esc(selectedNoteTemplate==='总结'?`【总结】\n${summaryTemplateDate()}\n\n在这里写下今天的总结。`:noteExamples[selectedNoteTemplate])}</pre>`:'';$$('#noteTemplates button').forEach(button=>button.onclick=()=>{let name=button.dataset.template,onlyTag=/^【[^】]+】\s*$/.test(noteInput.value);if(noteInput.value.trim()&&!onlyTag&&!confirm('切换分类会覆盖当前内容，继续吗？'))return;selectedNoteTemplate=name;noteInput.value=noteTemplateText(name);renderNoteTemplates();queueNoteDraft();noteInput.focus()})}
 function resetNoteTemplate(){selectedNoteTemplate='';renderNoteTemplates()}
 function ensureNoteTemplates(){if($('#noteTemplates'))return;let holder=document.createElement('div');holder.id='noteTemplates';holder.className='note-templates';let example=document.createElement('div');example.id='noteTemplateExample';example.className='note-template-example';let hint=document.createElement('p');hint.className='note-template-hint';hint.textContent='选择一个分类模板；每条随手记只记录一个可追溯的研究线索。';noteInput.before(hint);noteInput.before(example);noteInput.before(holder);renderNoteTemplates()}
 ensureNoteTemplates();
