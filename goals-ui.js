@@ -3,7 +3,17 @@ let suppressGoalClick=false,activeGoalPointer=null,goalSortSaving=false;
 
 home=()=>{baseHome();renderGoalList()};
 
-function currentGoalText(){let record=records.find(r=>r.date===day());return record?record.goals||'':previousUnfinishedGoals()}
+function goalSourceLines(text){return (text||'').split(/\r?\n/).map(line=>line.trim()).filter(Boolean)}
+function dailyGoalSeed(){
+  let yesterday=new Date();yesterday.setDate(yesterday.getDate()-1);
+  let record=records.find(item=>item.date===localDay(yesterday));
+  if(!record)return '';
+  let unfinished=goalSourceLines(record.goals).filter((_,index)=>!record.goalChecks?.[index]);
+  let planned=goalSourceLines(record.tomorrow);
+  let seen=new Set(),normalize=value=>value.replace(/\s+/g,' ').trim();
+  return [...unfinished,...planned].filter(value=>{let key=normalize(value);if(!key||seen.has(key))return false;seen.add(key);return true}).join('\n');
+}
+function currentGoalText(){let record=records.find(r=>r.date===day());return record?record.goals||'':dailyGoalSeed()}
 function goalLines(text=currentGoalText()){return text.split(/\r?\n/).map(line=>line.trim()).filter(Boolean)}
 function todayGoalRecord(){return records.find(r=>r.date===day())}
 
@@ -96,3 +106,5 @@ saveGoals.onclick=()=>{
 };
 
 home();
+let aboutVersionCard=$('#aboutApp');
+if(aboutVersionCard){let version=aboutVersionCard.querySelector('strong'),updated=aboutVersionCard.querySelector('time');if(version)version.textContent=version.textContent.replace('1.1.88','1.1.89');if(updated){updated.textContent='2026年10月19日';updated.dateTime='2026-10-19'}}
