@@ -164,7 +164,11 @@
     if(document.querySelector('#archive.active'))window.archive?.();
     if(document.querySelector('#notesTimeline.active'))window.renderNotesTimeline?.();
   }
-  function announceFormatReady(){window.dispatchEvent(new Event('phd-note-format-ready'));requestAnimationFrame(redrawNoteSurfaces)}
+  // KaTeX stays available after its first successful load. Re-announcing it
+  // every time the desktop window regains focus needlessly rebuilt Archive and
+  // discarded transient UI state while the user was reading.
+  let katexReadyAnnounced=false;
+  function announceFormatReady(){if(katexReadyAnnounced)return;katexReadyAnnounced=true;window.dispatchEvent(new Event('phd-note-format-ready'));requestAnimationFrame(redrawNoteSurfaces)}
   // iPhone 的 PWA 从 Safari 缓存恢复时，界面可能先恢复而 KaTeX 还没有可用。
   // 仅当引擎真实可用时重绘公式；回到前台时再补一次确认，避免保留原始公式文本。
   let katexRetryCount=0,katexLoading=false;

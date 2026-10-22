@@ -268,6 +268,11 @@ if(window.phdDesktop){
 detail=function(record){if(!record)return;let isCoordinate=/^-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?$/.test(record.location||''),location=record.location?`<div class="detail-item"><h3>记录地点</h3>${isCoordinate?`<a target="_blank" href="https://maps.apple.com/?ll=${encodeURIComponent(record.location)}">${esc(record.location)}</a>`:`<span>${esc(record.location)}</span>`}</div>`:'';$('#detail').innerHTML=`<h2>${fmt(record.date)} · 每日复盘</h2>${location}${Q.map(question=>`<div class="detail-item"><h3>${question[1]}</h3>${list(record[question[0]])}</div>`).join('')}`;$('#modal').classList.remove('hidden')};
 if(window.phdDesktop){
   const desktopArchiveBase=archive;
+  // Keep this UI state outside the rendered cards.  The archive is redrawn
+  // after formula/image hydration, so storing it only as a CSS class made an
+  // opened card silently collapse on the next redraw.
+  const desktopExpandedArchiveNoteIds=new Set();
+  let desktopArchiveBindFrame=0,desktopArchiveResizeObserver=null;
   function measureArchiveNoteLines(body){
     const bounds=body.getBoundingClientRect(),lines=[];
     const walker=document.createTreeWalker(body,NodeFilter.SHOW_TEXT);
@@ -285,39 +290,59 @@ if(window.phdDesktop){
     lines.sort((a,b)=>a.top-b.top);
     return lines.length>10?Math.ceil(lines[9].bottom-bounds.top+1):null;
   }
-  function trimDesktopArchiveTail(){
-    const panel=$('#archive'),records=$('#records');
-    if(!panel.classList.contains('active'))return;
-    const last=[...records.children].filter(node=>getComputedStyle(node).display!=='none').at(-1);
-    if(!last)return;
-    // Bound the archive to its last visible card. Some rich-text descendants
-    // can otherwise leave a scrollable tail after their parent is collapsed.
-    const bottom=Math.ceil(last.getBoundingClientRect().bottom-panel.getBoundingClientRect().top+10);
-    panel.style.height=`${Math.max(0,bottom)}px`;
-    panel.style.overflow='clip';
+  function scheduleDesktopArchiveBind(){
+    cancelAnimationFrame(desktopArchiveBindFrame);
+    desktopArchiveBindFrame=requestAnimationFrame(()=>{
+      desktopArchiveBindFrame=requestAnimationFrame(bindDesktopArchiveNoteExpand);
+    });
   }
   function bindDesktopArchiveNoteExpand(){
+    const panel=$('#archive'),records=$('#records');
+    if(!panel?.classList.contains('active'))return;
+    // Let the normal document flow own the scroll height. Fixed pixel heights
+    // become stale when thumbnails or KaTeX finish rendering after this pass.
+    panel.style.height='';
+    panel.style.overflow='';
     $$('.archive-note[data-note-id]').forEach(card=>{
       const body=card.querySelector('.note-markdown');
       if(!body)return;
-      const expanded=card.classList.contains('archive-note-expanded');
+      const id=card.dataset.noteId,expanded=desktopExpandedArchiveNoteIds.has(id);
+      card.classList.toggle('archive-note-expanded',expanded);
       body.style.maxHeight='none';
       const collapsedHeight=measureArchiveNoteLines(body);
       let toggle=card.querySelector('.archive-note-toggle');
-      if(collapsedHeight===null){toggle?.remove();card.classList.remove('archive-note-expanded');return}
+      if(collapsedHeight===null){toggle?.remove();body.style.maxHeight='none';return}
       body.dataset.collapsedHeight=String(collapsedHeight);
       if(!expanded)body.style.maxHeight=`${collapsedHeight}px`;
-      if(toggle)return;
-      toggle=document.createElement('span');
-      toggle.className='archive-note-toggle';toggle.tabIndex=0;toggle.setAttribute('role','button');toggle.setAttribute('aria-expanded','false');toggle.textContent='全文';
-      body.after(toggle);
-      const change=()=>{const open=card.classList.toggle('archive-note-expanded');body.style.maxHeight=open?'none':`${body.dataset.collapsedHeight}px`;toggle.textContent=open?'收起':'全文';toggle.setAttribute('aria-expanded',String(open));trimDesktopArchiveTail()};
-      toggle.onclick=event=>{event.preventDefault();event.stopPropagation();change()};
-      toggle.onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();change()}};
+      if(!toggle){
+        toggle=document.createElement('span');
+        toggle.className='archive-note-toggle';toggle.tabIndex=0;toggle.setAttribute('role','button');
+        body.after(toggle);
+        const change=()=>{
+          const open=!desktopExpandedArchiveNoteIds.has(id);
+          if(open)desktopExpandedArchiveNoteIds.add(id);else desktopExpandedArchiveNoteIds.delete(id);
+          card.classList.toggle('archive-note-expanded',open);
+          body.style.maxHeight=open?'none':`${body.dataset.collapsedHeight}px`;
+          toggle.textContent=open?'收起':'全文';toggle.setAttribute('aria-expanded',String(open));
+        };
+        toggle.onclick=event=>{event.preventDefault();event.stopPropagation();change()};
+        toggle.onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();change()}};
+      }
+      toggle.textContent=expanded?'收起':'全文';
+      toggle.setAttribute('aria-expanded',String(expanded));
     });
-    trimDesktopArchiveTail();
   }
-  archive=function(){const panel=$('#archive');panel.style.height='auto';const rendered=desktopArchiveBase();requestAnimationFrame(bindDesktopArchiveNoteExpand);Promise.resolve(rendered).then(()=>requestAnimationFrame(bindDesktopArchiveNoteExpand))};
-  window.addEventListener('resize',()=>{if($('#archive').classList.contains('active'))requestAnimationFrame(bindDesktopArchiveNoteExpand)});
-  new MutationObserver(()=>{if($('#archive').classList.contains('active'))requestAnimationFrame(bindDesktopArchiveNoteExpand)}).observe($('#archive'),{attributes:true,attributeFilter:['class']});
+  archive=function(){
+    const panel=$('#archive'),main=$('main'),scrollTop=main?.scrollTop||0;
+    panel.style.height='';panel.style.overflow='';
+    const rendered=desktopArchiveBase();
+    scheduleDesktopArchiveBind();
+    Promise.resolve(rendered).then(()=>{scheduleDesktopArchiveBind();requestAnimationFrame(()=>{if(main)main.scrollTop=Math.min(scrollTop,main.scrollHeight-main.clientHeight)})});
+  };
+  window.addEventListener('resize',()=>{if($('#archive').classList.contains('active'))scheduleDesktopArchiveBind()});
+  new MutationObserver(()=>{if($('#archive').classList.contains('active'))scheduleDesktopArchiveBind()}).observe($('#archive'),{attributes:true,attributeFilter:['class']});
+  if(window.ResizeObserver){
+    desktopArchiveResizeObserver=new ResizeObserver(()=>{if($('#archive').classList.contains('active'))scheduleDesktopArchiveBind()});
+    desktopArchiveResizeObserver.observe($('#records'));
+  }
 }
