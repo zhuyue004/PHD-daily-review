@@ -36,6 +36,8 @@ test('iPhone can create, reopen, export and delete a manuscript',async({page})=>
   await expect(page.locator('.manuscript-card')).toContainText('复杂场地模型文献综述');
   await page.locator('.manuscript-card').click();
   await expect(page.locator('.manuscript-detail')).toContainText('最低充分复杂度');
+  await expect(page.locator('#editManuscript')).toHaveCount(0);
+  await expect(page.locator('#deleteManuscript')).toHaveCount(0);
   const downloadPromise=page.waitForEvent('download');
   await page.getByRole('button',{name:'导出 Word'}).click();
   const exported=await downloadPromise;
@@ -89,4 +91,7 @@ test('desktop archive cache keeps daily records, references and manuscripts isol
   await expect(page.locator('#records')).not.toContainText('独立参考文献');
   await expect(page.locator('#records')).not.toContainText('桌面每日记录');
   await expect(page.locator('body')).not.toContainText('iPhone 预览版');
+  await page.locator('.manuscript-card').click({button:'right'});
+  await expect(page.locator('#desktopNoteMenu')).toContainText('编辑');
+  await expect(page.locator('#desktopNoteMenu')).toContainText('删除');
 });
