@@ -3,7 +3,7 @@ const fs=require('fs');
 const os=require('os');
 const path=require('path');
 const {_electron:electron}=require('playwright');
-const executable=path.resolve(__dirname,'../release-1.2.1/win-unpacked/日迹.exe');
+const executable=path.resolve(__dirname,'../release-1.2.2/win-unpacked/日迹.exe');
 const isolatedProfile=fs.mkdtempSync(path.join(os.tmpdir(),'riji-packaged-smoke-'));
 (async()=>{
   const app=await electron.launch({executablePath:executable,args:['--no-sandbox',`--user-data-dir=${isolatedProfile}`],env:{...process.env,APPDATA:isolatedProfile}});

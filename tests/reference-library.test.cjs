@@ -80,3 +80,37 @@ test('desktop reference row uses a right-click menu',async({page})=>{
   await expect(page.locator('#desktopNoteMenu')).toContainText('编辑');
   await expect(page.locator('#desktopNoteMenu')).toContainText('删除');
 });
+
+test('desktop reference library can scroll the final entry above the fixed navigation',async({page})=>{
+  await page.setViewportSize({width:430,height:720});
+  await page.addInitScript(()=>{
+    window.phdDesktop={};
+    localStorage.clear();
+    localStorage.setItem('phd-reference-library',JSON.stringify(Array.from({length:36},(_,index)=>({
+      id:`ref-${index+1}`,
+      title:`Reference ${String(index+1).padStart(2,'0')}`,
+      authors:'Author',
+      year:'2026',
+      summary:'A long enough summary to make every reference card occupy several lines in the desktop list.',
+      createdAt:new Date(Date.UTC(2026,0,index+1)).toISOString(),
+      updatedAt:new Date(Date.UTC(2026,0,index+1)).toISOString()
+    }))));
+  });
+  await page.goto(`file:///${path.resolve(__dirname,'..','index.html').replaceAll('\\','/')}`);
+  await page.evaluate(()=>document.documentElement.classList.add('desktop-app'));
+  await page.getByRole('button',{name:'档案'}).click();
+  await page.getByRole('button',{name:'参考文献'}).click();
+  await expect(page.locator('.reference-card')).toHaveCount(36);
+  await page.locator('main').evaluate(main=>{main.scrollTop=main.scrollHeight});
+  await page.waitForTimeout(50);
+  const result=await page.evaluate(()=>{
+    const main=document.querySelector('main'),last=document.querySelector('.reference-swipe:last-child'),nav=document.querySelector('nav');
+    return {
+      reachedBottom:Math.abs(main.scrollTop-(main.scrollHeight-main.clientHeight))<=1,
+      lastBottom:last.getBoundingClientRect().bottom,
+      navTop:nav.getBoundingClientRect().top
+    };
+  });
+  expect(result.reachedBottom).toBe(true);
+  expect(result.lastBottom).toBeLessThanOrEqual(result.navTop);
+});
