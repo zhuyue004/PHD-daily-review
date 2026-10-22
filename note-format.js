@@ -157,6 +157,9 @@
     return `<div class="note-markdown">${html.join('')}</div>`;
   }
   window.renderNoteMarkup=renderNoteMarkup;
+  // 参考文献、文稿等模块只需要一行内的富文本，不应重复套入随手记的段落容器。
+  // 公开同一套行内解析，确保 \(...\) 在所有阅读界面使用完全一致的规则。
+  window.renderNoteInline=inline;
   window.plainNoteText=plainNoteText;
   window.noteInlineImageIds=text=>{let ids=[],pattern=/\[\[图片::([^\]]+)\]\]/g,match,source=String(text||'');while((match=pattern.exec(source)))ids.push(match[1]);return ids};
   window.hydrateNoteInlineImages=(root,images=[])=>{let used=new Set(),map=new Map(images.map(image=>[image.id,image]));root?.querySelectorAll?.('.note-inline-image-slot[data-note-image-id]').forEach(slot=>{let id=slot.dataset.noteImageId,image=map.get(id),blob=image?.blob||image?.file;if(!blob){slot.innerHTML='<span class="note-inline-image-missing">图片未找到</span>';return}used.add(id);let button=document.createElement('button'),preview=document.createElement('img');button.type='button';button.setAttribute('aria-label','查看原图');preview.alt='随手记图片';preview.src=URL.createObjectURL(blob);button.append(preview);button.onclick=event=>{event.preventDefault();event.stopPropagation();if(typeof openNoteImage==='function')openNoteImage(blob)};slot.replaceChildren(button)});return used};
