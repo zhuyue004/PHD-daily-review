@@ -68,8 +68,10 @@ function buildExportBook(){
   appendExportSheet(wb,'写作',observationRows,['日期','记录时间','标题','正文','分析','修改前','原文来源','地点','排序','记录ID'],[{wch:14},{wch:25},{wch:32},{wch:70},{wch:70},{wch:70},{wch:22},{wch:38},{wch:10},{wch:38,hidden:true}]);
   let referenceRows=window.referenceExportRows?.()||[];
   appendExportSheet(wb,'参考文献',referenceRows,['论文题目','作者','发表年份','期刊或会议','这篇论文讲了什么','主要方法','主要结论','对我的课题有什么用','适用范围或局限','阅读状态','收录类型','JCR分区','中科院分区','分区年份','影响因子','Top期刊','标签','DOI','网页链接','记录ID'],[{wch:50},{wch:30},{wch:12},{wch:28},{wch:70},{wch:45},{wch:45},{wch:45},{wch:45},{wch:12},{wch:12},{wch:12},{wch:14},{wch:12},{wch:12},{wch:12},{wch:24},{wch:30},{wch:40},{wch:38,hidden:true}]);
+  let manuscriptRows=window.manuscriptExportRows?.()||[];
+  appendExportSheet(wb,'文稿',manuscriptRows,['文稿标题','文稿类型','当前状态','字数','正文','创建时间','最近修改','记录ID'],[{wch:42},{wch:16},{wch:16},{wch:12},{wch:100},{wch:24},{wch:24},{wch:38,hidden:true}]);
   return wb;
 }
-function exportExcel(){if(!records.length&&!notes.length&&!diaries.length&&!observations.length&&!(window.referenceExportRows?.().length))return alert('还没有可导出的记录。');if(!window.__styledXlsxReady)return alert('正在加载 Excel 排版组件，请稍后再试。');let wb=buildExportBook(),d=new Date(),p=n=>String(n).padStart(2,'0'),stamp=`${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;XLSX.writeFile(wb,`日迹复盘记录_${stamp}.xlsx`,{cellStyles:true})}
+function exportExcel(){if(!records.length&&!notes.length&&!diaries.length&&!observations.length&&!(window.referenceExportRows?.().length)&&!(window.manuscriptExportRows?.().length))return alert('还没有可导出的记录。');if(!window.__styledXlsxReady)return alert('正在加载 Excel 排版组件，请稍后再试。');let wb=buildExportBook(),d=new Date(),p=n=>String(n).padStart(2,'0'),stamp=`${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;XLSX.writeFile(wb,`日迹复盘记录_${stamp}.xlsx`,{cellStyles:true})}
 function excelBlob(){if(!window.__styledXlsxReady)throw new Error('Excel 排版组件未加载，请联网后重试。');return new Blob([XLSX.write(buildExportBook(),{bookType:'xlsx',type:'array',cellStyles:true})],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})}
 $('#excel').onclick=exportExcel;
