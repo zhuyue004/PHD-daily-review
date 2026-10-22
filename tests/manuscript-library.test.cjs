@@ -52,6 +52,7 @@ test('iPhone can create, reopen, export and delete a manuscript',async({page})=>
   await page.locator('.delete-code-input').fill(code);
   await page.getByRole('button',{name:'确认删除'}).click();
   await expect(page.locator('.manuscript-card')).toHaveCount(0);
+  await expect(page.evaluate(()=>JSON.parse(localStorage.getItem('phd-cloud-deletions')||'[]').some(item=>item.kind==='manuscript'))).resolves.toBe(true);
 });
 
 test('manuscripts participate in backup and Excel data sources',async({page})=>{

@@ -3,7 +3,7 @@ const fs=require('fs');
 const os=require('os');
 const path=require('path');
 const {_electron:electron}=require('playwright');
-const executable=path.resolve(__dirname,'../release-1.1.97/win-unpacked/日迹.exe');
+const executable=path.resolve(__dirname,'../release-1.1.98/win-unpacked/日迹.exe');
 const isolatedProfile=fs.mkdtempSync(path.join(os.tmpdir(),'riji-packaged-smoke-'));
 (async()=>{
   const app=await electron.launch({executablePath:executable,args:['--no-sandbox',`--user-data-dir=${isolatedProfile}`],env:{...process.env,APPDATA:isolatedProfile}});
@@ -74,10 +74,12 @@ const isolatedProfile=fs.mkdtempSync(path.join(os.tmpdir(),'riji-packaged-smoke-
     assert.strictEqual(await page.locator('.reference-card').count(),1);
     assert.strictEqual((await page.locator('#records').textContent()).includes('复盘记录'),false);
     assert.strictEqual((await page.locator('body').textContent()).includes('当前为 iPhone 预览版'),false);
+    assert.strictEqual(await page.evaluate(()=>cloudSnapshot().references.some(item=>item.id==='smoke-reference')),true);
     await page.getByRole('button',{name:'文稿',exact:true}).click();
     assert.strictEqual(await page.locator('.manuscript-card').count(),1);
     assert.strictEqual((await page.locator('#records').textContent()).includes('打包参考文献'),false);
     assert.strictEqual((await page.locator('body').textContent()).includes('iPhone 预览版'),false);
+    assert.strictEqual(await page.evaluate(()=>cloudSnapshot().manuscripts.some(item=>item.id==='smoke-manuscript')),true);
     await page.getByRole('button',{name:'每日记录'}).click();
     await page.setViewportSize({width:496,height:720});
     await page.evaluate(()=>{
