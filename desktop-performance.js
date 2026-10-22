@@ -1,7 +1,7 @@
 // Keep already rendered desktop tabs until their underlying records or picker
 // state change. The mobile app keeps its existing render lifecycle.
 if(window.phdDesktop){
-  const versions={records:0,notes:0,diaries:0,observations:0};
+  const versions={records:0,notes:0,diaries:0,observations:0,references:0,manuscripts:0};
   window.desktopDataVersion=kind=>versions[kind]||0;
   window.desktopDataChanged=kind=>{
     if(kind==='all')for(let key of Object.keys(versions))versions[key]++;
@@ -18,7 +18,7 @@ if(window.phdDesktop){
     };
   }
   keepRendered('home',()=>`${day()}|${versions.records}|${versions.notes}`);
-  keepRendered('archive',()=>`${versions.records}|${versions.notes}|${versions.diaries}|${$('#archiveDate')?.value||''}|${$('#search')?.value||''}`);
+  keepRendered('archive',()=>`${localStorage.getItem('phd-archive-mode')||'daily'}|${versions.records}|${versions.notes}|${versions.diaries}|${versions.references}|${versions.manuscripts}|${$('#archiveDate')?.value||''}|${$('#search')?.value||''}`);
   keepRendered('renderDiary',()=>`${day()}|${diaryEditingDate}|${versions.diaries}`);
   keepRendered('renderObservations',()=>`${versions.observations}|${observationFilterDate||''}|${localStorage.getItem('phd-observation-sort')||''}`);
 }
