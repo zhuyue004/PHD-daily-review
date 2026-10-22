@@ -11,8 +11,8 @@ test('references and manuscripts round-trip between two devices, including delet
 
   const payloadA=await deviceA.evaluate(()=>{
     const stamp='2026-10-22T08:00:00.000Z';
-    applyCloudReferences([{id:'reference-shared',title:'设备 A 的参考文献',summary:'同步摘要',updatedAt:stamp,createdAt:stamp}]);
-    applyCloudManuscripts([{id:'manuscript-shared',title:'设备 A 的文稿',content:'同步正文',category:'文献综述',status:'初稿',updatedAt:stamp,createdAt:stamp}]);
+    applyCloudReferences([{id:'reference-shared',referenceNumber:'REF-0001',title:'设备 A 的参考文献',institutions:'设备 A 大学',summary:'同步摘要',updatedAt:stamp,createdAt:stamp}]);
+    applyCloudManuscripts([{id:'manuscript-shared',title:'设备 A 的文稿',content:'同步正文[1]',citations:[{referenceId:'reference-shared',number:1,addedAt:stamp}],category:'文献综述',status:'初稿',updatedAt:stamp,createdAt:stamp}]);
     return cloudSnapshot();
   });
   await deviceB.evaluate(payload=>{
@@ -20,7 +20,9 @@ test('references and manuscripts round-trip between two devices, including delet
     applyCloudManuscripts(mergeCloudList(cloudManuscripts(),payload.manuscripts,'id'));
   },payloadA);
   await expect(deviceB.evaluate(()=>getReferencesForSync()[0].title)).resolves.toBe('设备 A 的参考文献');
-  await expect(deviceB.evaluate(()=>getManuscriptsForSync()[0].content)).resolves.toBe('同步正文');
+  await expect(deviceB.evaluate(()=>getReferencesForSync()[0].institutions)).resolves.toBe('设备 A 大学');
+  await expect(deviceB.evaluate(()=>getManuscriptsForSync()[0].content)).resolves.toBe('同步正文[1]');
+  await expect(deviceB.evaluate(()=>getManuscriptsForSync()[0].citations[0].referenceId)).resolves.toBe('reference-shared');
 
   const payloadB=await deviceB.evaluate(()=>{
     applyCloudReferences(getReferencesForSync().map(item=>({...item,summary:'设备 B 修改后的摘要',updatedAt:'2026-10-22T09:00:00.000Z'})));

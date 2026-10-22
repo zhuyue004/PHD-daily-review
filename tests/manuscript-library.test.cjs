@@ -22,7 +22,7 @@ test('archive has daily records, references and manuscripts',async({page})=>{
 });
 
 test('iPhone can create, reopen, export and delete a manuscript',async({page})=>{
-  await page.addInitScript(()=>localStorage.clear());
+  await page.addInitScript(()=>{localStorage.clear();localStorage.setItem('phd-reference-library',JSON.stringify([{id:'ref-cite',referenceNumber:'REF-0001',title:'Site response complexity',authors:'Thompson et al.',year:'2012',journal:'Earthquake Spectra',summary:'Summary',createdAt:'2026-01-01T00:00:00Z',updatedAt:'2026-01-01T00:00:00Z'}]))});
   await page.goto(url);
   await page.getByRole('button',{name:'档案'}).click();
   await page.getByRole('button',{name:'文稿',exact:true}).click();
@@ -30,8 +30,19 @@ test('iPhone can create, reopen, export and delete a manuscript',async({page})=>
   await page.locator('#manuscriptForm [name="title"]').fill('复杂场地模型文献综述');
   await page.locator('#manuscriptForm [name="category"]').selectOption('文献综述');
   await page.locator('#manuscriptForm [name="content"]').fill('# 研究问题\n需要识别最低充分复杂度。\n\n## 初步认识\n模型复杂度应由任务决定。');
+  await page.locator('#insertCitation').click();
+  await expect(page.locator('#manuscriptCitationModal')).toBeVisible();
+  await page.locator('#citationStyle').selectOption('number');
+  await page.locator('.citation-result').click();
+  await expect(page.locator('#manuscriptForm [name="content"]')).toHaveValue(/\[1\]/);
+  await page.locator('#insertCitation').click();
+  await page.locator('#citationStyle').selectOption('authorYear');
+  await page.locator('#citationSearch').fill('Thompson');
+  await page.locator('.citation-result').click();
+  await expect(page.locator('#manuscriptForm [name="content"]')).toHaveValue(/Thompson et al\., 2012/);
   await expect(page.locator('#manuscriptWordCount')).toContainText('字');
   await page.locator('#manuscriptForm').getByRole('button',{name:'保存'}).click();
+  await expect(page.evaluate(()=>JSON.parse(localStorage.getItem('phd-manuscripts'))[0].citations[0].referenceId)).resolves.toBe('ref-cite');
   await expect(page.locator('.manuscript-card')).toHaveCount(1);
   await expect(page.locator('.manuscript-card')).toContainText('复杂场地模型文献综述');
   await page.locator('.manuscript-card').click();
