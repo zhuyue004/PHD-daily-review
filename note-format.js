@@ -67,14 +67,18 @@
   }
   function inline(source){
     let tokens=[],put=value=>{let key=`\uE000${tokens.length}\uE001`;tokens.push(value);return key};
-    let value=escapeHtml(source);
+    // 行内公式不会经过 prepareCopiedDisplayMath() 的整段公式清理。
+    // 这里同步清掉 iPhone 富文本的不可见字符并统一全角反斜杠，
+    // 防止 \(M_0\) 一类合法短公式被当作普通正文。
+    let raw=decodeMathEntities(source).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u2060\u2066-\u2069\uFE00-\uFE0F\uFEFF]/g,'').replace(/\uFF3C/g,'\\');
+    let value=escapeHtml(raw);
     value=value.replace(/`([^`\n]+)`/g,(_,code)=>put(`<code>${code}</code>`));
     value=value.replace(/\$\$([\s\S]+?)\$\$/g,(_,formula)=>put(`<span class="note-display-math">${mathHtml(formula.trim(),true)}</span>`));
     // Support ChatGPT/MathJax display delimiters anywhere in a line, including
     // formula + Chinese text and multiple adjacent formulas.
     value=value.replace(/\\+\[([^\n]*?)\\+\]/g,(_,formula)=>put(`<span class="note-display-math">${mathHtml(formula.trim(),true)}</span>`));
     // ChatGPT、MathJax 常复制为 \(...\)；也兼容复制后出现双反斜杠的文本。
-    value=value.replace(/\\+\(([^\n]*?)\\+\)/g,(_,formula)=>put(mathHtml(formula.trim(),false)));
+    value=value.replace(/\\+\(\s*([^\n]*?)\s*\\+\)/g,(_,formula)=>put(mathHtml(formula.trim(),false)));
     value=value.replace(/(^|[^\\])\$([^$\n]+?)\$/g,(_,before,formula)=>`${before}${put(mathHtml(formula.trim(),false))}`);
     // 变量下标和希腊字母常夹在中文句子中，ChatGPT/iOS 复制时又会丢掉
     // 数学定界符。这里仅识别明确的科学记号，避免把普通正文误当公式。
