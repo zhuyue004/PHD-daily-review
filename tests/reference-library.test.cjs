@@ -28,10 +28,27 @@ test('iPhone reference library can create, search and reopen an entry',async({pa
   await expect(page.locator('.reference-detail')).toContainText('GB/T 7714—2015');
   await expect(page.locator('.reference-detail')).toContainText('APA 7th');
   await expect(page.locator('.copy-citation')).toHaveCount(2);
+  await expect(page.locator('.reference-core-section')).toHaveCount(1);
+  expect(await page.locator('.reference-core-section h3').evaluate(node=>({color:getComputedStyle(node).color,fontWeight:Number(getComputedStyle(node).fontWeight),fontSize:parseFloat(getComputedStyle(node).fontSize)}))).toEqual(expect.objectContaining({color:'rgb(197, 59, 59)',fontSize:16}));
+  expect(await page.locator('.reference-core-section p').evaluate(node=>({paddingLeft:getComputedStyle(node).paddingLeft,textAlign:getComputedStyle(node).textAlign}))).toEqual(expect.objectContaining({textAlign:'justify'}));
   await expect(page.locator('#editReference')).toHaveCount(0);
   await expect(page.locator('#deleteReference')).toHaveCount(0);
   await expect(page.evaluate(()=>JSON.parse(localStorage.getItem('phd-reference-library')).length)).resolves.toBe(1);
   await expect(page.evaluate(()=>JSON.parse(localStorage.getItem('phd-reference-library'))[0].referenceNumber)).resolves.toBe('REF-0001');
+});
+
+test('reference library sorts permanent reference numbers in both directions',async({page})=>{
+  await page.addInitScript(()=>{localStorage.clear();localStorage.setItem('phd-reference-library',JSON.stringify([
+    {id:'ref-2',referenceNumber:'REF-0002',title:'Second',summary:'B',createdAt:'2026-01-02T00:00:00Z',updatedAt:'2026-01-02T00:00:00Z'},
+    {id:'ref-1',referenceNumber:'REF-0001',title:'First',summary:'A',createdAt:'2026-01-01T00:00:00Z',updatedAt:'2026-01-01T00:00:00Z'}
+  ]))});
+  await page.goto(`file:///${path.resolve(__dirname,'..','index.html').replaceAll('\\','/')}`);
+  await page.getByRole('button',{name:'档案'}).click();
+  await page.getByRole('button',{name:'参考文献'}).click();
+  await page.locator('#referenceSort').selectOption('numberAsc');
+  await expect(page.locator('.reference-number').evaluateAll(nodes=>nodes.map(node=>node.textContent))).resolves.toEqual(['REF-0001','REF-0002']);
+  await page.locator('#referenceSort').selectOption('numberDesc');
+  await expect(page.locator('.reference-number').evaluateAll(nodes=>nodes.map(node=>node.textContent))).resolves.toEqual(['REF-0002','REF-0001']);
 });
 
 test('existing references receive permanent unique numbers and deleted numbers are not reused',async({page})=>{
