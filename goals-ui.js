@@ -16,6 +16,11 @@ function dailyGoalSeed(){
 function currentGoalText(){let record=records.find(r=>r.date===day());return record?record.goals||'':dailyGoalSeed()}
 function goalLines(text=currentGoalText()){return text.split(/\r?\n/).map(line=>line.trim()).filter(Boolean)}
 function todayGoalRecord(){return records.find(r=>r.date===day())}
+function addCompletedGoal(record,goal){
+  let normalize=value=>String(value||'').replace(/\s+/g,' ').trim(),completed=goalSourceLines(record.completed),key=normalize(goal);
+  // 不覆盖复盘中原有内容；重复勾选同一目标也只写入一次。
+  if(key&&!completed.some(item=>normalize(item)===key))record.completed=[...completed,goal].join('\n');
+}
 
 function renderGoalList(){
   let record=todayGoalRecord(),lines=goalLines(),checks=record?.goalChecks||[];
@@ -32,7 +37,9 @@ function renderGoalList(){
 function toggleGoal(index){
   let text=currentGoalText(),lines=goalLines(text),record=todayGoalRecord();
   if(!record){record={id:crypto.randomUUID(),date:day(),goals:text,goalChecks:lines.map(()=>false)};records.push(record)}
-  record.goalChecks=lines.map((_,i)=>i===index?!record.goalChecks?.[i]:!!record.goalChecks?.[i]);
+  let nowChecked=!record.goalChecks?.[index];
+  record.goalChecks=lines.map((_,i)=>i===index?nowChecked:!!record.goalChecks?.[i]);
+  if(nowChecked)addCompletedGoal(record,lines[index]);
   record.updatedAt=new Date().toISOString();
   save();renderGoalList();
 }
@@ -107,4 +114,4 @@ saveGoals.onclick=()=>{
 
 home();
 let aboutVersionCard=$('#aboutApp');
-if(aboutVersionCard){let version=aboutVersionCard.querySelector('strong'),updated=aboutVersionCard.querySelector('time');if(version)version.textContent=version.textContent.replace(/^\S+/,'1.2.7');if(updated){updated.textContent='2026年10月22日';updated.dateTime='2026-10-22'}}
+if(aboutVersionCard){let version=aboutVersionCard.querySelector('strong'),updated=aboutVersionCard.querySelector('time');if(version)version.textContent=version.textContent.replace(/^\S+/,'1.2.8');if(updated){updated.textContent='2026年10月23日';updated.dateTime='2026-10-23'}}
