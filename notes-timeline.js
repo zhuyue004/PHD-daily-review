@@ -92,12 +92,12 @@ window.renderNotesTimeline=async function(){
 };
 if(window.phdDesktop){
   const desktopTimelineBatch=30;
-  let timelineState={key:'',generation:0,moreObserver:null,imageObserver:null};
+  let timelineState={key:'',generation:0,imageObserver:null};
   window.renderNotesTimeline=function(){
     let root=$('#notesTimelineList'),term=($('#notesTimelineSearch')?.value||'').trim().toLowerCase();
     let key=`${window.desktopDataVersion?.('notes')||0}|${term}`;
     if(timelineState.key===key&&root.childElementCount)return;
-    timelineState.moreObserver?.disconnect();timelineState.imageObserver?.disconnect();
+    timelineState.imageObserver?.disconnect();
     let generation=++timelineState.generation;
     let list=notes.slice().sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).filter(note=>!term||`${note.text||''} ${(note.template||'')}`.toLowerCase().includes(term));
     timelineState.key=key;
@@ -130,14 +130,12 @@ if(window.phdDesktop){
           textBlock.after(expand);
         });
       }
-      if(next>=list.length){timelineState.moreObserver?.disconnect();more.remove()}
+    if(next>=list.length)more.remove();
     }
     more.onclick=appendBatch;
     appendBatch();
-    if(next<list.length){
-      timelineState.moreObserver=new IntersectionObserver(entries=>{if(entries.some(entry=>entry.isIntersecting))appendBatch()},{root:null,rootMargin:'300px'});
-      timelineState.moreObserver.observe(more);
-    }
+    // “加载更多” is deliberately manual. Reaching the page bottom never
+    // fetches another batch; the user decides when more timeline cards appear.
   };
 }
 $('#notesTimelineSearch').oninput=()=>window.renderNotesTimeline();

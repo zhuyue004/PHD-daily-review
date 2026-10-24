@@ -362,63 +362,21 @@ if(window.phdDesktop){
   }
 }
 
-// Every page uses the document as its only scroll owner. Content may shrink
-// after a fold, image hydration or formula rendering, so retain only the real
-// navigation clearance instead of a stale scroll tail.
+// The document is the only scroll owner. Never write measured heights to a
+// page or list: a late formula/image render or a folded card otherwise leaves
+// a stale, scrollable blank tail. We only clamp an obsolete scroll position.
 (()=>{
   let frame=0;
-  function settlePageTail(){
+  window.settlePageTail=()=>{
     cancelAnimationFrame(frame);
-    frame=requestAnimationFrame(()=>requestAnimationFrame(()=>{
-      const main=document.querySelector('main'),active=document.querySelector('main .page.active'),nav=document.querySelector('nav');
-      if(!main||!active||!nav)return;
-      main.style.setProperty('min-height','0','important');
-      main.style.paddingBottom=`${Math.ceil(nav.getBoundingClientRect().height)+8}px`;
-      active.style.setProperty('min-height','0','important');
-      // Safari/PWA has its own safe-area viewport behaviour. Only Electron
-      // receives an explicit measured height; mobile remains natural flow.
-      if(!window.phdDesktop){
-        main.style.removeProperty('height');
-        const root=document.scrollingElement,limit=Math.max(0,root.scrollHeight-root.clientHeight);
-        if(root.scrollTop>limit)root.scrollTop=limit;
-        return;
-      }
-      if(active.id==='archive'){
-        active.style.removeProperty('height');active.style.removeProperty('overflow');
-        const records=document.querySelector('#records');
-        records?.style.removeProperty('min-height');
-        records?.style.removeProperty('height');
-        records?.style.removeProperty('padding-bottom');
-      }
-      // Do not trust an automatic parent height here: historical renderers can
-      // leave an empty records tail after replacing or folding cards. Trim each
-      // visible list to its actual final child, then set main from that edge.
-      const trimToLastChild=container=>{
-        if(!container)return;
-        const parent=container.getBoundingClientRect();
-        let bottom=0;
-        for(const child of container.children){
-          const style=getComputedStyle(child),box=child.getBoundingClientRect();
-          if(style.display==='none'||style.visibility==='hidden'||box.height<1)continue;
-          bottom=Math.max(bottom,box.bottom-parent.top);
-        }
-        if(bottom)container.style.height=`${Math.ceil(bottom+8)}px`;
-      };
-      trimToLastChild(active.querySelector('#records'));
-      trimToLastChild(active.querySelector('#notesTimelineList'));
-      trimToLastChild(active.querySelector('#diaryList'));
-      trimToLastChild(active);
-      main.style.height='auto';
-      const mainTop=main.getBoundingClientRect().top,activeBottom=active.getBoundingClientRect().bottom;
-      main.style.height=`${Math.ceil(activeBottom-mainTop+nav.getBoundingClientRect().height+8)}px`;
+    frame=requestAnimationFrame(()=>{
       const root=document.scrollingElement,limit=Math.max(0,root.scrollHeight-root.clientHeight);
       if(root.scrollTop>limit)root.scrollTop=limit;
-    }));
-  }
+    });
+  };
   const renderPage=window.page;
-  window.page=function(...args){const result=renderPage.apply(this,args);settlePageTail();return result};
-  window.settlePageTail=settlePageTail;
-  new MutationObserver(settlePageTail).observe(document.querySelector('main'),{childList:true,subtree:true,characterData:true});
-  window.addEventListener('resize',settlePageTail);
-  settlePageTail();
+  window.page=function(...args){const result=renderPage.apply(this,args);window.settlePageTail();return result};
+  new MutationObserver(window.settlePageTail).observe(document.querySelector('main'),{childList:true,subtree:true,characterData:true});
+  window.addEventListener('resize',window.settlePageTail);
+  window.settlePageTail();
 })();
