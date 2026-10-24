@@ -1,5 +1,6 @@
 let diaries=JSON.parse(localStorage.getItem('phd-diary-records')||'[]');
 const INDENT='　　';
+const diaryNumbered=line=>/^(?:\d{1,3}[.．](?=\s)|\d{1,3}、|[一二三四五六七八九十百]+、|[（(](?:\d{1,3}|[一二三四五六七八九十百]+)[）)]|[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳])/.test(String(line||'').trim());
 const indentDiary=text=>(text||'').split(/\r?\n/).map(line=>line.trim()?`${INDENT}${line.trim().replace(/^　　/,'')}`:'').join('\n');
 const diaryPreview=text=>(text||'').split(/\r?\n/).find(line=>line.trim())?.trim().replace(/^　　/,'')||'';
 const PHD_QUOTES=YEAR_QUOTES.filter(quote=>/(实践论|矛盾论|改造我们的学习|反对本本主义|农村调查|党委会的工作方法|关于领导方法|中国革命战争的战略问题|论持久战|星星之火|纪念白求恩|为人民服务|在延安文艺座谈会上的讲话|学习和时局|关心群众生活|组织起来|七律|沁园春|卜算子|满江红|忆秦娥|水调歌头)/.test(quote.source));
@@ -23,7 +24,7 @@ function clearDiaryDraft(date=diaryEditingDate){clearTimeout(diaryDraftTimer);le
 const basePage=page;
 page=id=>{basePage(id);if(id==='diary')renderDiary()};
 let diaryHistoryDate=day(),diaryEditingDate=day();
-function diaryParagraphs(text){return indentDiary(text).split(/\r?\n/).filter(line=>line.trim()).map(line=>`<p>${esc(line.trim().replace(/^　　/,''))}</p>`).join('')}
+function diaryParagraphs(text){return indentDiary(text).split(/\r?\n/).filter(line=>line.trim()).map(line=>{let value=line.trim().replace(/^　　/,'');return `<p${diaryNumbered(value)?' class="paragraph-number"':''}>${esc(value)}</p>`}).join('')}
 const diaryPosition=()=>new Promise(resolve=>{if(!navigator.geolocation)return resolve(null);navigator.geolocation.getCurrentPosition(position=>resolve(position),()=>resolve(null),{enableHighAccuracy:false,timeout:8000,maximumAge:300000})});
 async function placeFromCoordinates(latitude,longitude){let key=localStorage.getItem('phd-amap-key')||'';if(!key)return '';try{let response=await fetch(`https://restapi.amap.com/v3/geocode/regeo?key=${encodeURIComponent(key)}&location=${longitude},${latitude}&extensions=base&radius=1000&roadlevel=0`),data=await response.json();if(data.status!=='1')return '';let address=data.regeocode?.addressComponent||{},city=Array.isArray(address.city)?address.city[0]:address.city,neighborhood=address.neighborhood?.name,building=address.building?.name,street=address.streetNumber?.street,number=address.streetNumber?.number;return [address.province,city,address.district,address.township,neighborhood,street&&number?`${street}${number}`:street,building].filter((value,index,list)=>value&&list.indexOf(value)===index).join(' · ')}catch{return ''}}
 async function diaryPlace(){let position=await diaryPosition();return position?placeFromCoordinates(position.coords.latitude,position.coords.longitude):''}
@@ -65,7 +66,7 @@ function renderDiary(){
   $('#diaryInput').value=savedDraft?savedDraft.text:(today?indentDiary(today.text):INDENT);
   $('#diaryDateButton').textContent=fmt(targetDate);
   let cutoff=new Date();cutoff.setDate(cutoff.getDate()-29);let recent=diaries.filter(item=>item.date>=localDay(cutoff)).sort((a,b)=>b.date.localeCompare(a.date));
-  $('#diaryList').innerHTML=recent.length?recent.map(item=>{let lines=(item.text||'').split(/\r?\n/).map(line=>line.trim().replace(/^　　/,'')).filter(Boolean),words=[...(item.text||'').replace(/\s/g,'')].length;return `<div class="swipe-row diary-swipe" data-id="${item.id}"><div class="diary-row-actions"><button class="edit-record edit-diary" aria-label="编辑 ${fmt(item.date)} 的日记">编辑</button><button class="delete-record delete-diary" aria-label="删除 ${fmt(item.date)} 的日记">删除</button></div><article class="diary-row diary-feed-card" data-diary-id="${item.id}"><header><time>${fmt(item.date)}</time><span data-diary-meta data-words="${words}">${words} 字</span></header><div class="diary-feed-text">${lines.map(line=>`<p>${esc(line)}</p>`).join('')}</div><button class="diary-read-more" type="button" hidden>全文</button><div class="diary-feed-images"></div>${item.place?`<small class="diary-feed-place">⌖ ${esc(item.place)}</small>`:''}</article></div>`}).join(''):'<p class="empty">还没有日记。从今天开始写下值得记住的事。</p>';
+  $('#diaryList').innerHTML=recent.length?recent.map(item=>{let lines=(item.text||'').split(/\r?\n/).map(line=>line.trim().replace(/^　　/,'')).filter(Boolean),words=[...(item.text||'').replace(/\s/g,'')].length;return `<div class="swipe-row diary-swipe" data-id="${item.id}"><div class="diary-row-actions"><button class="edit-record edit-diary" aria-label="编辑 ${fmt(item.date)} 的日记">编辑</button><button class="delete-record delete-diary" aria-label="删除 ${fmt(item.date)} 的日记">删除</button></div><article class="diary-row diary-feed-card" data-diary-id="${item.id}"><header><time>${fmt(item.date)}</time><span data-diary-meta data-words="${words}">${words} 字</span></header><div class="diary-feed-text">${lines.map(line=>`<p${diaryNumbered(line)?' class="paragraph-number"':''}>${esc(line)}</p>`).join('')}</div><button class="diary-read-more" type="button" hidden>全文</button><div class="diary-feed-images"></div>${item.place?`<small class="diary-feed-place">⌖ ${esc(item.place)}</small>`:''}</article></div>`}).join(''):'<p class="empty">还没有日记。从今天开始写下值得记住的事。</p>';
   bindDiaryRows();
   bindDiaryReadMore();
   renderDiaryImageGrids();
@@ -73,7 +74,7 @@ function renderDiary(){
 
 async function viewDiary(entry){
   let images=await getDiaryImages(entry.id);
-  let paragraphs=indentDiary(entry.text).split(/\r?\n/).filter(line=>line.trim()).map(line=>`<p>${esc(line.trim().replace(/^　　/,''))}</p>`).join('');
+  let paragraphs=indentDiary(entry.text).split(/\r?\n/).filter(line=>line.trim()).map(line=>{let value=line.trim().replace(/^　　/,'');return `<p${diaryNumbered(value)?' class="paragraph-number"':''}>${esc(value)}</p>`}).join('');
   $('#detail').innerHTML=`<section class="diary-detail"><p class="diary-detail-label">日记 · 只读</p><h2>${fmt(entry.date)}</h2><div class="detail-item">${paragraphs}${images.length?`<div class="diary-detail-images">${diaryImageGrid(images,Infinity)}</div>`:''}${entry.place?`<p class="diary-place">记录地点：${esc(entry.place)}</p>`:''}</div></section>`;
   $$('.diary-detail-images [data-image-index]').forEach(button=>button.onclick=()=>openNoteImage(images[+button.dataset.imageIndex].blob));
   $('#modal').classList.remove('hidden');

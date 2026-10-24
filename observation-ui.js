@@ -27,7 +27,8 @@ function compareWritingEntries(a,b,by){
 }
 const observationEditorKey=()=>observationEditingId||'new';
 const observationEsc=text=>esc(String(text||''));
-const observationParagraphs=text=>String(text||'').split(/\r?\n/).filter(line=>line.trim()).map(line=>`<p>${observationEsc(line.trim().replace(/^　　/,''))}</p>`).join('');
+const observationNumbered=line=>/^(?:\d{1,3}[.．](?=\s)|\d{1,3}、|[一二三四五六七八九十百]+、|[（(](?:\d{1,3}|[一二三四五六七八九十百]+)[）)]|[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳])/.test(String(line||'').trim());
+const observationParagraphs=text=>String(text||'').split(/\r?\n/).filter(line=>line.trim()).map(line=>{let value=line.trim().replace(/^　　/,'');return `<p${observationNumbered(value)?' class="paragraph-number"':''}>${observationEsc(value)}</p>`}).join('');
 function observationComparison(entry){
   const original=typeof entry.originalText==='string'?entry.originalText:null;
   return {title:entry.title||'',date:entry.date||'',originalText:original,originalSource:entry.originalSource||'',analysis:entry.analysis||'',text:entry.text||''};

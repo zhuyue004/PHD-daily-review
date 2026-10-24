@@ -34,7 +34,7 @@
 .observation-item-top time{color:#1c1c1e;font-size:16px;font-weight:700}
 .observation-item h3{margin:0 0 8px;font-size:16px;color:#1c1c1e}
 .observation-item-text{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;overflow:hidden;color:#111;font-size:14px;line-height:1.76;letter-spacing:.01em}
-.observation-item-text p{margin:0 0 5px;color:inherit;line-height:inherit;text-indent:2em}
+.observation-item-text p{margin:0 0 5px;color:inherit;line-height:inherit;text-indent:2em}.observation-item-text p.paragraph-number,.observation-mobile-detail .observation-formatted p.paragraph-number,.observation-analysis-text p.paragraph-number{text-indent:0}
 .observation-item-text p:last-child{margin-bottom:0}
 .observation-item.expanded .observation-item-text{display:block}
 .observation-more{display:block;margin:4px 0 0!important;padding:0!important;font-size:14px}
