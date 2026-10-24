@@ -25,7 +25,8 @@ notesTimelineContinuousLineStyle.textContent=`
 document.head.append(notesTimelineContinuousLineStyle);
 const notesTimelineScrollStyle=document.createElement('style');
 notesTimelineScrollStyle.textContent=`
-body.notes-timeline-active{overflow:hidden}body.notes-timeline-active header{position:relative;z-index:5;background:#f2f2f7}#notesTimeline.active{position:fixed;z-index:1;top:var(--notes-timeline-top,112px);bottom:54px;left:50%;display:flex;width:min(680px,calc(100vw - 32px));min-height:0;transform:translateX(-50%);flex-direction:column}.notes-timeline-tools{flex:0 0 auto;margin:0;padding:2px 0 12px;background:#f2f2f7}.notes-timeline-list{min-height:0;flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;padding:0 0 16px}@media (prefers-color-scheme:dark){body.notes-timeline-active header,.notes-timeline-tools{background:#000}}@media (min-width:700px){#notesTimeline.active{bottom:56px}.desktop-app #notesTimeline.active{width:min(680px,calc(100vw - 32px))}}
+/* 所有模块共用页面主滚动区，避免外层、模块内层同时接管滚轮或手势。 */
+#notesTimeline.active{position:static;display:block;width:auto;min-height:0;transform:none}.notes-timeline-tools{margin:2px 0 14px;padding:0;background:transparent}.notes-timeline-list{min-height:0;overflow:visible;padding:0 0 16px}
 `;
 document.head.append(notesTimelineScrollStyle);
 const compactHeaderTitleStyle=document.createElement('style');
@@ -110,7 +111,7 @@ if(window.phdDesktop){
         let note=list[Number(observed.target.dataset.noteIndex)],holder=observed.target.querySelector('.timeline-images');
         if(note&&holder)renderTimelineImages(note,holder);
       }
-    },{root,rootMargin:'250px'});
+    },{root:null,rootMargin:'250px'});
     function appendBatch(){
       if(timelineState.generation!==generation||next>=list.length)return;
       let start=next,batch=list.slice(start,start+desktopTimelineBatch);next+=batch.length;
@@ -134,7 +135,7 @@ if(window.phdDesktop){
     more.onclick=appendBatch;
     appendBatch();
     if(next<list.length){
-      timelineState.moreObserver=new IntersectionObserver(entries=>{if(entries.some(entry=>entry.isIntersecting))appendBatch()},{root,rootMargin:'300px'});
+      timelineState.moreObserver=new IntersectionObserver(entries=>{if(entries.some(entry=>entry.isIntersecting))appendBatch()},{root:null,rootMargin:'300px'});
       timelineState.moreObserver.observe(more);
     }
   };

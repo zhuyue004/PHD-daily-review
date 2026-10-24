@@ -334,11 +334,12 @@ if(window.phdDesktop){
     });
   }
   archive=function(){
-    const panel=$('#archive'),main=$('main'),scrollTop=main?.scrollTop||0;
+    const panel=$('#archive');
     panel.style.height='';panel.style.overflow='';
     const rendered=desktopArchiveBase();
     scheduleDesktopArchiveBind();
-    Promise.resolve(rendered).then(()=>{scheduleDesktopArchiveBind();requestAnimationFrame(()=>{if(main)main.scrollTop=Math.min(scrollTop,main.scrollHeight-main.clientHeight)})});
+    // 不在异步图片、公式或筛选渲染后写回旧滚动位置；浏览器主滚动区会自然保持当前位置。
+    Promise.resolve(rendered).then(()=>{scheduleDesktopArchiveBind()});
   };
   window.addEventListener('resize',()=>{if($('#archive').classList.contains('active'))scheduleDesktopArchiveBind()});
   new MutationObserver(()=>{if($('#archive').classList.contains('active'))scheduleDesktopArchiveBind()}).observe($('#archive'),{attributes:true,attributeFilter:['class']});
