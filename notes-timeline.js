@@ -10,7 +10,7 @@ notesTimelineReadingStyle.textContent=`
 document.head.append(notesTimelineReadingStyle);
 const notesTimelineWidthStyle=document.createElement('style');
 notesTimelineWidthStyle.textContent=`
-.notes-timeline-list::before{left:58px}.timeline-entry{grid-template-columns:48px 20px minmax(0,1fr)}.timeline-stamp{padding-right:4px}.timeline-stamp b,.timeline-stamp span,.timeline-stamp time{font-size:11px}.timeline-dot{width:9px;height:9px}
+.notes-timeline-list::before{left:66px}.timeline-entry{grid-template-columns:56px 20px minmax(0,1fr)}.timeline-stamp{padding-right:4px}.timeline-stamp b,.timeline-stamp span,.timeline-stamp time{font-size:11px}.timeline-stamp b{white-space:nowrap;letter-spacing:-.6px}.timeline-dot{width:9px;height:9px}
 `;
 document.head.append(notesTimelineWidthStyle);
 const notesTimelineDarkContrastStyle=document.createElement('style');
@@ -20,7 +20,7 @@ notesTimelineDarkContrastStyle.textContent=`
 document.head.append(notesTimelineDarkContrastStyle);
 const notesTimelineContinuousLineStyle=document.createElement('style');
 notesTimelineContinuousLineStyle.textContent=`
-#notesTimeline .notes-timeline-list::before{display:none}#notesTimeline .timeline-entry::after{content:'';position:absolute;z-index:0;left:57.5px;top:13px;bottom:-14px;width:1px;background:#c7c7cc}#notesTimeline .timeline-entry:last-child::after{display:none}@media (prefers-color-scheme:dark){#notesTimeline .timeline-entry::after{background:#a1a1a6!important}}
+#notesTimeline .notes-timeline-list::before{display:none}#notesTimeline .timeline-entry::after{content:'';position:absolute;z-index:0;left:65.5px;top:13px;bottom:-14px;width:1px;background:#c7c7cc}#notesTimeline .timeline-entry:last-child::after{display:none}@media (prefers-color-scheme:dark){#notesTimeline .timeline-entry::after{background:#a1a1a6!important}}
 `;
 document.head.append(notesTimelineContinuousLineStyle);
 const notesTimelineScrollStyle=document.createElement('style');
