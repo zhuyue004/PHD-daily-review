@@ -1,5 +1,5 @@
 function allExportRows(){return records.slice().sort((a,b)=>a.date.localeCompare(b.date)).map(r=>Object.fromEntries([['日期',r.date],['记录地点',r.location||''],['今日核心目标',numbered(r.goals)],...Q.map(q=>[q[1],numbered(r[q[0]])])]))}
-function noteExportRows(){return notes.slice().sort((a,b)=>(a.createdAt||'').localeCompare(b.createdAt||'')).map(note=>({'日期':note.date,'记录时间':note.createdAt||'','内容':note.text||'','图片数':(note.images||[]).length||'','记录ID':note.id||''}))}
+function noteExportRows(){return notes.slice().sort((a,b)=>(a.createdAt||'').localeCompare(b.createdAt||'')).map(note=>({'序号':noteSerial(note)||'','日期':note.date,'记录时间':note.createdAt||'','内容':note.text||'','图片数':(note.images||[]).length||'','记录ID':note.id||''}))}
 function diaryExportRows(){return diaries.slice().sort((a,b)=>a.date.localeCompare(b.date)).map(diary=>({'日期':diary.date,'正文':diary.text||'','地点':diary.place||'','图片数':(diary.images||[]).length||'','记录ID':diary.id||''}))}
 const numbered=value=>(value||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean).map((x,index)=>`${index+1}. ${x}`).join('\n');
 // Excel cells cannot contain more than 32,767 UTF-16 code units.
@@ -55,7 +55,7 @@ function printSheet(rows){
 function buildExportBook(){
   let rows=allExportRows(),wb=XLSX.utils.book_new();
   appendExportSheet(wb,'每日复盘',rows,['日期','记录地点','今日核心目标',...Q.map(q=>q[1])],[{wch:14},{wch:28},{wch:42},...Q.map(()=>({wch:48}))]);
-  appendExportSheet(wb,'随手记',noteExportRows(),['日期','记录时间','内容','图片数','记录ID'],[{wch:14},{wch:25},{wch:90},{wch:12},{wch:38,hidden:true}]);
+  appendExportSheet(wb,'随手记',noteExportRows(),['序号','日期','记录时间','内容','图片数','记录ID'],[{wch:10},{wch:14},{wch:25},{wch:90},{wch:12},{wch:38,hidden:true}]);
   appendExportSheet(wb,'日记',diaryExportRows(),['日期','正文','地点','图片数','记录ID'],[{wch:14},{wch:90},{wch:38},{wch:12},{wch:38,hidden:true}]);
   XLSX.utils.book_append_sheet(wb,printSheet(rows),'打印版');
   let plans=window.insightPlanExportRows?.()||[];

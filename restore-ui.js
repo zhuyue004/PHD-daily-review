@@ -49,7 +49,7 @@ async function restoreExcel(file){
     for(let row of noteRows){
       let date=restoreDate(row['日期']),text=(row['内容']??'').toString();if(!date||!text.trim())continue;
       let stamp=(row['记录时间']??'').toString().trim(),createdAt=!Number.isNaN(Date.parse(stamp))?new Date(stamp).toISOString():new Date(`${date}T12:00:00`).toISOString();
-      importedNotes.push({id:(row['记录ID']??'').toString().trim()||crypto.randomUUID(),date,createdAt,text,updatedAt:restoredAt});
+      let serial=Number(row['序号']);importedNotes.push({id:(row['记录ID']??'').toString().trim()||crypto.randomUUID(),date,createdAt,text,updatedAt:restoredAt,...(Number.isInteger(serial)&&serial>0?{serial}:{})});
     }
     for(let row of diaryRows){
       let date=restoreDate(row['日期']),text=(row['正文']??'').toString();if(!date||!text.trim())continue;

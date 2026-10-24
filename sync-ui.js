@@ -291,6 +291,7 @@ async function pullCloudData(){
   if(remote.plans)window.mergeInsightPlansFromCloud?.(remote.plans);
   if(remote.summaries)window.mergeInsightSummariesFromCloud?.(remote.summaries);
   await applyCloudDeletions(deleted);
+  if(typeof ensureNoteSerials==='function')ensureNoteSerials();
   localStorage.setItem('phd-review-records',JSON.stringify(records));
   localStorage.setItem('phd-quick-notes',JSON.stringify(notes));
   localStorage.setItem('phd-diary-records',JSON.stringify(diaries));
