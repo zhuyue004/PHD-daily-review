@@ -342,6 +342,7 @@ if(window.phdDesktop){
       toggle.textContent=expanded?'收起':'全文';
       toggle.setAttribute('aria-expanded',String(expanded));
     });
+    clampArchiveScroll();
   }
   archive=function(){
     const panel=$('#archive');
@@ -355,7 +356,38 @@ if(window.phdDesktop){
   window.addEventListener('resize',()=>{if($('#archive').classList.contains('active'))scheduleDesktopArchiveBind()});
   new MutationObserver(()=>{if($('#archive').classList.contains('active'))scheduleDesktopArchiveBind()}).observe($('#archive'),{attributes:true,attributeFilter:['class']});
   if(window.ResizeObserver){
-    desktopArchiveResizeObserver=new ResizeObserver(()=>{if($('#archive').classList.contains('active'))scheduleDesktopArchiveBind()});
+    desktopArchiveResizeObserver=new ResizeObserver(()=>{if($('#archive').classList.contains('active')){scheduleDesktopArchiveBind();clampArchiveScroll()}});
     desktopArchiveResizeObserver.observe($('#records'));
   }
 }
+
+// Every page uses the document as its only scroll owner. Content may shrink
+// after a fold, image hydration or formula rendering, so retain only the real
+// navigation clearance instead of a stale scroll tail.
+(()=>{
+  let frame=0;
+  function settlePageTail(){
+    cancelAnimationFrame(frame);
+    frame=requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      const main=document.querySelector('main'),active=document.querySelector('main .page.active'),nav=document.querySelector('nav');
+      if(!main||!active||!nav)return;
+      main.style.setProperty('min-height','0','important');
+      main.style.paddingBottom=`${Math.ceil(nav.getBoundingClientRect().height)+8}px`;
+      active.style.setProperty('min-height','0','important');
+      if(active.id==='archive'){
+        active.style.removeProperty('height');active.style.removeProperty('overflow');
+        const records=document.querySelector('#records');
+        records?.style.removeProperty('min-height');
+        records?.style.removeProperty('height');
+        records?.style.removeProperty('padding-bottom');
+      }
+      const root=document.scrollingElement,limit=Math.max(0,root.scrollHeight-root.clientHeight);
+      if(root.scrollTop>limit)root.scrollTop=limit;
+    }));
+  }
+  const renderPage=window.page;
+  window.page=function(...args){const result=renderPage.apply(this,args);settlePageTail();return result};
+  new MutationObserver(settlePageTail).observe(document.querySelector('main'),{childList:true,subtree:true,characterData:true});
+  window.addEventListener('resize',settlePageTail);
+  settlePageTail();
+})();
