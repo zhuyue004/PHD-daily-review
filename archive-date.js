@@ -297,6 +297,16 @@ if(window.phdDesktop){
       desktopArchiveBindFrame=requestAnimationFrame(bindDesktopArchiveNoteExpand);
     });
   }
+  function clampArchiveScroll(){
+    // Re-rendering, folding, KaTeX and late images can shorten a card after the
+    // browser has calculated the old scroll range. Keep the document at its
+    // actual final position instead of leaving a stale blank tail.
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      const root=document.scrollingElement;
+      const limit=Math.max(0,root.scrollHeight-root.clientHeight);
+      if(root.scrollTop>limit)root.scrollTop=limit;
+    }));
+  }
   function bindDesktopArchiveNoteExpand(){
     const panel=$('#archive'),records=$('#records');
     if(!panel?.classList.contains('active'))return;
@@ -338,8 +348,9 @@ if(window.phdDesktop){
     panel.style.height='';panel.style.overflow='';
     const rendered=desktopArchiveBase();
     scheduleDesktopArchiveBind();
+    clampArchiveScroll();
     // 不在异步图片、公式或筛选渲染后写回旧滚动位置；浏览器主滚动区会自然保持当前位置。
-    Promise.resolve(rendered).then(()=>{scheduleDesktopArchiveBind()});
+    Promise.resolve(rendered).then(()=>{scheduleDesktopArchiveBind();clampArchiveScroll()});
   };
   window.addEventListener('resize',()=>{if($('#archive').classList.contains('active'))scheduleDesktopArchiveBind()});
   new MutationObserver(()=>{if($('#archive').classList.contains('active'))scheduleDesktopArchiveBind()}).observe($('#archive'),{attributes:true,attributeFilter:['class']});
