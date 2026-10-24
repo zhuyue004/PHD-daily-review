@@ -74,21 +74,29 @@ window.renderNotesTimeline=async function(){
   if($('#notesTimeline')?.classList.contains('active'))updateHeaderStat?.('notesTimeline');
   let input=$('#notesTimelineSearch'),term=(input?.value||'').trim().toLowerCase();
   let list=notes.slice().sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).filter(note=>noteMatchesSearch(note,term));
-  let root=$('#notesTimelineList');
+  let root=$('#notesTimelineList'),batchSize=30,next=0;
   if(!list.length){root.innerHTML=`<p class="empty">${term?'没有匹配的随手记。':'还没有随手记。'}</p>`;return}
-  root.innerHTML=list.map(note=>`<article class="timeline-entry" data-note-id="${note.id}"><div class="timeline-stamp"><b>${timelineDate(note.createdAt)}</b><span>${timelineWeekday(note.createdAt)}</span><time>${timelineTime(note.createdAt)}</time><em class="timeline-note-number">#${noteSerial(note)}</em></div><i class="timeline-dot" aria-hidden="true"></i><div class="timeline-card">${timelineText(note.text)}${note.place?`<small class="note-place">⌖ ${esc(note.place)}</small>`:''}<div class="timeline-images"></div></div></article>`).join('');
-  for(let note of list){
-    let entry=root.querySelector(`.timeline-entry[data-note-id="${note.id}"]`),holder=entry.querySelector('.timeline-images'),textBlock=entry.querySelector('.timeline-body');
-    // Measure after layout: a single long paragraph needs collapsing too.
-    requestAnimationFrame(()=>{
-      if(!textBlock?.isConnected||textBlock.scrollHeight<=99)return;
-      textBlock.classList.add('timeline-collapsed');
-      let expand=document.createElement('button');expand.type='button';expand.className='timeline-expand';expand.textContent='展开全文';
-      expand.onclick=()=>{let collapsed=textBlock.classList.toggle('timeline-collapsed');expand.textContent=collapsed?'展开全文':'收起';};
-      textBlock.after(expand);
-    });
-    renderTimelineImages(note,holder);
+  root.innerHTML='<button type="button" class="timeline-load-more plain">加载更多</button>';
+  let more=root.querySelector('.timeline-load-more');
+  function appendBatch(){
+    if(next>=list.length)return;
+    let batch=list.slice(next,next+batchSize);next+=batch.length;
+    more.insertAdjacentHTML('beforebegin',batch.map(note=>`<article class="timeline-entry" data-note-id="${esc(note.id)}"><div class="timeline-stamp"><b>${timelineDate(note.createdAt)}</b><span>${timelineWeekday(note.createdAt)}</span><time>${timelineTime(note.createdAt)}</time><em class="timeline-note-number">#${noteSerial(note)}</em></div><i class="timeline-dot" aria-hidden="true"></i><div class="timeline-card">${timelineText(note.text)}${note.place?`<small class="note-place">⌖ ${esc(note.place)}</small>`:''}<div class="timeline-images"></div></div></article>`).join(''));
+    for(let note of batch){
+      let entry=root.querySelector(`.timeline-entry[data-note-id="${note.id}"]`),holder=entry.querySelector('.timeline-images'),textBlock=entry.querySelector('.timeline-body');
+      requestAnimationFrame(()=>{
+        if(!textBlock?.isConnected||textBlock.scrollHeight<=99)return;
+        textBlock.classList.add('timeline-collapsed');
+        let expand=document.createElement('button');expand.type='button';expand.className='timeline-expand';expand.textContent='展开全文';
+        expand.onclick=()=>{let collapsed=textBlock.classList.toggle('timeline-collapsed');expand.textContent=collapsed?'展开全文':'收起';};
+        textBlock.after(expand);
+      });
+      renderTimelineImages(note,holder);
+    }
+    if(next>=list.length)more.remove();
   }
+  more.onclick=appendBatch;
+  appendBatch();
 };
 if(window.phdDesktop){
   const desktopTimelineBatch=30;
