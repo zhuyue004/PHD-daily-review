@@ -122,6 +122,7 @@ async function renderTimelineImages(note,holder){
   let used=window.hydrateNoteInlineImages?.(holder.closest('.timeline-card'),images)||new Set(),remaining=images.filter(image=>!used.has(image.id));
   holder.innerHTML=remaining.map((image,index)=>`<button type="button" data-index="${index}" aria-label="查看原图"><img src="${URL.createObjectURL(image.blob)}" alt="随手记图片 ${index+1}"></button>`).join('');
   holder.querySelectorAll('button').forEach(button=>button.onclick=()=>openNoteImage(remaining[+button.dataset.index].blob));
+  requestAnimationFrame(()=>window.settlePageTail?.());
 }
 function applyTimelineCollapse(entry){
   let textBlock=entry?.querySelector('.timeline-body');
@@ -130,8 +131,9 @@ function applyTimelineCollapse(entry){
   if(!entry.getClientRects().length)return false;
   if(textBlock.scrollHeight<=99){textBlock.dataset.collapseReady='1';return true;}
   textBlock.classList.add('timeline-collapsed');
+  requestAnimationFrame(()=>window.settlePageTail?.());
   let expand=document.createElement('button');expand.type='button';expand.className='timeline-expand';expand.textContent='展开全文';
-  expand.onclick=()=>{let collapsed=textBlock.classList.toggle('timeline-collapsed');expand.textContent=collapsed?'展开全文':'收起';};
+  expand.onclick=()=>{let collapsed=textBlock.classList.toggle('timeline-collapsed');expand.textContent=collapsed?'展开全文':'收起';requestAnimationFrame(()=>window.settlePageTail?.());};
   textBlock.after(expand);textBlock.dataset.collapseReady='1';return true;
 }
 function refreshTimelineCollapses(root){root?.querySelectorAll('.timeline-entry').forEach(entry=>applyTimelineCollapse(entry));}
@@ -158,6 +160,7 @@ window.renderNotesTimeline=async function(){
       renderTimelineImages(note,holder);
     }
     if(next>=list.length)more.remove();
+    requestAnimationFrame(()=>window.settlePageTail?.());
   }
   more.onclick=appendBatch;
   appendBatch();
