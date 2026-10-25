@@ -41,13 +41,22 @@ document.head.append(compactPageTopSpacingStyle);
 const headerStatStyle=document.createElement('style');
 headerStatStyle.textContent=`header{position:relative}#headerStat{position:absolute;right:auto;bottom:20px;color:#8e8e93;font-size:12px;line-height:1;font-weight:400;white-space:nowrap}@media (prefers-color-scheme:dark){#headerStat{color:#98989d}}`;
 document.head.append(headerStatStyle);
-// iPhone 随手记使用独立列表滚动，并以“加载更多”作为可见末尾。
+// iPhone 随手记不用页面本身滚动。直接把可滚动范围限定到条目列表，
+// “加载更多”便是这个范围的最后一个元素，Safari 也无法在它后面保留旧高度。
 window.resetNotesTimelineScrollShell=()=>{
-  let page=$('#notesTimeline'),list=$('#notesTimelineList');
-  if(page){page.style.height='';page.style.minHeight='';page.style.overflow='';}
-  if(list){list.style.height='';list.style.minHeight='';list.style.overflow='';}
+  let page=$('#notesTimeline'),list=$('#notesTimelineList'),main=document.querySelector('main');
+  for(let element of [document.documentElement,document.body,main,page,list])if(element)element.removeAttribute('style');
 };
-window.updateNotesTimelineLayout=()=>{let header=document.querySelector('header'),page=$('#notesTimeline');if(!header||!page)return;page.style.setProperty('--notes-timeline-top',`${Math.ceil(header.getBoundingClientRect().bottom)+4}px`)};
+window.updateNotesTimelineLayout=()=>{
+  if(window.phdDesktop||!matchMedia('(max-width:699px)').matches||!document.body.classList.contains('notes-timeline-active'))return;
+  let header=document.querySelector('header'),nav=document.querySelector('nav'),page=$('#notesTimeline'),list=$('#notesTimelineList'),main=document.querySelector('main');
+  if(!header||!nav||!page||!list||!main)return;
+  let top=Math.ceil(header.getBoundingClientRect().bottom)+4,bottom=Math.ceil(innerHeight-nav.getBoundingClientRect().top);
+  document.documentElement.style.overflow='hidden';document.body.style.overflow='hidden';
+  main.style.height=`${innerHeight}px`;main.style.minHeight=`${innerHeight}px`;main.style.overflow='hidden';
+  Object.assign(page.style,{position:'fixed',zIndex:'1',top:`${top}px`,right:'16px',bottom:`${bottom}px`,left:'16px',display:'flex',width:'auto',height:'auto',minHeight:'0',overflow:'hidden',transform:'none',flexDirection:'column'});
+  Object.assign(list.style,{display:'flex',height:'auto',minHeight:'0',overflowY:'auto',overflowX:'hidden',flex:'1 1 auto',flexDirection:'column',paddingBottom:'0',WebkitOverflowScrolling:'touch'});
+};
 window.addEventListener('resize',()=>{if(document.body.classList.contains('notes-timeline-active'))window.updateNotesTimelineLayout()});
 if(window.phdDesktop){
   const desktopBottomNavStyle=document.createElement('style');
