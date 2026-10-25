@@ -88,16 +88,21 @@ function noteDirectorySummary(note){
   let text=category==='读文献'?[reference,summary].filter(Boolean).join('｜'):[category?`【${category}】`:'' ,summary||title||lines.find(line=>!/^【[^】]+】$/.test(line))||'未填写内容'].filter(Boolean).join(' ');
   return text||'未填写内容';
 }
-function bindTimelineReferenceLinks(entry){
-  let source=entry?.querySelector('.timeline-text');if(!source||!window.findReferenceByNumber)return;
+function referenceReturnContext(source){
+  let active=document.querySelector('.page.active'),note=source?.closest?.('[data-note-id]');
+  return {pageId:active?.id||'notesTimeline',scrollTop:document.scrollingElement?.scrollTop||window.scrollY||0,noteId:note?.dataset?.noteId||''};
+}
+function bindTimelineReferenceLinks(entry,sourceSelector='.timeline-text'){
+  let source=entry?.matches?.(sourceSelector)?entry:entry?.querySelector(sourceSelector);if(!source||!window.findReferenceByNumber)return;
   let walker=document.createTreeWalker(source,NodeFilter.SHOW_TEXT),nodes=[];
   while(walker.nextNode()){let node=walker.currentNode,parent=node.parentElement;if(node.nodeValue&&/\bREF[-\s]?0*\d+\b/i.test(node.nodeValue)&&!parent?.closest('a,button,.katex,.note-code-block,.note-math-source'))nodes.push(node);}
   for(let node of nodes){
     let text=node.nodeValue,pattern=/\bREF[-\s]?0*(\d+)\b/gi,match,last=0,fragment=document.createDocumentFragment();
-    while((match=pattern.exec(text))){let number=`REF-${String(match[1]).padStart(4,'0')}`,item=window.findReferenceByNumber(number);if(!item)continue;fragment.append(text.slice(last,match.index));let button=document.createElement('button');button.type='button';button.className='timeline-reference-link';button.textContent=match[0];button.title=`打开 ${number}：${item.title||'参考文献'}`;button.onclick=event=>{event.stopPropagation();window.openReferenceByNumber?.(number);};fragment.append(button);last=match.index+match[0].length;}
+    while((match=pattern.exec(text))){let number=`REF-${String(match[1]).padStart(4,'0')}`,item=window.findReferenceByNumber(number);if(!item)continue;fragment.append(text.slice(last,match.index));let button=document.createElement('button');button.type='button';button.className='timeline-reference-link';button.textContent=match[0];button.title=`打开 ${number}：${item.title||'参考文献'}`;button.onclick=event=>{event.stopPropagation();window.openReferenceByNumber?.(number,referenceReturnContext(button));};fragment.append(button);last=match.index+match[0].length;}
     if(last){fragment.append(text.slice(last));node.replaceWith(fragment);}
   }
 }
+window.bindNoteReferenceLinks=root=>root?.querySelectorAll?.('.note-lines').forEach(source=>bindTimelineReferenceLinks(source,'.note-lines'));
 function ensureNotesDirectory(){
   let tools=$('.notes-timeline-tools');if(!tools)return null;
   let trigger=$('#notesTimelineDirectory');if(!trigger){trigger=document.createElement('button');trigger.id='notesTimelineDirectory';trigger.type='button';trigger.className='notes-directory-trigger plain';trigger.setAttribute('aria-haspopup','dialog');trigger.innerHTML='☷<span>目录</span>';tools.append(trigger);}
