@@ -41,7 +41,15 @@ document.head.append(compactPageTopSpacingStyle);
 const headerStatStyle=document.createElement('style');
 headerStatStyle.textContent=`header{position:relative}#headerStat{position:absolute;right:auto;bottom:20px;color:#8e8e93;font-size:12px;line-height:1;font-weight:400;white-space:nowrap}@media (prefers-color-scheme:dark){#headerStat{color:#98989d}}`;
 document.head.append(headerStatStyle);
-window.updateNotesTimelineLayout=()=>{let header=document.querySelector('header'),page=document.querySelector('#notesTimeline');if(!header||!page)return;page.style.setProperty('--notes-timeline-top',`${Math.ceil(header.getBoundingClientRect().bottom)+4}px`)};
+// 旧版曾给随手记建立独立滚动区。进入页面时显式还原到与档案一致的
+// 主文档滚动，避免 iOS 在升级后沿用旧容器的滚动上限。
+window.resetNotesTimelineScrollShell=()=>{
+  let page=$('#notesTimeline'),list=$('#notesTimelineList');
+  if(page){page.style.height='';page.style.minHeight='';page.style.overflow='';page.style.removeProperty('--notes-timeline-top');}
+  if(list){list.style.height='';list.style.minHeight='';list.style.overflow='';}
+  document.body.style.overflow='';
+  document.documentElement.style.overflow='';
+};
 window.addEventListener('resize',()=>{if(document.body.classList.contains('notes-timeline-active'))window.updateNotesTimelineLayout()});
 if(window.phdDesktop){
   const desktopBottomNavStyle=document.createElement('style');
@@ -124,6 +132,7 @@ function applyTimelineCollapse(entry){
 function refreshTimelineCollapses(root){root?.querySelectorAll('.timeline-entry').forEach(entry=>applyTimelineCollapse(entry));}
 let timelineMobileState={key:''};
 window.renderNotesTimeline=async function(){
+  window.resetNotesTimelineScrollShell?.();
   if($('#notesTimeline')?.classList.contains('active'))updateHeaderStat?.('notesTimeline');
   let input=$('#notesTimelineSearch'),term=(input?.value||'').trim().toLowerCase();
   let list=notes.slice().sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).filter(note=>noteMatchesSearch(note,term));
