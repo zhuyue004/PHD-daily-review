@@ -137,7 +137,9 @@ function applyTimelineCollapse(entry){
 function refreshTimelineCollapses(root){root?.querySelectorAll('.timeline-entry').forEach(entry=>applyTimelineCollapse(entry));}
 let timelineMobileState={key:''};
 window.renderNotesTimeline=async function(){
-  window.resetNotesTimelineScrollShell?.();
+  // 重绘内容不能重置 iPhone 的独立滚动壳；否则异步格式化或加载更多后，
+  // 页面会重新获得一段旧的外层可滚动高度。
+  if($('#notesTimeline')?.classList.contains('active'))requestAnimationFrame(()=>window.updateNotesTimelineLayout?.());
   if($('#notesTimeline')?.classList.contains('active'))updateHeaderStat?.('notesTimeline');
   let input=$('#notesTimelineSearch'),term=(input?.value||'').trim().toLowerCase();
   let list=notes.slice().sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).filter(note=>noteMatchesSearch(note,term));
