@@ -25,10 +25,8 @@ notesTimelineContinuousLineStyle.textContent=`
 document.head.append(notesTimelineContinuousLineStyle);
 const notesTimelineScrollStyle=document.createElement('style');
 notesTimelineScrollStyle.textContent=`
-/* 所有模块共用页面主滚动区，避免外层、模块内层同时接管滚轮或手势。 */
-#notesTimeline.active{position:static;display:block;width:auto;min-height:0;height:auto;transform:none}.notes-timeline-tools{margin:2px 0 14px;padding:0;background:transparent}.notes-timeline-list{min-height:0;height:auto;overflow:visible;padding:0 0 16px}
-/* iOS 有时会保留切换前页面的最小高度；随手记仅以最后一条记录（或“加载更多”）决定页面末尾。 */
-@media (max-width:699px){body.notes-timeline-active,body.notes-timeline-active main{min-height:0!important;height:auto!important}body.notes-timeline-active main{padding-bottom:calc(66px + env(safe-area-inset-bottom))!important}body.notes-timeline-active #notesTimeline.active,body.notes-timeline-active .notes-timeline-list{min-height:0!important;height:auto!important}}
+/* 与档案的记录页共用自然文档流：只有真实卡片与“加载更多”决定页面末尾。 */
+#notesTimeline.active{position:static;display:block;width:auto;min-height:0;height:auto;transform:none}.notes-timeline-tools{margin:2px 0 14px;padding:0;background:transparent}.notes-timeline-list{min-height:0;height:auto;overflow:visible;padding:0}
 `;
 document.head.append(notesTimelineScrollStyle);
 const compactHeaderTitleStyle=document.createElement('style');
@@ -108,13 +106,9 @@ async function renderTimelineImages(note,holder){
   holder.querySelectorAll('button').forEach(button=>button.onclick=()=>openNoteImage(remaining[+button.dataset.index].blob));
   requestAnimationFrame(()=>window.fitNotesTimelineTail?.());
 }
-let notesTimelineTailFrame=0;
-window.fitNotesTimelineTail=()=>{
-  cancelAnimationFrame(notesTimelineTailFrame);
-  notesTimelineTailFrame=requestAnimationFrame(()=>{
-    if(!window.phdDesktop&&$('#notesTimeline')?.classList.contains('active'))window.settlePageTail?.();
-  });
-};
+// 随手记不再单独计算或补偿页面尾部。iOS 上这类补偿会保留隐藏页面的旧高度；
+// 保持与档案记录页一致的浏览器原生文档流。
+window.fitNotesTimelineTail=()=>{};
 function applyTimelineCollapse(entry){
   let textBlock=entry?.querySelector('.timeline-body');
   if(!textBlock||textBlock.dataset.collapseReady==='1')return true;
@@ -197,18 +191,11 @@ if(window.phdDesktop){
 }
 $('#notesTimelineSearch').oninput=()=>window.renderNotesTimeline();
 ensureNotesDirectory();
-// 首屏先完成首页；浏览器空闲后只准备随手记首批。之后切换页面复用这些卡片，
-// “加载更多”仍然完全由用户触发，不会在后台继续渲染其余记录。
-let notesTimelinePreloadQueued=false;
-window.preloadNotesTimeline=()=>{
-  if(notesTimelinePreloadQueued||document.querySelector('#notesTimeline.active'))return;
-  notesTimelinePreloadQueued=true;
-  let prepare=()=>{notesTimelinePreloadQueued=false;if(!document.querySelector('#notesTimeline.active'))window.renderNotesTimeline?.();};
-  if('requestIdleCallback' in window)window.requestIdleCallback(prepare,{timeout:1800});else window.setTimeout(prepare,450);
-};
-window.addEventListener('load',()=>window.preloadNotesTimeline?.(),{once:true});
+// 与档案页一致：只在该页真正显示后生成首批内容，避免 iOS 以隐藏状态的页面高度
+// 作为滚动上限。“加载更多”仍然完全由用户触发。
+window.preloadNotesTimeline=()=>{};
 // If iPhone restores this screen before note-format.js has executed, redraw it
 // after the formatter announces that KaTeX is available.
 window.addEventListener('phd-note-format-ready',()=>{
-  if(document.querySelector('#notesTimeline.active'))window.renderNotesTimeline();else window.preloadNotesTimeline?.();
+  if(document.querySelector('#notesTimeline.active'))window.renderNotesTimeline();
 });
