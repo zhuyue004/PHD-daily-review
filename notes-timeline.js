@@ -26,7 +26,9 @@ document.head.append(notesTimelineContinuousLineStyle);
 const notesTimelineScrollStyle=document.createElement('style');
 notesTimelineScrollStyle.textContent=`
 /* 所有模块共用页面主滚动区，避免外层、模块内层同时接管滚轮或手势。 */
-#notesTimeline.active{position:static;display:block;width:auto;min-height:0;transform:none}.notes-timeline-tools{margin:2px 0 14px;padding:0;background:transparent}.notes-timeline-list{min-height:0;overflow:visible;padding:0 0 16px}
+#notesTimeline.active{position:static;display:block;width:auto;min-height:0;height:auto;transform:none}.notes-timeline-tools{margin:2px 0 14px;padding:0;background:transparent}.notes-timeline-list{min-height:0;height:auto;overflow:visible;padding:0 0 16px}
+/* iOS 有时会保留切换前页面的最小高度；随手记仅以最后一条记录（或“加载更多”）决定页面末尾。 */
+@media (max-width:699px){body.notes-timeline-active,body.notes-timeline-active main{min-height:0!important;height:auto!important}body.notes-timeline-active main{padding-bottom:calc(66px + env(safe-area-inset-bottom))!important}body.notes-timeline-active #notesTimeline.active,body.notes-timeline-active .notes-timeline-list{min-height:0!important;height:auto!important}}
 `;
 document.head.append(notesTimelineScrollStyle);
 const compactHeaderTitleStyle=document.createElement('style');
