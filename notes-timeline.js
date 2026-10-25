@@ -10,7 +10,7 @@ notesTimelineReadingStyle.textContent=`
 document.head.append(notesTimelineReadingStyle);
 const notesTimelineWidthStyle=document.createElement('style');
 notesTimelineWidthStyle.textContent=`
-.notes-timeline-list::before{left:66px}.timeline-entry{grid-template-columns:56px 20px minmax(0,1fr)}.timeline-stamp{padding-right:4px}.timeline-stamp b,.timeline-stamp span,.timeline-stamp time{font-size:11px}.timeline-stamp b{white-space:nowrap;letter-spacing:-.6px}.timeline-dot{width:9px;height:9px}
+.notes-timeline-list::before{left:66px}.timeline-entry{grid-template-columns:56px 20px minmax(0,1fr)}.timeline-stamp{padding-right:4px}.timeline-stamp b,.timeline-stamp span,.timeline-stamp time,.timeline-note-number{font-size:11px}.timeline-stamp b{white-space:nowrap;letter-spacing:-.6px}.timeline-dot{width:9px;height:9px}
 `;
 document.head.append(notesTimelineWidthStyle);
 const notesTimelineDarkContrastStyle=document.createElement('style');
@@ -60,21 +60,60 @@ document.head.append(notesTimelineParagraphStyle);
 const notesTimelineOwnContentStyle=document.createElement('style');
 notesTimelineOwnContentStyle.textContent=`.timeline-text{color:#000;font-size:14px;line-height:1.76;letter-spacing:.01em;text-align:left}.timeline-text .timeline-category{margin:0 0 10px;padding:4px 8px;border-radius:7px;background:#eaf3ff;color:#007aff;font-size:12px;font-weight:600;letter-spacing:0;text-align:left}.timeline-text .timeline-body{white-space:pre-wrap;overflow-wrap:anywhere}.timeline-text .timeline-body.timeline-collapsed{display:-webkit-box;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:4;white-space:pre-wrap}.note-place{display:block;margin-top:8px;color:#636366;font-size:12px;line-height:1.45;text-align:left}@media (prefers-color-scheme:dark){.timeline-text{color:#f2f2f7}.timeline-text .timeline-category{background:#12395c;color:#8fc9ff}.note-place{color:#aeaeb2}}`;
 document.head.append(notesTimelineOwnContentStyle);
+const notesDirectoryStyle=document.createElement('style');
+notesDirectoryStyle.textContent=`.notes-timeline-tools{display:flex;align-items:center;gap:8px}.notes-timeline-tools input{min-width:0;flex:1}.notes-directory-trigger{display:inline-flex;flex:0 0 auto;align-items:center;gap:3px;height:38px;margin:0;padding:0 10px!important;border:1px solid #d1d1d6!important;border-radius:9px!important;background:#fff!important;color:#007aff!important;font-size:12px!important;font-weight:650!important;line-height:1!important}.notes-directory-trigger:first-letter{font-size:17px}.notes-directory-mask{position:fixed;z-index:1000;inset:0;display:flex;align-items:flex-end;background:#0005}.notes-directory-panel{width:min(100%,620px);max-height:min(76vh,680px);margin:auto 0 0;overflow:hidden;border-radius:18px 18px 0 0;background:#f7f7fa;box-shadow:0 -8px 28px #0003}.notes-directory-head{display:flex;align-items:center;justify-content:space-between;padding:15px 16px 11px;border-bottom:1px solid #dedee3}.notes-directory-head h2{margin:0;color:#1c1c1e;font-size:18px}.notes-directory-head small{display:block;margin-top:3px;color:#8e8e93;font-size:12px}.notes-directory-close{width:32px;height:32px;padding:0;border-radius:50%;background:#e5e5ea;color:#636366;font-size:22px;line-height:1}.notes-directory-list{max-height:calc(min(76vh,680px) - 76px);padding:6px 10px calc(14px + env(safe-area-inset-bottom));overflow:auto;-webkit-overflow-scrolling:touch}.notes-directory-item{display:flex;width:100%;min-width:0;gap:9px;padding:11px 7px;border-bottom:1px solid #e5e5ea;background:transparent;color:#1c1c1e;text-align:left}.notes-directory-item:last-child{border-bottom:0}.notes-directory-item time{flex:0 0 70px;color:#007aff;font-size:12px;font-weight:650;line-height:1.45}.notes-directory-item span{min-width:0;overflow:hidden;color:#3a3a3c;font-size:13px;line-height:1.45;text-overflow:ellipsis;white-space:nowrap}.notes-directory-empty{margin:18px 8px;color:#8e8e93;text-align:center}@media (prefers-color-scheme:dark){.notes-directory-trigger{border-color:#48484a!important;background:#2c2c2e!important;color:#64b5ff!important}.notes-directory-mask{background:#0009}.notes-directory-panel{background:#1c1c1e}.notes-directory-head{border-color:#38383a}.notes-directory-head h2,.notes-directory-item{color:#f2f2f7}.notes-directory-close{background:#3a3a3c;color:#d1d1d6}.notes-directory-item{border-color:#38383a}.notes-directory-item span{color:#d1d1d6}}
+`;
+document.head.append(notesDirectoryStyle);
+const notesDirectoryVisibilityStyle=document.createElement('style');
+notesDirectoryVisibilityStyle.textContent='.notes-directory-mask.hidden{display:none!important}';
+document.head.append(notesDirectoryVisibilityStyle);
 const timelineDate=iso=>{let date=new Date(iso),options={month:'long',day:'numeric'};if(date.getFullYear()!==new Date().getFullYear())options.year='numeric';return date.toLocaleDateString('zh-CN',options)};
 const timelineWeekday=iso=>new Date(iso).toLocaleDateString('zh-CN',{weekday:'short'});
 const timelineTime=iso=>new Date(iso).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
 const timelineText=text=>{let source=String(text||'').replace(/\r/g,'').trim(),body=window.renderNoteMarkup?window.renderNoteMarkup(source):esc(source);return `<div class="timeline-text"><div class="timeline-body timeline-markdown-body">${body}</div></div>`};
+const timelineListKey=term=>`${term}|${notes.map(note=>`${note.id}:${note.updatedAt||note.createdAt||''}:${note.serial||''}`).join('|')}`;
+const directoryPlainText=text=>String(window.plainNoteText?window.plainNoteText(text):text||'').replace(/\r/g,'').replace(/\[\[[^:：\]]+[::：]([^\]]+)\]\]/g,'$1');
+const directoryLine=text=>String(text||'').replace(/^[#>*\-\s]+/,'').replace(/[*_`]/g,'').replace(/\s+/g,' ').trim();
+function noteDirectorySummary(note){
+  let raw=directoryPlainText(note.text),lines=raw.split('\n').map(directoryLine).filter(Boolean),category=(raw.match(/【([^】]+)】/)||[])[1]||'';
+  let fields=new Map();for(let line of lines){let match=line.match(/^([^：:]{1,24})[：:]\s*(.+)$/);if(match)fields.set(match[1].trim(),directoryLine(match[2]));}
+  let refMatch=raw.match(/\bREF[-\s]?0*(\d{1,})\b/i),reference=refMatch?`REF-${String(refMatch[1]).padStart(4,'0')}`:'';
+  let title=fields.get('论文题目')||fields.get('文献题目')||'';
+  let priority=['关键词摘录','和我课题的关系','核心内容','我的理解','关键观点','问题','结果','结论'];
+  let summary=priority.map(key=>fields.get(key)).find(Boolean)||'';
+  if(!summary){summary=lines.find(line=>line!==`【${category}】`&&!/^（?(论文题目|文献题目|论文编号|原文位置|日期|时间)[：:]/.test(line)&&line!==title)||'';}
+  let text=category==='读文献'?[reference,title,summary].filter(Boolean).join('｜'):[category?`【${category}】`:'' ,summary||title||lines.find(line=>!/^【[^】]+】$/.test(line))||'未填写内容'].filter(Boolean).join(' ');
+  return text||'未填写内容';
+}
+function ensureNotesDirectory(){
+  let tools=$('.notes-timeline-tools');if(!tools)return null;
+  let trigger=$('#notesTimelineDirectory');if(!trigger){trigger=document.createElement('button');trigger.id='notesTimelineDirectory';trigger.type='button';trigger.className='notes-directory-trigger plain';trigger.setAttribute('aria-haspopup','dialog');trigger.innerHTML='☷<span>目录</span>';tools.append(trigger);}
+  let mask=$('#notesTimelineDirectoryMask');if(!mask){mask=document.createElement('div');mask.id='notesTimelineDirectoryMask';mask.className='notes-directory-mask hidden';mask.innerHTML='<section class="notes-directory-panel" role="dialog" aria-modal="true" aria-labelledby="notesDirectoryTitle"><div class="notes-directory-head"><div><h2 id="notesDirectoryTitle">随手记目录</h2><small>点一条记录即可跳转</small></div><button type="button" class="notes-directory-close" aria-label="关闭目录">×</button></div><div id="notesTimelineDirectoryList" class="notes-directory-list"></div></section>';document.body.append(mask);mask.querySelector('.notes-directory-close').onclick=()=>closeNotesDirectory();mask.onclick=event=>{if(event.target===mask)closeNotesDirectory();};}
+  trigger.onclick=()=>openNotesDirectory();return mask;
+}
+function closeNotesDirectory(){let mask=$('#notesTimelineDirectoryMask'),trigger=$('#notesTimelineDirectory');if(mask)mask.classList.add('hidden');if(trigger)trigger.setAttribute('aria-expanded','false');}
+function openNotesDirectory(){
+  let mask=ensureNotesDirectory(),list=$('#notesTimelineDirectoryList'),trigger=$('#notesTimelineDirectory');if(!mask||!list)return;
+  let ordered=notes.slice().sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
+  list.innerHTML=ordered.length?ordered.map(note=>`<button type="button" class="notes-directory-item" data-note-id="${esc(note.id)}" title="${esc(noteDirectorySummary(note))}"><time>#${noteSerial(note)}<br>${esc(timelineDate(note.createdAt))}</time><span>${esc(noteDirectorySummary(note))}</span></button>`).join(''):'<p class="notes-directory-empty">还没有随手记。</p>';
+  list.querySelectorAll('.notes-directory-item').forEach(button=>button.onclick=()=>{let note=notes.find(item=>item.id===button.dataset.noteId);if(!note)return;closeNotesDirectory();let input=$('#notesTimelineSearch');input.value=`#${noteSerial(note)}`;window.renderNotesTimeline?.();requestAnimationFrame(()=>$('#notesTimelineList .timeline-entry')?.scrollIntoView({block:'start',behavior:'smooth'}));});
+  mask.classList.remove('hidden');trigger?.setAttribute('aria-expanded','true');
+}
 async function renderTimelineImages(note,holder){
   let images=await getNoteImages(note.id);if(!holder.isConnected||!images.length)return;
   let used=window.hydrateNoteInlineImages?.(holder.closest('.timeline-card'),images)||new Set(),remaining=images.filter(image=>!used.has(image.id));
   holder.innerHTML=remaining.map((image,index)=>`<button type="button" data-index="${index}" aria-label="查看原图"><img src="${URL.createObjectURL(image.blob)}" alt="随手记图片 ${index+1}"></button>`).join('');
   holder.querySelectorAll('button').forEach(button=>button.onclick=()=>openNoteImage(remaining[+button.dataset.index].blob));
 }
+let timelineMobileState={key:''};
 window.renderNotesTimeline=async function(){
   if($('#notesTimeline')?.classList.contains('active'))updateHeaderStat?.('notesTimeline');
   let input=$('#notesTimelineSearch'),term=(input?.value||'').trim().toLowerCase();
   let list=notes.slice().sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).filter(note=>noteMatchesSearch(note,term));
   let root=$('#notesTimelineList'),batchSize=30,next=0;
+  let key=timelineListKey(term);
+  if(timelineMobileState.key===key&&root.childElementCount)return;
+  timelineMobileState.key=key;
   if(!list.length){root.innerHTML=`<p class="empty">${term?'没有匹配的随手记。':'还没有随手记。'}</p>`;return}
   root.innerHTML='<button type="button" class="timeline-load-more plain">加载更多</button>';
   let more=root.querySelector('.timeline-load-more');
@@ -147,8 +186,19 @@ if(window.phdDesktop){
   };
 }
 $('#notesTimelineSearch').oninput=()=>window.renderNotesTimeline();
+ensureNotesDirectory();
+// 首屏先完成首页；浏览器空闲后只准备随手记首批。之后切换页面复用这些卡片，
+// “加载更多”仍然完全由用户触发，不会在后台继续渲染其余记录。
+let notesTimelinePreloadQueued=false;
+window.preloadNotesTimeline=()=>{
+  if(notesTimelinePreloadQueued||document.querySelector('#notesTimeline.active'))return;
+  notesTimelinePreloadQueued=true;
+  let prepare=()=>{notesTimelinePreloadQueued=false;if(!document.querySelector('#notesTimeline.active'))window.renderNotesTimeline?.();};
+  if('requestIdleCallback' in window)window.requestIdleCallback(prepare,{timeout:1800});else window.setTimeout(prepare,450);
+};
+window.addEventListener('load',()=>window.preloadNotesTimeline?.(),{once:true});
 // If iPhone restores this screen before note-format.js has executed, redraw it
 // after the formatter announces that KaTeX is available.
 window.addEventListener('phd-note-format-ready',()=>{
-  if(document.querySelector('#notesTimeline.active'))window.renderNotesTimeline();
+  if(document.querySelector('#notesTimeline.active'))window.renderNotesTimeline();else window.preloadNotesTimeline?.();
 });
