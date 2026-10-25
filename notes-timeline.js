@@ -102,7 +102,7 @@ function bindTimelineReferenceLinks(entry,sourceSelector='.timeline-text'){
     if(last){fragment.append(text.slice(last));node.replaceWith(fragment);}
   }
 }
-window.bindNoteReferenceLinks=root=>root?.querySelectorAll?.('.note-lines').forEach(source=>bindTimelineReferenceLinks(source,'.note-lines'));
+window.bindNoteReferenceLinks=root=>root?.querySelectorAll?.('.note-lines,.note-markdown').forEach(source=>bindTimelineReferenceLinks(source,source.classList.contains('note-markdown')?'.note-markdown':'.note-lines'));
 function ensureNotesDirectory(){
   let tools=$('.notes-timeline-tools');if(!tools)return null;
   let trigger=$('#notesTimelineDirectory');if(!trigger){trigger=document.createElement('button');trigger.id='notesTimelineDirectory';trigger.type='button';trigger.className='notes-directory-trigger plain';trigger.setAttribute('aria-haspopup','dialog');trigger.innerHTML='☷<span>目录</span>';tools.append(trigger);}
