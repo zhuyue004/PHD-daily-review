@@ -122,6 +122,19 @@ async function renderTimelineImages(note,holder){
   requestAnimationFrame(()=>window.fitNotesTimelineTail?.());
 }
 window.fitNotesTimelineTail=()=>{};
+// 临时 iPhone 布局诊断：固定浮层不参与文档排版，只读取真实运行时尺寸。
+window.refreshNotesTimelineDiagnostics=()=>{
+  if(window.phdDesktop||!$('#notesTimeline')?.classList.contains('active'))return;
+  let root=$('#notesTimelineList'),page=$('#notesTimeline'),nav=document.querySelector('nav'),tail=root?.querySelector('.timeline-load-more')||root?.querySelector('.timeline-entry:last-of-type'),doc=document.scrollingElement;
+  if(!root||!page||!nav||!tail||!doc)return;
+  let panel=$('#notesTimelineDiagnostics');
+  if(!panel){panel=document.createElement('pre');panel.id='notesTimelineDiagnostics';panel.setAttribute('aria-live','polite');document.body.append(panel);}
+  let gap=Math.round(nav.getBoundingClientRect().top-tail.getBoundingClientRect().bottom);
+  panel.textContent=`诊断\n外层余量 ${Math.round(doc.scrollHeight-doc.clientHeight)}\n列表余量 ${Math.round(root.scrollHeight-root.clientHeight-root.scrollTop)}\n加载更多至导航 ${gap}\n列表 ${Math.round(root.clientHeight)}/${Math.round(root.scrollHeight)}`;
+};
+const notesTimelineDiagnosticsStyle=document.createElement('style');
+notesTimelineDiagnosticsStyle.textContent=`#notesTimelineDiagnostics{position:fixed;z-index:99;right:8px;bottom:calc(64px + env(safe-area-inset-bottom));margin:0;padding:6px 8px;border-radius:8px;background:#000c;color:#fff;font:10px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;pointer-events:none;white-space:pre;opacity:.88}@media(min-width:700px){#notesTimelineDiagnostics{display:none}}`;
+document.head.append(notesTimelineDiagnosticsStyle);
 function applyTimelineCollapse(entry){
   let textBlock=entry?.querySelector('.timeline-body');
   if(!textBlock||textBlock.dataset.collapseReady==='1')return true;
@@ -139,7 +152,7 @@ let timelineMobileState={key:''};
 window.renderNotesTimeline=async function(){
   // 重绘内容不能重置 iPhone 的独立滚动壳；否则异步格式化或加载更多后，
   // 页面会重新获得一段旧的外层可滚动高度。
-  if($('#notesTimeline')?.classList.contains('active'))requestAnimationFrame(()=>window.updateNotesTimelineLayout?.());
+  if($('#notesTimeline')?.classList.contains('active'))requestAnimationFrame(()=>{window.updateNotesTimelineLayout?.();window.refreshNotesTimelineDiagnostics?.();});
   if($('#notesTimeline')?.classList.contains('active'))updateHeaderStat?.('notesTimeline');
   let input=$('#notesTimelineSearch'),term=(input?.value||'').trim().toLowerCase();
   let list=notes.slice().sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).filter(note=>noteMatchesSearch(note,term));
@@ -160,7 +173,7 @@ window.renderNotesTimeline=async function(){
       renderTimelineImages(note,holder);
     }
     if(next>=list.length)more.remove();
-    requestAnimationFrame(()=>window.fitNotesTimelineTail?.());
+    requestAnimationFrame(()=>{window.fitNotesTimelineTail?.();window.refreshNotesTimelineDiagnostics?.();});
   }
   more.onclick=appendBatch;
   appendBatch();
@@ -206,6 +219,7 @@ if(window.phdDesktop){
   };
 }
 $('#notesTimelineSearch').oninput=()=>window.renderNotesTimeline();
+$('#notesTimelineList').addEventListener('scroll',()=>requestAnimationFrame(()=>window.refreshNotesTimelineDiagnostics?.()),{passive:true});
 ensureNotesDirectory();
 // 与档案页一致：只在该页真正显示后生成首批内容，避免 iOS 以隐藏状态的页面高度
 // 作为滚动上限。“加载更多”仍然完全由用户触发。
