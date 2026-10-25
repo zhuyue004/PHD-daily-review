@@ -203,6 +203,15 @@ if(window.phdDesktop){
   };
 }
 $('#notesTimelineSearch').oninput=()=>window.renderNotesTimeline();
+// 桌面端的文字卡片会拦截普通点击以支持复制；在捕获阶段明确处理论文编号，
+// 让编号无论在收起或展开内容中都始终优先跳转到对应文献。
+document.addEventListener('click',event=>{
+  let link=event.target.closest?.('.timeline-reference-link');
+  if(!link)return;
+  let number=link.textContent,context=referenceReturnContext(link);
+  event.preventDefault();event.stopImmediatePropagation();
+  window.openReferenceByNumber?.(number,context);
+},true);
 ensureNotesDirectory();
 // 首屏先完成首页；浏览器空闲后只准备随手记首批。之后切换页面复用这些卡片，
 // “加载更多”仍然完全由用户触发，不会在后台继续渲染其余记录。
