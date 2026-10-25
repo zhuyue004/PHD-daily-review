@@ -27,6 +27,9 @@
 /* 内容高度由最后一个真实条目决定。底部只给固定导航预留空间，
    不再以最小视口高度制造一段可继续滚动的空白。 */
 main{min-height:0}
+/* iPhone 随手记必须与档案共用页面主滚动。即使旧版脚本残留了固定内层滚动样式，
+   此处也以 !important 强制回退，避免“加载更多”之后出现可滚动的大段空白。 */
+@media(max-width:699px){body.notes-timeline-active{overflow:visible!important}body.notes-timeline-active main{height:auto!important;min-height:0!important;overflow:visible!important}#notesTimeline.active{position:static!important;inset:auto!important;display:block!important;width:auto!important;height:auto!important;min-height:0!important;overflow:visible!important;transform:none!important}#notesTimeline.active .notes-timeline-list{display:block!important;height:auto!important;min-height:0!important;overflow:visible!important;flex:none!important}}
 #archive.active,#archive.active #records{height:auto!important;min-height:0!important;overflow:visible!important}
 /* 档案不再创建独立滚动容器，桌面和 iPhone 均由页面主滚动区负责。 */
 /* 分组小标题的选择器比通用 h3 更具体，需在深色模式显式覆盖。 */
