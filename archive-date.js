@@ -237,7 +237,7 @@ if(window.phdDesktop){
   };
   // A text selection should be copyable and must not open the editor on mouse-up.
   document.addEventListener('click',event=>{
-    if(!event.target.closest('.archive-note-swipe[data-note-id]')||event.target.closest('.archive-note-images button,.archive-note-toggle,.timeline-reference-link'))return;
+    if(!event.target.closest('.archive-note-swipe[data-note-id]')||event.target.closest('.archive-note-images button,.archive-note-toggle'))return;
     event.preventDefault();
     event.stopImmediatePropagation();
   },true);

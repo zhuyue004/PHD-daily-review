@@ -67,9 +67,6 @@ document.head.append(notesDirectoryStyle);
 const notesDirectoryVisibilityStyle=document.createElement('style');
 notesDirectoryVisibilityStyle.textContent='.notes-directory-mask.hidden{display:none!important}';
 document.head.append(notesDirectoryVisibilityStyle);
-const timelineReferenceLinkStyle=document.createElement('style');
-timelineReferenceLinkStyle.textContent='.timeline-reference-link{display:inline;margin:0;padding:0;border:0;border-bottom:1px solid currentColor;border-radius:0;background:transparent!important;color:#007aff!important;font:inherit!important;font-weight:700!important;line-height:inherit!important;cursor:pointer}@media (prefers-color-scheme:dark){.timeline-reference-link{color:#64b5ff!important}}';
-document.head.append(timelineReferenceLinkStyle);
 const timelineDate=iso=>{let date=new Date(iso),options={month:'long',day:'numeric'};if(date.getFullYear()!==new Date().getFullYear())options.year='numeric';return date.toLocaleDateString('zh-CN',options)};
 const timelineWeekday=iso=>new Date(iso).toLocaleDateString('zh-CN',{weekday:'short'});
 const timelineTime=iso=>new Date(iso).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
@@ -88,21 +85,6 @@ function noteDirectorySummary(note){
   let text=category==='读文献'?[reference,summary].filter(Boolean).join('｜'):[category?`【${category}】`:'' ,summary||title||lines.find(line=>!/^【[^】]+】$/.test(line))||'未填写内容'].filter(Boolean).join(' ');
   return text||'未填写内容';
 }
-function referenceReturnContext(source){
-  let active=document.querySelector('.page.active'),note=source?.closest?.('[data-note-id]');
-  return {pageId:active?.id||'notesTimeline',scrollTop:document.scrollingElement?.scrollTop||window.scrollY||0,noteId:note?.dataset?.noteId||''};
-}
-function bindTimelineReferenceLinks(entry,sourceSelector='.timeline-text'){
-  let source=entry?.matches?.(sourceSelector)?entry:entry?.querySelector(sourceSelector);if(!source||!window.findReferenceByNumber)return;
-  let walker=document.createTreeWalker(source,NodeFilter.SHOW_TEXT),nodes=[];
-  while(walker.nextNode()){let node=walker.currentNode,parent=node.parentElement;if(node.nodeValue&&/\bREF[-\s]?0*\d+\b/i.test(node.nodeValue)&&!parent?.closest('a,button,.katex,.note-code-block,.note-math-source'))nodes.push(node);}
-  for(let node of nodes){
-    let text=node.nodeValue,pattern=/\bREF[-\s]?0*(\d+)\b/gi,match,last=0,fragment=document.createDocumentFragment();
-    while((match=pattern.exec(text))){let number=`REF-${String(match[1]).padStart(4,'0')}`,item=window.findReferenceByNumber(number);if(!item)continue;fragment.append(text.slice(last,match.index));let button=document.createElement('button');button.type='button';button.className='timeline-reference-link';button.textContent=match[0];button.title=`打开 ${number}：${item.title||'参考文献'}`;button.onclick=event=>{event.stopPropagation();window.openReferenceByNumber?.(number,referenceReturnContext(button));};fragment.append(button);last=match.index+match[0].length;}
-    if(last){fragment.append(text.slice(last));node.replaceWith(fragment);}
-  }
-}
-window.bindNoteReferenceLinks=root=>root?.querySelectorAll?.('.note-lines,.note-markdown').forEach(source=>bindTimelineReferenceLinks(source,source.classList.contains('note-markdown')?'.note-markdown':'.note-lines'));
 function ensureNotesDirectory(){
   let tools=$('.notes-timeline-tools');if(!tools)return null;
   let trigger=$('#notesTimelineDirectory');if(!trigger){trigger=document.createElement('button');trigger.id='notesTimelineDirectory';trigger.type='button';trigger.className='notes-directory-trigger plain';trigger.setAttribute('aria-haspopup','dialog');trigger.innerHTML='☷<span>目录</span>';tools.append(trigger);}
@@ -137,7 +119,6 @@ function applyTimelineCollapse(entry){
   textBlock.after(expand);textBlock.dataset.collapseReady='1';return true;
 }
 function refreshTimelineCollapses(root){root?.querySelectorAll('.timeline-entry').forEach(entry=>applyTimelineCollapse(entry));}
-window.ensureNotesTimelineReferenceLinks=root=>(root||$('#notesTimelineList'))?.querySelectorAll?.('.timeline-entry').forEach(entry=>bindTimelineReferenceLinks(entry));
 let timelineMobileState={key:''};
 window.renderNotesTimeline=async function(){
   if($('#notesTimeline')?.classList.contains('active'))updateHeaderStat?.('notesTimeline');
@@ -145,7 +126,7 @@ window.renderNotesTimeline=async function(){
   let list=notes.slice().sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).filter(note=>noteMatchesSearch(note,term));
   let root=$('#notesTimelineList'),batchSize=30,next=0;
   let key=timelineListKey(term);
-  if(timelineMobileState.key===key&&root.childElementCount){if($('#notesTimeline')?.classList.contains('active'))requestAnimationFrame(()=>{refreshTimelineCollapses(root);window.ensureNotesTimelineReferenceLinks?.(root)});return;}
+  if(timelineMobileState.key===key&&root.childElementCount){if($('#notesTimeline')?.classList.contains('active'))requestAnimationFrame(()=>refreshTimelineCollapses(root));return;}
   timelineMobileState.key=key;
   if(!list.length){root.innerHTML=`<p class="empty">${term?'没有匹配的随手记。':'还没有随手记。'}</p>`;return}
   root.innerHTML='<button type="button" class="timeline-load-more plain">加载更多</button>';
@@ -155,7 +136,7 @@ window.renderNotesTimeline=async function(){
     let batch=list.slice(next,next+batchSize);next+=batch.length;
     more.insertAdjacentHTML('beforebegin',batch.map(note=>`<article class="timeline-entry" data-note-id="${esc(note.id)}"><div class="timeline-stamp"><b>${timelineDate(note.createdAt)}</b><span>${timelineWeekday(note.createdAt)}</span><time>${timelineTime(note.createdAt)}</time><em class="timeline-note-number">#${noteSerial(note)}</em></div><i class="timeline-dot" aria-hidden="true"></i><div class="timeline-card">${timelineText(note.text)}${note.place?`<small class="note-place">⌖ ${esc(note.place)}</small>`:''}<div class="timeline-images"></div></div></article>`).join(''));
     for(let note of batch){
-      let entry=root.querySelector(`.timeline-entry[data-note-id="${note.id}"]`),holder=entry.querySelector('.timeline-images');bindTimelineReferenceLinks(entry);
+      let entry=root.querySelector(`.timeline-entry[data-note-id="${note.id}"]`),holder=entry.querySelector('.timeline-images');
       requestAnimationFrame(()=>applyTimelineCollapse(entry));
       renderTimelineImages(note,holder);
     }
@@ -171,7 +152,7 @@ if(window.phdDesktop){
   window.renderNotesTimeline=function(){
     let root=$('#notesTimelineList'),term=($('#notesTimelineSearch')?.value||'').trim().toLowerCase();
     let key=`${window.desktopDataVersion?.('notes')||0}|${term}`;
-    if(timelineState.key===key&&root.childElementCount){if($('#notesTimeline')?.classList.contains('active'))requestAnimationFrame(()=>{refreshTimelineCollapses(root);window.ensureNotesTimelineReferenceLinks?.(root)});return;}
+    if(timelineState.key===key&&root.childElementCount){if($('#notesTimeline')?.classList.contains('active'))requestAnimationFrame(()=>refreshTimelineCollapses(root));return;}
     timelineState.imageObserver?.disconnect();
     let generation=++timelineState.generation;
     let list=notes.slice().sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).filter(note=>noteMatchesSearch(note,term));
@@ -194,7 +175,6 @@ if(window.phdDesktop){
       let entry=more.previousElementSibling;
       for(let index=batch.length-1;index>=0;index--){
         let current=entry;entry=entry.previousElementSibling;
-        bindTimelineReferenceLinks(current);
         timelineState.imageObserver.observe(current);
         requestAnimationFrame(()=>{if(timelineState.generation===generation)applyTimelineCollapse(current)});
       }
@@ -207,15 +187,6 @@ if(window.phdDesktop){
   };
 }
 $('#notesTimelineSearch').oninput=()=>window.renderNotesTimeline();
-// 桌面端的文字卡片会拦截普通点击以支持复制；在捕获阶段明确处理论文编号，
-// 让编号无论在收起或展开内容中都始终优先跳转到对应文献。
-document.addEventListener('click',event=>{
-  let link=event.target.closest?.('.timeline-reference-link');
-  if(!link)return;
-  let number=link.textContent,context=referenceReturnContext(link);
-  event.preventDefault();event.stopImmediatePropagation();
-  window.openReferenceByNumber?.(number,context);
-},true);
 ensureNotesDirectory();
 // 首屏先完成首页；浏览器空闲后只准备随手记首批。之后切换页面复用这些卡片，
 // “加载更多”仍然完全由用户触发，不会在后台继续渲染其余记录。
