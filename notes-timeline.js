@@ -135,6 +135,7 @@ function applyTimelineCollapse(entry){
   textBlock.after(expand);textBlock.dataset.collapseReady='1';return true;
 }
 function refreshTimelineCollapses(root){root?.querySelectorAll('.timeline-entry').forEach(entry=>applyTimelineCollapse(entry));}
+window.ensureNotesTimelineReferenceLinks=root=>(root||$('#notesTimelineList'))?.querySelectorAll?.('.timeline-entry').forEach(entry=>bindTimelineReferenceLinks(entry));
 let timelineMobileState={key:''};
 window.renderNotesTimeline=async function(){
   if($('#notesTimeline')?.classList.contains('active'))updateHeaderStat?.('notesTimeline');
@@ -142,7 +143,7 @@ window.renderNotesTimeline=async function(){
   let list=notes.slice().sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).filter(note=>noteMatchesSearch(note,term));
   let root=$('#notesTimelineList'),batchSize=30,next=0;
   let key=timelineListKey(term);
-  if(timelineMobileState.key===key&&root.childElementCount){if($('#notesTimeline')?.classList.contains('active'))requestAnimationFrame(()=>refreshTimelineCollapses(root));return;}
+  if(timelineMobileState.key===key&&root.childElementCount){if($('#notesTimeline')?.classList.contains('active'))requestAnimationFrame(()=>{refreshTimelineCollapses(root);window.ensureNotesTimelineReferenceLinks?.(root)});return;}
   timelineMobileState.key=key;
   if(!list.length){root.innerHTML=`<p class="empty">${term?'没有匹配的随手记。':'还没有随手记。'}</p>`;return}
   root.innerHTML='<button type="button" class="timeline-load-more plain">加载更多</button>';
@@ -167,7 +168,7 @@ if(window.phdDesktop){
   window.renderNotesTimeline=function(){
     let root=$('#notesTimelineList'),term=($('#notesTimelineSearch')?.value||'').trim().toLowerCase();
     let key=`${window.desktopDataVersion?.('notes')||0}|${term}`;
-    if(timelineState.key===key&&root.childElementCount){if($('#notesTimeline')?.classList.contains('active'))requestAnimationFrame(()=>refreshTimelineCollapses(root));return;}
+    if(timelineState.key===key&&root.childElementCount){if($('#notesTimeline')?.classList.contains('active'))requestAnimationFrame(()=>{refreshTimelineCollapses(root);window.ensureNotesTimelineReferenceLinks?.(root)});return;}
     timelineState.imageObserver?.disconnect();
     let generation=++timelineState.generation;
     let list=notes.slice().sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).filter(note=>noteMatchesSearch(note,term));
