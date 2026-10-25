@@ -41,15 +41,13 @@ document.head.append(compactPageTopSpacingStyle);
 const headerStatStyle=document.createElement('style');
 headerStatStyle.textContent=`header{position:relative}#headerStat{position:absolute;right:auto;bottom:20px;color:#8e8e93;font-size:12px;line-height:1;font-weight:400;white-space:nowrap}@media (prefers-color-scheme:dark){#headerStat{color:#98989d}}`;
 document.head.append(headerStatStyle);
-// 旧版曾给随手记建立独立滚动区。进入页面时显式还原到与档案一致的
-// 主文档滚动，避免 iOS 在升级后沿用旧容器的滚动上限。
+// iPhone 随手记使用独立列表滚动，并以“加载更多”作为可见末尾。
 window.resetNotesTimelineScrollShell=()=>{
   let page=$('#notesTimeline'),list=$('#notesTimelineList');
-  if(page){page.style.height='';page.style.minHeight='';page.style.overflow='';page.style.removeProperty('--notes-timeline-top');}
+  if(page){page.style.height='';page.style.minHeight='';page.style.overflow='';}
   if(list){list.style.height='';list.style.minHeight='';list.style.overflow='';}
-  document.body.style.overflow='';
-  document.documentElement.style.overflow='';
 };
+window.updateNotesTimelineLayout=()=>{let header=document.querySelector('header'),page=$('#notesTimeline');if(!header||!page)return;page.style.setProperty('--notes-timeline-top',`${Math.ceil(header.getBoundingClientRect().bottom)+4}px`)};
 window.addEventListener('resize',()=>{if(document.body.classList.contains('notes-timeline-active'))window.updateNotesTimelineLayout()});
 if(window.phdDesktop){
   const desktopBottomNavStyle=document.createElement('style');
@@ -114,26 +112,7 @@ async function renderTimelineImages(note,holder){
   holder.querySelectorAll('button').forEach(button=>button.onclick=()=>openNoteImage(remaining[+button.dataset.index].blob));
   requestAnimationFrame(()=>window.fitNotesTimelineTail?.());
 }
-// Safari 偶尔会在随手记分页后保留一段没有内容的旧滚动范围。不是给页面
-// 写死高度，而是以最后一个真实条目（或“加载更多”）作为视觉末尾，把该空档
-// 收回到导航栏上方；档案页没有分页，因此不会遇到这一路径。
-let timelineTailFrame=0,timelineTailTimer=0;
-window.fitNotesTimelineTail=()=>{
-  cancelAnimationFrame(timelineTailFrame);
-  timelineTailFrame=requestAnimationFrame(()=>{
-    if(window.phdDesktop||!$('#notesTimeline')?.classList.contains('active'))return;
-    let root=document.scrollingElement,tail=$('#notesTimelineList .timeline-load-more')||$('#notesTimelineList .timeline-entry:last-of-type'),nav=document.querySelector('nav');
-    if(!root||!tail||!nav)return;
-    let gap=nav.getBoundingClientRect().top-tail.getBoundingClientRect().bottom;
-    // 仅在“最后内容仍在屏幕中、其后却有明显空白”时回收；正常阅读过程不干预。
-    if(tail.getBoundingClientRect().bottom>0&&gap>72)root.scrollTop=Math.max(0,root.scrollTop-(gap-28));
-  });
-};
-window.addEventListener('scroll',()=>{
-  if(!$('#notesTimeline')?.classList.contains('active'))return;
-  clearTimeout(timelineTailTimer);
-  timelineTailTimer=window.setTimeout(()=>window.fitNotesTimelineTail?.(),80);
-},{passive:true});
+window.fitNotesTimelineTail=()=>{};
 function applyTimelineCollapse(entry){
   let textBlock=entry?.querySelector('.timeline-body');
   if(!textBlock||textBlock.dataset.collapseReady==='1')return true;
