@@ -55,7 +55,7 @@ window.updateNotesTimelineLayout=()=>{
   document.documentElement.style.overflow='hidden';document.body.style.overflow='hidden';
   main.style.height=`${innerHeight}px`;main.style.minHeight=`${innerHeight}px`;main.style.overflow='hidden';
   Object.assign(page.style,{position:'fixed',zIndex:'1',top:`${top}px`,right:'16px',bottom:`${bottom}px`,left:'16px',display:'flex',width:'auto',height:'auto',minHeight:'0',overflow:'hidden',transform:'none',flexDirection:'column'});
-  Object.assign(list.style,{display:'flex',height:'auto',minHeight:'0',overflowY:'auto',overflowX:'hidden',flex:'1 1 auto',flexDirection:'column',paddingBottom:'0',WebkitOverflowScrolling:'touch'});
+  Object.assign(list.style,{display:'block',height:'0px',minHeight:'0',overflowY:'auto',overflowX:'hidden',flex:'1 1 0',paddingBottom:'0',WebkitOverflowScrolling:'touch'});
 };
 window.addEventListener('resize',()=>{if(document.body.classList.contains('notes-timeline-active'))window.updateNotesTimelineLayout()});
 if(window.phdDesktop){
