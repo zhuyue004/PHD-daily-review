@@ -67,6 +67,9 @@ document.head.append(notesDirectoryStyle);
 const notesDirectoryVisibilityStyle=document.createElement('style');
 notesDirectoryVisibilityStyle.textContent='.notes-directory-mask.hidden{display:none!important}';
 document.head.append(notesDirectoryVisibilityStyle);
+const timelineReferenceLinkStyle=document.createElement('style');
+timelineReferenceLinkStyle.textContent='.timeline-reference-link{display:inline;margin:0;padding:0;border:0;border-bottom:1px solid currentColor;border-radius:0;background:transparent!important;color:#007aff!important;font:inherit!important;font-weight:700!important;line-height:inherit!important;cursor:pointer}@media (prefers-color-scheme:dark){.timeline-reference-link{color:#64b5ff!important}}';
+document.head.append(timelineReferenceLinkStyle);
 const timelineDate=iso=>{let date=new Date(iso),options={month:'long',day:'numeric'};if(date.getFullYear()!==new Date().getFullYear())options.year='numeric';return date.toLocaleDateString('zh-CN',options)};
 const timelineWeekday=iso=>new Date(iso).toLocaleDateString('zh-CN',{weekday:'short'});
 const timelineTime=iso=>new Date(iso).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
@@ -82,8 +85,18 @@ function noteDirectorySummary(note){
   let priority=['关键词摘录','和我课题的关系','核心内容','我的理解','关键观点','问题','结果','结论'];
   let summary=priority.map(key=>fields.get(key)).find(Boolean)||'';
   if(!summary){summary=lines.find(line=>line!==`【${category}】`&&!/^（?(论文题目|文献题目|论文编号|原文位置|日期|时间)[：:]/.test(line)&&line!==title)||'';}
-  let text=category==='读文献'?[reference,title,summary].filter(Boolean).join('｜'):[category?`【${category}】`:'' ,summary||title||lines.find(line=>!/^【[^】]+】$/.test(line))||'未填写内容'].filter(Boolean).join(' ');
+  let text=category==='读文献'?[reference,summary].filter(Boolean).join('｜'):[category?`【${category}】`:'' ,summary||title||lines.find(line=>!/^【[^】]+】$/.test(line))||'未填写内容'].filter(Boolean).join(' ');
   return text||'未填写内容';
+}
+function bindTimelineReferenceLinks(entry){
+  let source=entry?.querySelector('.timeline-text');if(!source||!window.findReferenceByNumber)return;
+  let walker=document.createTreeWalker(source,NodeFilter.SHOW_TEXT),nodes=[];
+  while(walker.nextNode()){let node=walker.currentNode,parent=node.parentElement;if(node.nodeValue&&/\bREF[-\s]?0*\d+\b/i.test(node.nodeValue)&&!parent?.closest('a,button,.katex,.note-code-block,.note-math-source'))nodes.push(node);}
+  for(let node of nodes){
+    let text=node.nodeValue,pattern=/\bREF[-\s]?0*(\d+)\b/gi,match,last=0,fragment=document.createDocumentFragment();
+    while((match=pattern.exec(text))){let number=`REF-${String(match[1]).padStart(4,'0')}`,item=window.findReferenceByNumber(number);if(!item)continue;fragment.append(text.slice(last,match.index));let button=document.createElement('button');button.type='button';button.className='timeline-reference-link';button.textContent=match[0];button.title=`打开 ${number}：${item.title||'参考文献'}`;button.onclick=event=>{event.stopPropagation();window.openReferenceByNumber?.(number);};fragment.append(button);last=match.index+match[0].length;}
+    if(last){fragment.append(text.slice(last));node.replaceWith(fragment);}
+  }
 }
 function ensureNotesDirectory(){
   let tools=$('.notes-timeline-tools');if(!tools)return null;
@@ -122,7 +135,7 @@ window.renderNotesTimeline=async function(){
     let batch=list.slice(next,next+batchSize);next+=batch.length;
     more.insertAdjacentHTML('beforebegin',batch.map(note=>`<article class="timeline-entry" data-note-id="${esc(note.id)}"><div class="timeline-stamp"><b>${timelineDate(note.createdAt)}</b><span>${timelineWeekday(note.createdAt)}</span><time>${timelineTime(note.createdAt)}</time><em class="timeline-note-number">#${noteSerial(note)}</em></div><i class="timeline-dot" aria-hidden="true"></i><div class="timeline-card">${timelineText(note.text)}${note.place?`<small class="note-place">⌖ ${esc(note.place)}</small>`:''}<div class="timeline-images"></div></div></article>`).join(''));
     for(let note of batch){
-      let entry=root.querySelector(`.timeline-entry[data-note-id="${note.id}"]`),holder=entry.querySelector('.timeline-images'),textBlock=entry.querySelector('.timeline-body');
+      let entry=root.querySelector(`.timeline-entry[data-note-id="${note.id}"]`),holder=entry.querySelector('.timeline-images'),textBlock=entry.querySelector('.timeline-body');bindTimelineReferenceLinks(entry);
       requestAnimationFrame(()=>{
         if(!textBlock?.isConnected||textBlock.scrollHeight<=99)return;
         textBlock.classList.add('timeline-collapsed');
@@ -166,6 +179,7 @@ if(window.phdDesktop){
       let entry=more.previousElementSibling;
       for(let index=batch.length-1;index>=0;index--){
         let current=entry;entry=entry.previousElementSibling;
+        bindTimelineReferenceLinks(current);
         timelineState.imageObserver.observe(current);
         requestAnimationFrame(()=>{
           if(timelineState.generation!==generation||!current.isConnected)return;
