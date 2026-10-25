@@ -28,7 +28,7 @@ notesTimelineScrollStyle.textContent=`
 /* 所有模块共用页面主滚动区，避免外层、模块内层同时接管滚轮或手势。 */
 #notesTimeline.active{position:static;display:block;width:auto;min-height:0;height:auto;transform:none}.notes-timeline-tools{margin:2px 0 14px;padding:0;background:transparent}.notes-timeline-list{min-height:0;height:auto;overflow:visible;padding:0 0 16px}
 /* iOS 有时会保留切换前页面的最小高度；随手记仅以最后一条记录（或“加载更多”）决定页面末尾。 */
-@media (max-width:699px){body.notes-timeline-active,body.notes-timeline-active main{min-height:0!important;height:auto!important}body.notes-timeline-active main{padding-bottom:calc(66px + env(safe-area-inset-bottom))!important}body.notes-timeline-active #notesTimeline.active,body.notes-timeline-active .notes-timeline-list{min-height:0!important;height:auto!important}}
+@media (max-width:699px){body.notes-timeline-active,body.notes-timeline-active main{min-height:0!important;height:auto!important}body.notes-timeline-active main{height:var(--notes-timeline-height,auto)!important;padding-bottom:0!important}body.notes-timeline-active #notesTimeline.active,body.notes-timeline-active .notes-timeline-list{min-height:0!important;height:auto!important}}
 `;
 document.head.append(notesTimelineScrollStyle);
 const compactHeaderTitleStyle=document.createElement('style');
@@ -106,8 +106,21 @@ async function renderTimelineImages(note,holder){
   let used=window.hydrateNoteInlineImages?.(holder.closest('.timeline-card'),images)||new Set(),remaining=images.filter(image=>!used.has(image.id));
   holder.innerHTML=remaining.map((image,index)=>`<button type="button" data-index="${index}" aria-label="查看原图"><img src="${URL.createObjectURL(image.blob)}" alt="随手记图片 ${index+1}"></button>`).join('');
   holder.querySelectorAll('button').forEach(button=>button.onclick=()=>openNoteImage(remaining[+button.dataset.index].blob));
-  requestAnimationFrame(()=>window.settlePageTail?.());
+  requestAnimationFrame(()=>window.fitNotesTimelineTail?.());
 }
+let notesTimelineTailFrame=0;
+window.fitNotesTimelineTail=()=>{
+  cancelAnimationFrame(notesTimelineTailFrame);
+  notesTimelineTailFrame=requestAnimationFrame(()=>{
+    if(window.phdDesktop||!$('#notesTimeline')?.classList.contains('active'))return;
+    let main=document.querySelector('main'),list=$('#notesTimelineList'),tail=list?.lastElementChild,nav=document.querySelector('nav');
+    if(!main||!tail||!nav)return;
+    main.style.removeProperty('--notes-timeline-height');
+    let height=Math.ceil(tail.getBoundingClientRect().bottom-main.getBoundingClientRect().top+nav.getBoundingClientRect().height+10);
+    main.style.setProperty('--notes-timeline-height',`${Math.max(0,height)}px`);
+    window.settlePageTail?.();
+  });
+};
 function applyTimelineCollapse(entry){
   let textBlock=entry?.querySelector('.timeline-body');
   if(!textBlock||textBlock.dataset.collapseReady==='1')return true;
@@ -115,9 +128,9 @@ function applyTimelineCollapse(entry){
   if(!entry.getClientRects().length)return false;
   if(textBlock.scrollHeight<=99){textBlock.dataset.collapseReady='1';return true;}
   textBlock.classList.add('timeline-collapsed');
-  requestAnimationFrame(()=>window.settlePageTail?.());
+  requestAnimationFrame(()=>window.fitNotesTimelineTail?.());
   let expand=document.createElement('button');expand.type='button';expand.className='timeline-expand';expand.textContent='展开全文';
-  expand.onclick=()=>{let collapsed=textBlock.classList.toggle('timeline-collapsed');expand.textContent=collapsed?'展开全文':'收起';requestAnimationFrame(()=>window.settlePageTail?.());};
+  expand.onclick=()=>{let collapsed=textBlock.classList.toggle('timeline-collapsed');expand.textContent=collapsed?'展开全文':'收起';requestAnimationFrame(()=>window.fitNotesTimelineTail?.());};
   textBlock.after(expand);textBlock.dataset.collapseReady='1';return true;
 }
 function refreshTimelineCollapses(root){root?.querySelectorAll('.timeline-entry').forEach(entry=>applyTimelineCollapse(entry));}
@@ -128,7 +141,7 @@ window.renderNotesTimeline=async function(){
   let list=notes.slice().sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).filter(note=>noteMatchesSearch(note,term));
   let root=$('#notesTimelineList'),batchSize=30,next=0;
   let key=timelineListKey(term);
-  if(timelineMobileState.key===key&&root.childElementCount){if($('#notesTimeline')?.classList.contains('active'))requestAnimationFrame(()=>refreshTimelineCollapses(root));return;}
+  if(timelineMobileState.key===key&&root.childElementCount){if($('#notesTimeline')?.classList.contains('active'))requestAnimationFrame(()=>{refreshTimelineCollapses(root);window.fitNotesTimelineTail?.()});return;}
   timelineMobileState.key=key;
   if(!list.length){root.innerHTML=`<p class="empty">${term?'没有匹配的随手记。':'还没有随手记。'}</p>`;return}
   root.innerHTML='<button type="button" class="timeline-load-more plain">加载更多</button>';
@@ -143,7 +156,7 @@ window.renderNotesTimeline=async function(){
       renderTimelineImages(note,holder);
     }
     if(next>=list.length)more.remove();
-    requestAnimationFrame(()=>window.settlePageTail?.());
+    requestAnimationFrame(()=>window.fitNotesTimelineTail?.());
   }
   more.onclick=appendBatch;
   appendBatch();
