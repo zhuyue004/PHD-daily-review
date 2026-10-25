@@ -28,7 +28,7 @@ notesTimelineScrollStyle.textContent=`
 /* 所有模块共用页面主滚动区，避免外层、模块内层同时接管滚轮或手势。 */
 #notesTimeline.active{position:static;display:block;width:auto;min-height:0;height:auto;transform:none}.notes-timeline-tools{margin:2px 0 14px;padding:0;background:transparent}.notes-timeline-list{min-height:0;height:auto;overflow:visible;padding:0 0 16px}
 /* iOS 有时会保留切换前页面的最小高度；随手记仅以最后一条记录（或“加载更多”）决定页面末尾。 */
-@media (max-width:699px){body.notes-timeline-active,body.notes-timeline-active main{min-height:0!important;height:auto!important}body.notes-timeline-active main{height:var(--notes-timeline-height,auto)!important;padding-bottom:0!important}body.notes-timeline-active #notesTimeline.active,body.notes-timeline-active .notes-timeline-list{min-height:0!important;height:auto!important}}
+@media (max-width:699px){body.notes-timeline-active,body.notes-timeline-active main{min-height:0!important;height:auto!important}body.notes-timeline-active main{padding-bottom:calc(66px + env(safe-area-inset-bottom))!important}body.notes-timeline-active #notesTimeline.active,body.notes-timeline-active .notes-timeline-list{min-height:0!important;height:auto!important}}
 `;
 document.head.append(notesTimelineScrollStyle);
 const compactHeaderTitleStyle=document.createElement('style');
@@ -112,18 +112,9 @@ let notesTimelineTailFrame=0;
 window.fitNotesTimelineTail=()=>{
   cancelAnimationFrame(notesTimelineTailFrame);
   notesTimelineTailFrame=requestAnimationFrame(()=>{
-    if(window.phdDesktop||!$('#notesTimeline')?.classList.contains('active'))return;
-    let main=document.querySelector('main'),list=$('#notesTimelineList'),tail=list?.lastElementChild,nav=document.querySelector('nav');
-    if(!main||!tail||!nav)return;
-    main.style.removeProperty('--notes-timeline-height');
-    let height=Math.ceil(tail.getBoundingClientRect().bottom-main.getBoundingClientRect().top+nav.getBoundingClientRect().height+10);
-    main.style.setProperty('--notes-timeline-height',`${Math.max(0,height)}px`);
-    window.settlePageTail?.();
+    if(!window.phdDesktop&&$('#notesTimeline')?.classList.contains('active'))window.settlePageTail?.();
   });
 };
-// Safari 可能在惯性滚动后恢复旧的文档高度；滚动期间也校正一次末尾。
-window.addEventListener('scroll',()=>{if($('#notesTimeline')?.classList.contains('active'))window.fitNotesTimelineTail?.()},{passive:true});
-window.addEventListener('resize',()=>window.fitNotesTimelineTail?.());
 function applyTimelineCollapse(entry){
   let textBlock=entry?.querySelector('.timeline-body');
   if(!textBlock||textBlock.dataset.collapseReady==='1')return true;
