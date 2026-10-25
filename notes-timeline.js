@@ -121,6 +121,9 @@ window.fitNotesTimelineTail=()=>{
     window.settlePageTail?.();
   });
 };
+// Safari 可能在惯性滚动后恢复旧的文档高度；滚动期间也校正一次末尾。
+window.addEventListener('scroll',()=>{if($('#notesTimeline')?.classList.contains('active'))window.fitNotesTimelineTail?.()},{passive:true});
+window.addEventListener('resize',()=>window.fitNotesTimelineTail?.());
 function applyTimelineCollapse(entry){
   let textBlock=entry?.querySelector('.timeline-body');
   if(!textBlock||textBlock.dataset.collapseReady==='1')return true;
