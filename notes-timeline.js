@@ -122,6 +122,16 @@ async function renderTimelineImages(note,holder){
   requestAnimationFrame(()=>window.fitNotesTimelineTail?.());
 }
 window.fitNotesTimelineTail=()=>{};
+// WebKit 偶尔会把被折叠内容的旧高度保留在 scrollHeight 中。不能依赖
+// scrollHeight 当作末尾，改以最后真实节点（“加载更多”或最后条目）的位置
+// 计算上限；因此无论底层多报多少高度，手势都不会进入按钮后的空白。
+window.clampNotesTimelineTail=()=>{
+  if(window.phdDesktop||!$('#notesTimeline')?.classList.contains('active'))return;
+  let root=$('#notesTimelineList'),tail=root?.querySelector('.timeline-load-more')||root?.querySelector('.timeline-entry:last-of-type');
+  if(!root||!tail)return;
+  let limit=Math.max(0,tail.offsetTop+tail.offsetHeight+10-root.clientHeight);
+  if(root.scrollTop>limit)root.scrollTop=limit;
+};
 // 临时 iPhone 布局诊断：固定浮层不参与文档排版，只读取真实运行时尺寸。
 window.refreshNotesTimelineDiagnostics=()=>{
   if(window.phdDesktop||!$('#notesTimeline')?.classList.contains('active'))return;
@@ -130,7 +140,8 @@ window.refreshNotesTimelineDiagnostics=()=>{
   let panel=$('#notesTimelineDiagnostics');
   if(!panel){panel=document.createElement('pre');panel.id='notesTimelineDiagnostics';panel.setAttribute('aria-live','polite');document.body.append(panel);}
   let gap=Math.round(nav.getBoundingClientRect().top-tail.getBoundingClientRect().bottom);
-  panel.textContent=`诊断\n外层余量 ${Math.round(doc.scrollHeight-doc.clientHeight)}\n列表余量 ${Math.round(root.scrollHeight-root.clientHeight-root.scrollTop)}\n加载更多至导航 ${gap}\n列表 ${Math.round(root.clientHeight)}/${Math.round(root.scrollHeight)}`;
+  let limit=Math.max(0,tail.offsetTop+tail.offsetHeight+10-root.clientHeight);
+  panel.textContent=`诊断\n外层余量 ${Math.round(doc.scrollHeight-doc.clientHeight)}\n列表余量 ${Math.round(root.scrollHeight-root.clientHeight-root.scrollTop)}\n尾部上限 ${Math.round(limit)}\n加载更多至导航 ${gap}\n列表 ${Math.round(root.clientHeight)}/${Math.round(root.scrollHeight)}`;
 };
 const notesTimelineDiagnosticsStyle=document.createElement('style');
 notesTimelineDiagnosticsStyle.textContent=`#notesTimelineDiagnostics{position:fixed;z-index:99;right:8px;bottom:calc(64px + env(safe-area-inset-bottom));margin:0;padding:6px 8px;border-radius:8px;background:#000c;color:#fff;font:10px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;pointer-events:none;white-space:pre;opacity:.88}@media(min-width:700px){#notesTimelineDiagnostics{display:none}}`;
@@ -173,7 +184,7 @@ window.renderNotesTimeline=async function(){
       renderTimelineImages(note,holder);
     }
     if(next>=list.length)more.remove();
-    requestAnimationFrame(()=>{window.fitNotesTimelineTail?.();window.refreshNotesTimelineDiagnostics?.();});
+    requestAnimationFrame(()=>{window.clampNotesTimelineTail?.();window.fitNotesTimelineTail?.();window.refreshNotesTimelineDiagnostics?.();});
   }
   more.onclick=appendBatch;
   appendBatch();
@@ -219,7 +230,8 @@ if(window.phdDesktop){
   };
 }
 $('#notesTimelineSearch').oninput=()=>window.renderNotesTimeline();
-$('#notesTimelineList').addEventListener('scroll',()=>requestAnimationFrame(()=>window.refreshNotesTimelineDiagnostics?.()),{passive:true});
+let timelineTailClampFrame=0;
+$('#notesTimelineList').addEventListener('scroll',()=>{cancelAnimationFrame(timelineTailClampFrame);timelineTailClampFrame=requestAnimationFrame(()=>{window.clampNotesTimelineTail?.();window.refreshNotesTimelineDiagnostics?.();});},{passive:true});
 ensureNotesDirectory();
 // 与档案页一致：只在该页真正显示后生成首批内容，避免 iOS 以隐藏状态的页面高度
 // 作为滚动上限。“加载更多”仍然完全由用户触发。
