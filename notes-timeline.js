@@ -114,9 +114,26 @@ async function renderTimelineImages(note,holder){
   holder.querySelectorAll('button').forEach(button=>button.onclick=()=>openNoteImage(remaining[+button.dataset.index].blob));
   requestAnimationFrame(()=>window.fitNotesTimelineTail?.());
 }
-// 随手记不再单独计算或补偿页面尾部。iOS 上这类补偿会保留隐藏页面的旧高度；
-// 保持与档案记录页一致的浏览器原生文档流。
-window.fitNotesTimelineTail=()=>{};
+// Safari 偶尔会在随手记分页后保留一段没有内容的旧滚动范围。不是给页面
+// 写死高度，而是以最后一个真实条目（或“加载更多”）作为视觉末尾，把该空档
+// 收回到导航栏上方；档案页没有分页，因此不会遇到这一路径。
+let timelineTailFrame=0,timelineTailTimer=0;
+window.fitNotesTimelineTail=()=>{
+  cancelAnimationFrame(timelineTailFrame);
+  timelineTailFrame=requestAnimationFrame(()=>{
+    if(window.phdDesktop||!$('#notesTimeline')?.classList.contains('active'))return;
+    let root=document.scrollingElement,tail=$('#notesTimelineList .timeline-load-more')||$('#notesTimelineList .timeline-entry:last-of-type'),nav=document.querySelector('nav');
+    if(!root||!tail||!nav)return;
+    let gap=nav.getBoundingClientRect().top-tail.getBoundingClientRect().bottom;
+    // 仅在“最后内容仍在屏幕中、其后却有明显空白”时回收；正常阅读过程不干预。
+    if(tail.getBoundingClientRect().bottom>0&&gap>72)root.scrollTop=Math.max(0,root.scrollTop-(gap-28));
+  });
+};
+window.addEventListener('scroll',()=>{
+  if(!$('#notesTimeline')?.classList.contains('active'))return;
+  clearTimeout(timelineTailTimer);
+  timelineTailTimer=window.setTimeout(()=>window.fitNotesTimelineTail?.(),80);
+},{passive:true});
 function applyTimelineCollapse(entry){
   let textBlock=entry?.querySelector('.timeline-body');
   if(!textBlock||textBlock.dataset.collapseReady==='1')return true;
