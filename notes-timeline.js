@@ -118,6 +118,18 @@ async function renderTimelineImages(note,holder){
   holder.innerHTML=remaining.map((image,index)=>`<button type="button" data-index="${index}" aria-label="查看原图"><img src="${URL.createObjectURL(image.blob)}" alt="随手记图片 ${index+1}"></button>`).join('');
   holder.querySelectorAll('button').forEach(button=>button.onclick=()=>openNoteImage(remaining[+button.dataset.index].blob));
 }
+function applyTimelineCollapse(entry){
+  let textBlock=entry?.querySelector('.timeline-body');
+  if(!textBlock||textBlock.dataset.collapseReady==='1')return true;
+  // 后台预加载时页面处于隐藏状态，无法得到可靠高度；进入随手记后再测量。
+  if(!entry.getClientRects().length)return false;
+  if(textBlock.scrollHeight<=99){textBlock.dataset.collapseReady='1';return true;}
+  textBlock.classList.add('timeline-collapsed');
+  let expand=document.createElement('button');expand.type='button';expand.className='timeline-expand';expand.textContent='展开全文';
+  expand.onclick=()=>{let collapsed=textBlock.classList.toggle('timeline-collapsed');expand.textContent=collapsed?'展开全文':'收起';};
+  textBlock.after(expand);textBlock.dataset.collapseReady='1';return true;
+}
+function refreshTimelineCollapses(root){root?.querySelectorAll('.timeline-entry').forEach(entry=>applyTimelineCollapse(entry));}
 let timelineMobileState={key:''};
 window.renderNotesTimeline=async function(){
   if($('#notesTimeline')?.classList.contains('active'))updateHeaderStat?.('notesTimeline');
@@ -125,7 +137,7 @@ window.renderNotesTimeline=async function(){
   let list=notes.slice().sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).filter(note=>noteMatchesSearch(note,term));
   let root=$('#notesTimelineList'),batchSize=30,next=0;
   let key=timelineListKey(term);
-  if(timelineMobileState.key===key&&root.childElementCount)return;
+  if(timelineMobileState.key===key&&root.childElementCount){if($('#notesTimeline')?.classList.contains('active'))requestAnimationFrame(()=>refreshTimelineCollapses(root));return;}
   timelineMobileState.key=key;
   if(!list.length){root.innerHTML=`<p class="empty">${term?'没有匹配的随手记。':'还没有随手记。'}</p>`;return}
   root.innerHTML='<button type="button" class="timeline-load-more plain">加载更多</button>';
@@ -135,14 +147,8 @@ window.renderNotesTimeline=async function(){
     let batch=list.slice(next,next+batchSize);next+=batch.length;
     more.insertAdjacentHTML('beforebegin',batch.map(note=>`<article class="timeline-entry" data-note-id="${esc(note.id)}"><div class="timeline-stamp"><b>${timelineDate(note.createdAt)}</b><span>${timelineWeekday(note.createdAt)}</span><time>${timelineTime(note.createdAt)}</time><em class="timeline-note-number">#${noteSerial(note)}</em></div><i class="timeline-dot" aria-hidden="true"></i><div class="timeline-card">${timelineText(note.text)}${note.place?`<small class="note-place">⌖ ${esc(note.place)}</small>`:''}<div class="timeline-images"></div></div></article>`).join(''));
     for(let note of batch){
-      let entry=root.querySelector(`.timeline-entry[data-note-id="${note.id}"]`),holder=entry.querySelector('.timeline-images'),textBlock=entry.querySelector('.timeline-body');bindTimelineReferenceLinks(entry);
-      requestAnimationFrame(()=>{
-        if(!textBlock?.isConnected||textBlock.scrollHeight<=99)return;
-        textBlock.classList.add('timeline-collapsed');
-        let expand=document.createElement('button');expand.type='button';expand.className='timeline-expand';expand.textContent='展开全文';
-        expand.onclick=()=>{let collapsed=textBlock.classList.toggle('timeline-collapsed');expand.textContent=collapsed?'展开全文':'收起';};
-        textBlock.after(expand);
-      });
+      let entry=root.querySelector(`.timeline-entry[data-note-id="${note.id}"]`),holder=entry.querySelector('.timeline-images');bindTimelineReferenceLinks(entry);
+      requestAnimationFrame(()=>applyTimelineCollapse(entry));
       renderTimelineImages(note,holder);
     }
     if(next>=list.length)more.remove();
@@ -156,7 +162,7 @@ if(window.phdDesktop){
   window.renderNotesTimeline=function(){
     let root=$('#notesTimelineList'),term=($('#notesTimelineSearch')?.value||'').trim().toLowerCase();
     let key=`${window.desktopDataVersion?.('notes')||0}|${term}`;
-    if(timelineState.key===key&&root.childElementCount)return;
+    if(timelineState.key===key&&root.childElementCount){if($('#notesTimeline')?.classList.contains('active'))requestAnimationFrame(()=>refreshTimelineCollapses(root));return;}
     timelineState.imageObserver?.disconnect();
     let generation=++timelineState.generation;
     let list=notes.slice().sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).filter(note=>noteMatchesSearch(note,term));
@@ -181,15 +187,7 @@ if(window.phdDesktop){
         let current=entry;entry=entry.previousElementSibling;
         bindTimelineReferenceLinks(current);
         timelineState.imageObserver.observe(current);
-        requestAnimationFrame(()=>{
-          if(timelineState.generation!==generation||!current.isConnected)return;
-          let textBlock=current.querySelector('.timeline-body');
-          if(!textBlock||textBlock.scrollHeight<=99)return;
-          textBlock.classList.add('timeline-collapsed');
-          let expand=document.createElement('button');expand.type='button';expand.className='timeline-expand';expand.textContent='展开全文';
-          expand.onclick=()=>{let collapsed=textBlock.classList.toggle('timeline-collapsed');expand.textContent=collapsed?'展开全文':'收起'};
-          textBlock.after(expand);
-        });
+        requestAnimationFrame(()=>{if(timelineState.generation===generation)applyTimelineCollapse(current)});
       }
     if(next>=list.length)more.remove();
     }
