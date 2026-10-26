@@ -54,6 +54,8 @@ window.updateNotesTimelineLayout=()=>{
   let top=Math.ceil(header.getBoundingClientRect().bottom)+4,bottom=Math.ceil(innerHeight-nav.getBoundingClientRect().top);
   document.documentElement.style.overflow='hidden';document.body.style.overflow='hidden';
   main.style.height=`${innerHeight}px`;main.style.minHeight=`${innerHeight}px`;main.style.overflow='hidden';
+  // 样式表以 !important 使用这个变量；同步更新它，避免回退到默认的 112px 顶部留白。
+  page.style.setProperty('--notes-timeline-top',`${top}px`);
   Object.assign(page.style,{position:'fixed',zIndex:'1',top:`${top}px`,right:'16px',bottom:`${bottom}px`,left:'16px',display:'flex',width:'auto',height:'auto',minHeight:'0',overflow:'hidden',transform:'none',flexDirection:'column'});
   Object.assign(list.style,{display:'block',height:'0px',minHeight:'0',overflowY:'auto',overflowX:'hidden',flex:'1 1 0',paddingBottom:'0',WebkitOverflowScrolling:'touch'});
 };
