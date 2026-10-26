@@ -40,10 +40,16 @@ main{min-height:0}
 /* 分组小标题的选择器比通用 h3 更具体，需在深色模式显式覆盖。 */
 @media (prefers-color-scheme:dark){#insights .summary-group h3{color:#f2f2f7!important}}
 
-/* iPhone 档案：图片会增加滑动行高度。未完成第二次左滑前，操作层必须完全不可见。 */
+/* iPhone 档案随手记：操作按钮固定在卡片底部，避免阅读或竖向滚动时误触发左滑。 */
 @media (max-width:699px){
-  .archive-note-swipe-actions{visibility:hidden}
-  .archive-note-swipe.swiped .archive-note-swipe-actions{visibility:visible}
+  .archive-note-swipe{overflow:visible;touch-action:pan-y}
+  .archive-note-swipe .archive-note{transform:none!important}
+  .archive-note-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 0 0;padding:0 0 1px}
+  .archive-note-footer-actions{display:flex;align-items:center;gap:14px}
+  .archive-note-footer button{width:max-content!important;margin:0!important;padding:2px 0!important;border:0!important;border-radius:0!important;background:transparent!important;font-size:13px!important;font-weight:600!important;line-height:1.4!important;cursor:pointer}
+  .archive-note-footer-edit,.archive-note-expand{color:#007aff!important}
+  .archive-note-footer-delete{color:#ff3b30!important}
+  .archive-note-footer button:focus-visible{outline:2px solid currentColor;outline-offset:3px;border-radius:3px!important}
 }
 
 /* 当日档案随手记：小型序号排序开关，与标题同高。 */
