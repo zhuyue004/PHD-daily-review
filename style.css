@@ -42,6 +42,4 @@ main{min-height:0}
 @media (max-width:699px){
   .archive-note-swipe-actions{visibility:hidden}
   .archive-note-swipe.swiped .archive-note-swipe-actions{visibility:visible}
-  .archive-note-images{position:relative;z-index:1;transition:transform .18s ease}
-  .archive-note-swipe.swiped .archive-note-images{transform:translateX(-168px)}
 }
