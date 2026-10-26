@@ -31,6 +31,8 @@ main{min-height:0}
    不再依赖 Safari 对整页高度的回收，避免按钮下方形成空白滚动区。 */
 @media(max-width:699px){body.notes-timeline-active{overflow:hidden!important}body.notes-timeline-active main{height:100dvh!important;min-height:100dvh!important;overflow:hidden!important}#notesTimeline.active{position:fixed!important;z-index:1;top:var(--notes-timeline-top,112px)!important;right:16px!important;bottom:calc(48px + env(safe-area-inset-bottom))!important;left:16px!important;display:flex!important;width:auto!important;height:auto!important;min-height:0!important;overflow:hidden!important;transform:none!important;flex-direction:column!important}#notesTimeline.active .notes-timeline-tools{flex:0 0 auto!important;background:#f2f2f7}#notesTimeline.active .notes-timeline-list{display:block!important;min-height:0!important;height:0!important;overflow-y:auto!important;overflow-x:hidden!important;flex:1 1 0!important;padding-bottom:0!important;-webkit-overflow-scrolling:touch}#notesTimeline.active .timeline-load-more{display:block!important;margin:0 0 10px!important}}
 @media(max-width:699px) and (prefers-color-scheme:dark){#notesTimeline.active .notes-timeline-tools{background:#000}}
+/* iPhone 保留触摸滚动，但不显示右侧系统滚动指示条。 */
+@media(max-width:699px){body,main,#notesTimelineList,.modal>div{scrollbar-width:none}body::-webkit-scrollbar,main::-webkit-scrollbar,#notesTimelineList::-webkit-scrollbar,.modal>div::-webkit-scrollbar{display:none;width:0;height:0}}
 #archive.active,#archive.active #records{height:auto!important;min-height:0!important;overflow:visible!important}
 /* 档案不再创建独立滚动容器，桌面和 iPhone 均由页面主滚动区负责。 */
 /* 分组小标题的选择器比通用 h3 更具体，需在深色模式显式覆盖。 */
