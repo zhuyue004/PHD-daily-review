@@ -33,8 +33,12 @@ main{min-height:0}
 @media(max-width:699px) and (prefers-color-scheme:dark){#notesTimeline.active .notes-timeline-tools{background:#000}}
 /* iPhone 保留触摸滚动，但不显示任何灰色滚动指示条。 */
 
-/* iPhone 隐藏滚动条；Windows 桌面版无论窗口多窄都保留系统灰色滚动条。 */
-@media(max-width:699px){body:not(.desktop-app){scrollbar-width:none}body:not(.desktop-app) ::-webkit-scrollbar{display:none;width:0;height:0}}
+/* iPhone 隐藏页面主滚动区及所有内部滚动区的指示条；桌面版保留系统滚动条。 */
+@media(max-width:699px){
+  html:not(.desktop-app),html:not(.desktop-app) body,html:not(.desktop-app) *{scrollbar-width:none!important;-ms-overflow-style:none!important}
+  html:not(.desktop-app)::-webkit-scrollbar,html:not(.desktop-app) body::-webkit-scrollbar,html:not(.desktop-app) *::-webkit-scrollbar{display:none!important;width:0!important;height:0!important;background:transparent!important}
+  html:not(.desktop-app)::-webkit-scrollbar-thumb,html:not(.desktop-app) *::-webkit-scrollbar-thumb{background:transparent!important;border:0!important}
+}
 #archive.active,#archive.active #records{height:auto!important;min-height:0!important;overflow:visible!important}
 /* 档案不再创建独立滚动容器，桌面和 iPhone 均由页面主滚动区负责。 */
 /* 分组小标题的选择器比通用 h3 更具体，需在深色模式显式覆盖。 */
