@@ -37,3 +37,11 @@ main{min-height:0}
 /* 档案不再创建独立滚动容器，桌面和 iPhone 均由页面主滚动区负责。 */
 /* 分组小标题的选择器比通用 h3 更具体，需在深色模式显式覆盖。 */
 @media (prefers-color-scheme:dark){#insights .summary-group h3{color:#f2f2f7!important}}
+
+/* iPhone 档案：图片会增加滑动行高度。未完成第二次左滑前，操作层必须完全不可见。 */
+@media (max-width:699px){
+  .archive-note-swipe-actions{visibility:hidden}
+  .archive-note-swipe.swiped .archive-note-swipe-actions{visibility:visible}
+  .archive-note-images{position:relative;z-index:1;transition:transform .18s ease}
+  .archive-note-swipe.swiped .archive-note-images{transform:translateX(-168px)}
+}
