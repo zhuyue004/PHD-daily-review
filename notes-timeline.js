@@ -132,7 +132,7 @@ function applyTimelineCollapse(entry){
   }
   textBlock.classList.add('timeline-collapsed');
   requestAnimationFrame(()=>window.fitNotesTimelineTail?.());
-  let expand=document.createElement('button');expand.type='button';expand.className='timeline-expand';expand.textContent='展开全文';
+  let expand=document.createElement('button');expand.type='button';expand.className='timeline-expand';expand.textContent=mobile?'全文':'展开全文';
   expand.onclick=()=>{
     let collapsed=textBlock.classList.contains('timeline-collapsed');
     if(collapsed){
@@ -140,10 +140,10 @@ function applyTimelineCollapse(entry){
       textBlock.classList.remove('timeline-collapsed');expand.textContent='收起';
     }else{
       if(mobile){let preview=textBlock.dataset.timelinePreviewText||'';textBlock.textContent=`${preview}…`;}
-      textBlock.classList.add('timeline-collapsed');expand.textContent='展开全文';
+      textBlock.classList.add('timeline-collapsed');expand.textContent=mobile?'全文':'展开全文';
     }
   };
-  textBlock.after(expand);textBlock.dataset.collapseReady='1';return true;
+  if(mobile)entry.querySelector('.timeline-card')?.append(expand);else textBlock.after(expand);textBlock.dataset.collapseReady='1';return true;
 }
 function refreshTimelineCollapses(root){root?.querySelectorAll('.timeline-entry').forEach(entry=>applyTimelineCollapse(entry));}
 let timelineMobileState={key:''};

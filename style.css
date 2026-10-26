@@ -38,6 +38,7 @@ main{min-height:0}
   html:not(.desktop-app),html:not(.desktop-app) body,html:not(.desktop-app) *{scrollbar-width:none!important;-ms-overflow-style:none!important}
   html:not(.desktop-app)::-webkit-scrollbar,html:not(.desktop-app) body::-webkit-scrollbar,html:not(.desktop-app) *::-webkit-scrollbar{display:none!important;width:0!important;height:0!important;background:transparent!important}
   html:not(.desktop-app)::-webkit-scrollbar-thumb,html:not(.desktop-app) *::-webkit-scrollbar-thumb{background:transparent!important;border:0!important}
+  body:not(.desktop-app) .timeline-expand{width:max-content!important;margin:7px 0 0 auto!important;padding:2px 0!important;border-radius:0!important;background:transparent!important;color:#007aff!important;font-size:13px!important;font-weight:600!important;line-height:1.4!important}
 }
 #archive.active,#archive.active #records{height:auto!important;min-height:0!important;overflow:visible!important}
 /* 档案不再创建独立滚动容器，桌面和 iPhone 均由页面主滚动区负责。 */
