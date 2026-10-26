@@ -381,7 +381,11 @@ if(window.phdDesktop){
   };
   const renderPage=window.page;
   window.page=function(...args){const result=renderPage.apply(this,args);window.settlePageTail();return result};
-  new MutationObserver(window.settlePageTail).observe(document.querySelector('main'),{childList:true,subtree:true,characterData:true});
-  window.addEventListener('resize',window.settlePageTail);
+  // iOS Safari 在自然滚动时会连续产生布局与视口变化。移动端不监听整棵
+  // 页面树：各个展开、收起与异步渲染点会主动调用 settlePageTail，避免拖慢滑动。
+  if(window.phdDesktop){
+    new MutationObserver(window.settlePageTail).observe(document.querySelector('main'),{childList:true,subtree:true,characterData:true});
+    window.addEventListener('resize',window.settlePageTail);
+  }
   window.settlePageTail();
 })();

@@ -114,4 +114,4 @@ saveGoals.onclick=()=>{
 
 home();
 let aboutVersionCard=$('#aboutApp');
-if(aboutVersionCard){let version=aboutVersionCard.querySelector('strong'),updated=aboutVersionCard.querySelector('time');if(version)version.textContent=version.textContent.replace(/^\S+/,'1.2.37');if(updated){updated.textContent='2026年10月26日 19:55';updated.dateTime='2026-10-26T19:55'}}
+if(aboutVersionCard){let version=aboutVersionCard.querySelector('strong'),updated=aboutVersionCard.querySelector('time');if(version)version.textContent=version.textContent.replace(/^\S+/,'1.2.37');if(updated){updated.textContent='2026年10月26日 20:32';updated.dateTime='2026-10-26T20:32'}}
