@@ -56,6 +56,33 @@ main{min-height:0}
   .archive-note-footer-delete{color:#ff3b30!important}
   .archive-note-footer button:focus-visible{outline:2px solid currentColor;outline-offset:3px;border-radius:3px!important}
 }
+/* iPhone 档案夜间模式：正文结构中的显式浅色主题颜色必须逐项反转。 */
+@media (max-width:699px) and (prefers-color-scheme:dark){
+  html:not(.desktop-app) #archive .archive-note .note-markdown,
+  html:not(.desktop-app) #archive .archive-note .note-paragraph,
+  html:not(.desktop-app) #archive .archive-note .note-field-group,
+  html:not(.desktop-app) #archive .archive-note .note-field-label,
+  html:not(.desktop-app) #archive .archive-note .note-field-value,
+  html:not(.desktop-app) #archive .archive-note .note-number-group,
+  html:not(.desktop-app) #archive .archive-note .note-number-value,
+  html:not(.desktop-app) #archive .archive-note .note-heading,
+  html:not(.desktop-app) #archive .archive-note .note-markdown-list,
+  html:not(.desktop-app) #archive .archive-note .note-markdown-list li,
+  html:not(.desktop-app) #archive .archive-note .note-table td,
+  html:not(.desktop-app) #archive .archive-note strong,
+  html:not(.desktop-app) #archive .archive-note .note-math-source,
+  html:not(.desktop-app) #archive .archive-note .katex{color:#f2f2f7!important}
+  html:not(.desktop-app) #archive .archive-note .note-number-marker,
+  html:not(.desktop-app) #archive .archive-note time,
+  html:not(.desktop-app) #archive .archive-note small{color:#aeaeb2!important}
+  html:not(.desktop-app) #archive .archive-note em,
+  html:not(.desktop-app) #archive .archive-note .note-quote{color:#d1d1d6!important}
+  html:not(.desktop-app) #archive .archive-note a{color:#64b5ff!important}
+  html:not(.desktop-app) #archive .archive-note .note-table th{color:#f2f2f7!important;background:#2c2c2e!important}
+  html:not(.desktop-app) #archive .archive-note .note-code-block{color:#f2f2f7!important;background:#1c1c1e!important;border-color:#38383a!important}
+  html:not(.desktop-app) #archive .archive-note-footer-edit,
+  html:not(.desktop-app) #archive .archive-note-expand{color:#0a84ff!important}
+}
 
 /* 当日档案随手记：小型序号排序开关，与标题同高。 */
 .archive-notes-heading{display:flex;align-items:center;justify-content:space-between;margin:22px 4px 8px;gap:10px}.archive-notes-heading .archive-heading{margin:0}.archive-note-sort{height:22px;min-width:38px;margin:0;padding:0 7px;border:1px solid #c7c7cc;border-radius:7px;background:#fff;color:#007aff;font-size:12px;font-weight:650;line-height:20px}@media (prefers-color-scheme:dark){.archive-note-sort{border-color:#48484a;background:#2c2c2e;color:#64b5ff}}
