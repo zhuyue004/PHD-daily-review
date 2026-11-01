@@ -118,12 +118,12 @@ test('desktop reference library can scroll the final entry above the fixed navig
   await page.getByRole('button',{name:'档案'}).click();
   await page.getByRole('button',{name:'参考文献'}).click();
   await expect(page.locator('.reference-card')).toHaveCount(36);
-  await page.locator('main').evaluate(main=>{main.scrollTop=main.scrollHeight});
+  await page.evaluate(()=>window.scrollTo(0,document.documentElement.scrollHeight));
   await page.waitForTimeout(50);
   const result=await page.evaluate(()=>{
-    const main=document.querySelector('main'),last=document.querySelector('.reference-swipe:last-child'),nav=document.querySelector('nav');
+    const last=document.querySelector('.reference-swipe:last-child'),nav=document.querySelector('nav'),root=document.documentElement;
     return {
-      reachedBottom:Math.abs(main.scrollTop-(main.scrollHeight-main.clientHeight))<=1,
+      reachedBottom:Math.abs(scrollY-(root.scrollHeight-innerHeight))<=1,
       lastBottom:last.getBoundingClientRect().bottom,
       navTop:nav.getBoundingClientRect().top
     };

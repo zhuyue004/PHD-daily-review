@@ -2,7 +2,9 @@ const { app, BrowserWindow, desktopCapturer, dialog, ipcMain, screen, session, T
 const fs = require('fs/promises');
 const path = require('path');
 
-app.disableHardwareAcceleration();
+// Keep Chromium's compositor enabled. Long note/archive pages rely on GPU
+// compositing for continuous wheel scrolling; forcing software rendering made
+// those pages visibly advance one frame at a time.
 // Keep the original profile when the Windows-facing product name changes.
 // A caller-provided profile is honored for isolated smoke tests.
 app.setPath('userData', app.commandLine.getSwitchValue('user-data-dir') || path.join(app.getPath('appData'), 'phd-daily-review'));

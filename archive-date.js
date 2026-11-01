@@ -302,6 +302,10 @@ if(window.phdDesktop){
     });
   }
   function clampArchiveScroll(){
+    // Chromium already clamps the desktop document when its height shrinks.
+    // Writing scrollTop during image/formula reflow was able to move the user
+    // to a temporary bottom and leave them at the wrong card afterwards.
+    if(window.phdDesktop)return;
     // Re-rendering, folding, KaTeX and late images can shorten a card after the
     // browser has calculated the old scroll range. Keep the document at its
     // actual final position instead of leaving a stale blank tail.
@@ -372,6 +376,7 @@ if(window.phdDesktop){
 (()=>{
   let frame=0;
   window.settlePageTail=()=>{
+    if(window.phdDesktop)return;
     cancelAnimationFrame(frame);
     frame=requestAnimationFrame(()=>{
       const root=document.scrollingElement,limit=Math.max(0,root.scrollHeight-root.clientHeight);
@@ -382,9 +387,7 @@ if(window.phdDesktop){
   window.page=function(...args){const result=renderPage.apply(this,args);window.settlePageTail();return result};
   // iOS Safari 在自然滚动时会连续产生布局与视口变化。移动端不监听整棵
   // 页面树：各个展开、收起与异步渲染点会主动调用 settlePageTail，避免拖慢滑动。
-  if(window.phdDesktop){
-    new MutationObserver(window.settlePageTail).observe(document.querySelector('main'),{childList:true,subtree:true,characterData:true});
-    window.addEventListener('resize',window.settlePageTail);
-  }
+  // Desktop Chromium owns its document scroll range. Observing every card
+  // mutation here caused scroll corrections in the middle of a wheel gesture.
   window.settlePageTail();
 })();
