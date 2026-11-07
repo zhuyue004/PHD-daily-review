@@ -51,6 +51,29 @@ test('reference library sorts permanent reference numbers in both directions',as
   await expect(page.locator('.reference-number').evaluateAll(nodes=>nodes.map(node=>node.textContent))).resolves.toEqual(['REF-0002','REF-0001']);
 });
 
+test('reference library removes evidence UI while preserving original paper fields',async({page})=>{
+  await page.addInitScript(()=>{localStorage.clear();localStorage.setItem('phd-reference-library',JSON.stringify([{
+    id:'ref-original',referenceNumber:'REF-0008',title:'Original reference',authors:'Author',institutions:'Original University',year:'2026',journal:'Original Journal',summary:'这篇论文讲了什么',methods:'主要方法',findings:'主要结论',relevance:'对我的课题有什么用',limitations:'适用范围或局限',indexing:'SCI',jcr:'Q1',primaryTheme:'B',progressLevel:'L3',evidenceStatus:'已确认'
+  }]))});
+  await page.goto(`file:///${path.resolve(__dirname,'..','index.html').replaceAll('\\','/')}`);
+  await page.getByRole('button',{name:'档案'}).click();
+  await page.getByRole('button',{name:'参考文献'}).click();
+  await expect(page.locator('#openReferenceMatrix')).toHaveCount(0);
+  await page.locator('.reference-card').click();
+  await expect(page.locator('.reference-evidence-card')).toHaveCount(0);
+  await expect(page.locator('.reference-detail')).toContainText('Original University');
+  await expect(page.locator('.reference-detail')).toContainText('JCR Q1');
+  await expect(page.locator('.reference-detail')).toContainText('这篇论文讲了什么');
+  await expect(page.locator('.reference-detail')).toContainText('主要方法');
+  await expect(page.locator('.reference-detail')).toContainText('主要结论');
+  await expect(page.locator('.reference-detail')).toContainText('对我的课题有什么用');
+  await expect(page.locator('.reference-detail')).toContainText('适用范围或局限');
+  const saved=await page.evaluate(()=>window.getReferencesForBackup()[0]);
+  expect(saved).toEqual(expect.objectContaining({institutions:'Original University',journal:'Original Journal',methods:'主要方法',findings:'主要结论',relevance:'对我的课题有什么用',limitations:'适用范围或局限'}));
+  expect(saved.primaryTheme).toBeUndefined();
+  expect(saved.progressLevel).toBeUndefined();
+});
+
 test('existing references receive permanent unique numbers and deleted numbers are not reused',async({page})=>{
   await page.addInitScript(()=>{localStorage.clear();localStorage.setItem('phd-reference-library',JSON.stringify([{id:'old-a',title:'Older',summary:'A',createdAt:'2026-01-01T00:00:00Z'},{id:'old-b',title:'Newer',summary:'B',createdAt:'2026-01-02T00:00:00Z'}]))});
   await page.goto(`file:///${path.resolve(__dirname,'..','index.html').replaceAll('\\','/')}`);
