@@ -110,7 +110,8 @@ function openNotesDirectory(){
 }
 async function renderTimelineImages(note,holder){
   let images=await getNoteImages(note.id);if(!holder.isConnected||!images.length)return;
-  let used=window.hydrateNoteInlineImages?.(holder.closest('.timeline-card'),images)||new Set(),remaining=images.filter(image=>!used.has(image.id));
+  let inlineIds=new Set([...String(note.text||'').matchAll(/^\s*\[\[图片::([^\]]+)\]\]\s*$/gm)].map(match=>match[1]));
+  let used=window.hydrateNoteInlineImages?.(holder.closest('.timeline-card'),images)||new Set(),remaining=images.filter(image=>!used.has(image.id)&&!inlineIds.has(image.id));
   holder.innerHTML=remaining.map((image,index)=>`<button type="button" data-index="${index}" aria-label="查看原图"><img src="${URL.createObjectURL(image.blob)}" alt="随手记图片 ${index+1}"></button>`).join('');
   holder.querySelectorAll('button').forEach(button=>button.onclick=()=>openNoteImage(remaining[+button.dataset.index].blob));
   requestAnimationFrame(()=>window.fitNotesTimelineTail?.());
@@ -138,6 +139,7 @@ function applyTimelineCollapse(entry){
     if(collapsed){
       if(mobile&&textBlock.dataset.timelineFullMarkup!==undefined)textBlock.innerHTML=textBlock.dataset.timelineFullMarkup;
       textBlock.classList.remove('timeline-collapsed');expand.textContent='收起';
+      if(mobile){let note=notes.find(item=>item.id===entry.dataset.noteId),holder=entry.querySelector('.timeline-images');if(note&&holder)renderTimelineImages(note,holder)}
     }else{
       if(mobile){let preview=textBlock.dataset.timelinePreviewText||'';textBlock.textContent=`${preview}…`;}
       textBlock.classList.add('timeline-collapsed');expand.textContent='全文';
