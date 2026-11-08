@@ -27,6 +27,8 @@ async function exercise(browser,desktop){
   assert.match(pasted.text,/^第一段\n\[\[图片::[^\]]+\]\]\n第二段内容/,'图片标记必须插入原光标位置并独占一行');
   assert.equal(pasted.pending.length,1);
   assert.equal(pasted.pending[0].inline,true);
+  const corruptLabel=await page.evaluate(()=>{let root=document.createElement('div');root.innerHTML=renderNoteMarkup('正文\n[[图片::损坏图片]]\n后文');hydrateNoteInlineImages(root,[{id:'损坏图片',blob:'not-a-blob'}]);return root.querySelector('.note-inline-image-missing')?.textContent});
+  assert.equal(corruptLabel,'图片无法读取','损坏的旧图片不能让整个档案的图片渲染中断');
 
   const saved=await page.evaluate(async()=>{try{await document.querySelector('#saveNote').onclick();return {notes:notes.length,hidden:document.querySelector('#noteModal').classList.contains('hidden')}}catch(error){return {error:error.message,stack:error.stack}}});
   assert.deepEqual(saved,{notes:1,hidden:true},`保存文中图片失败：${JSON.stringify(saved)}`);
@@ -57,6 +59,14 @@ async function exercise(browser,desktop){
   }
   const timelineState={inline:await page.locator(`${timeline} .note-inline-image-slot img`).count(),trailing:await page.locator(`${timeline} .timeline-images img`).count()};
   assert.deepEqual(timelineState,{inline:1,trailing:0},'随手记模块应只在正文原位置显示图片');
+
+  await page.evaluate(id=>openArchiveNoteEditor(notes.find(note=>note.id===id)),noteId);
+  await page.locator('#existingNoteImages .remove-existing-note-image').waitFor();
+  await page.locator('#existingNoteImages .remove-existing-note-image').click();
+  const editAfterDelete=await page.evaluate(()=>({marker:document.querySelector('#noteInput').value.includes('[[图片::'),existing:document.querySelectorAll('#existingNoteImages .existing-note-image').length,editorImages:window.noteEditorImages.length}));
+  assert.deepEqual(editAfterDelete,{marker:false,existing:0,editorImages:0},'编辑时删除图片应同时移除正文标记和编辑器缩略图');
+  const deleted=await page.evaluate(async id=>{await document.querySelector('#saveNote').onclick();return {stored:(await getNoteImages(id)).length,metadata:notes.find(note=>note.id===id)?.images?.length,text:notes.find(note=>note.id===id)?.text||''}},noteId);
+  assert.deepEqual({stored:deleted.stored,metadata:deleted.metadata,marker:deleted.text.includes('[[图片::')},{stored:0,metadata:0,marker:false},'保存修改后应删除图片文件、元数据和正文标记');
   await context.close();
   return {desktop,pasted:{caret:pasted.caret},archiveState,timelineState};
 }
