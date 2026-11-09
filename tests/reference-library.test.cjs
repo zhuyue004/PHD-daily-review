@@ -167,6 +167,34 @@ test('new references still require the Save button',async({page})=>{
   expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('phd-reference-library')).length)).toBe(1);
 });
 
+test('English reference titles can show a Chinese translated title while Chinese titles do not',async({page})=>{
+  await page.addInitScript(()=>{
+    localStorage.clear();
+    localStorage.setItem('phd-reference-library',JSON.stringify([
+      {id:'ref-english',referenceNumber:'REF-0001',title:'Site response in complex basins',translatedTitle:'复杂盆地中的场地反应',summary:'English paper'},
+      {id:'ref-chinese',referenceNumber:'REF-0002',title:'复杂场地地震反应研究',translatedTitle:'不应显示的译名',summary:'Chinese paper'}
+    ]));
+  });
+  await page.goto(`file:///${path.resolve(__dirname,'..','index.html').replaceAll('\\','/')}`);
+  await page.getByRole('button',{name:'档案'}).click();
+  await page.getByRole('button',{name:'参考文献'}).click();
+  await expect(page.locator('.reference-card-translated-title')).toHaveCount(1);
+  await expect(page.locator('.reference-card-translated-title')).toHaveText('复杂盆地中的场地反应');
+  await expect(page.locator('#records')).not.toContainText('不应显示的译名');
+  await page.locator('.reference-swipe[data-reference-id="ref-english"] .reference-card').click();
+  await expect(page.locator('.reference-detail-translated-title')).toHaveText('复杂盆地中的场地反应');
+  await page.locator('#close').click();
+  await page.getByRole('button',{name:'＋ 添加参考文献'}).click();
+  await expect(page.locator('.reference-translated-title-field')).toHaveClass(/hidden/);
+  await page.locator('#referenceForm [name="title"]').fill('An English paper title');
+  await expect(page.locator('.reference-translated-title-field')).not.toHaveClass(/hidden/);
+  await page.locator('#referenceForm [name="title"]').fill('一篇中文论文题目');
+  await expect(page.locator('.reference-translated-title-field')).toHaveClass(/hidden/);
+  const rows=await page.evaluate(()=>window.referenceExportRows());
+  expect(rows.find(item=>item['论文题目']==='Site response in complex basins')['中文译名']).toBe('复杂盆地中的场地反应');
+  expect(rows.find(item=>item['论文题目']==='复杂场地地震反应研究')['中文译名']).toBe('');
+});
+
 test('desktop reference library can scroll the final entry above the fixed navigation',async({page})=>{
   await page.setViewportSize({width:430,height:720});
   await page.addInitScript(()=>{

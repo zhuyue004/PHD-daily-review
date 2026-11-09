@@ -106,3 +106,26 @@ test('desktop archive cache keeps daily records, references and manuscripts isol
   await expect(page.locator('#desktopNoteMenu')).toContainText('编辑');
   await expect(page.locator('#desktopNoteMenu')).toContainText('删除');
 });
+
+test('existing manuscript edits autosave and closing refreshes the manuscript list',async({page})=>{
+  await page.addInitScript(()=>{
+    window.phdDesktop={};
+    localStorage.clear();
+    localStorage.setItem('phd-manuscripts',JSON.stringify([{id:'m-autosave',title:'自动保存前',category:'研究思路',status:'构思中',content:'原正文',createdAt:'2026-11-09T00:00:00.000Z',updatedAt:'2026-11-09T00:00:00.000Z'}]));
+  });
+  await page.goto(url);
+  await page.getByRole('button',{name:'档案'}).click();
+  await page.getByRole('button',{name:'文稿',exact:true}).click();
+  await page.locator('.manuscript-card').click({button:'right'});
+  await page.locator('#desktopNoteMenu [data-action="edit"]').click();
+  await expect(page.locator('#manuscriptSaveState')).toContainText('自动保存');
+  await page.locator('#manuscriptForm [name="content"]').fill('自动保存后的正文');
+  await expect(page.locator('#manuscriptSaveState')).toContainText('已自动保存',{timeout:2500});
+  expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('phd-manuscripts'))[0].content)).toBe('自动保存后的正文');
+
+  await page.locator('#manuscriptForm [name="title"]').fill('关闭时保存并刷新');
+  await page.locator('#closeManuscriptEditor').click();
+  await expect(page.locator('#manuscriptEditorModal')).toHaveClass(/hidden/);
+  await expect(page.locator('.manuscript-card')).toContainText('关闭时保存并刷新');
+  expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('phd-manuscripts'))[0].title)).toBe('关闭时保存并刷新');
+});
