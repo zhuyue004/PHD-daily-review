@@ -121,6 +121,52 @@ test('desktop reference row uses a right-click menu',async({page})=>{
   await expect(page.locator('#desktopNoteMenu')).toContainText('删除');
 });
 
+test('existing reference edits autosave after a pause and flush when closed',async({page})=>{
+  await page.addInitScript(()=>{
+    window.phdDesktop={};
+    localStorage.clear();
+    localStorage.setItem('phd-reference-library',JSON.stringify([{
+      id:'ref-autosave',referenceNumber:'REF-0001',title:'Autosave reference',authors:'Old author',summary:'Original summary',methods:'Old method',createdAt:'2026-01-01T00:00:00Z',updatedAt:'2026-01-01T00:00:00Z'
+    }]));
+  });
+  await page.goto(`file:///${path.resolve(__dirname,'..','index.html').replaceAll('\\','/')}`);
+  await page.getByRole('button',{name:'档案'}).click();
+  await page.getByRole('button',{name:'参考文献'}).click();
+  await page.locator('.reference-card').click({button:'right'});
+  await page.locator('#desktopNoteMenu [data-action="edit"]').click();
+  await expect(page.locator('.reference-autosave-status')).toContainText('自动保存');
+  await expect(page.locator('#cancelReference')).toHaveText('关闭');
+
+  await page.locator('#referenceForm [name="authors"]').fill('New author');
+  await expect(page.locator('.reference-autosave-status')).toContainText('已自动保存',{timeout:2500});
+  expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('phd-reference-library'))[0].authors)).toBe('New author');
+
+  await page.locator('#referenceForm [name="methods"]').fill('Saved immediately on close');
+  await page.locator('#closeReferenceEditor').click();
+  await expect(page.locator('#referenceEditorModal')).toHaveClass(/hidden/);
+  expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('phd-reference-library'))[0].methods)).toBe('Saved immediately on close');
+
+  await page.locator('.reference-card').click({button:'right'});
+  await page.locator('#desktopNoteMenu [data-action="edit"]').click();
+  await expect(page.locator('#referenceForm [name="authors"]')).toHaveValue('New author');
+  await expect(page.locator('#referenceForm [name="methods"]')).toHaveValue('Saved immediately on close');
+});
+
+test('new references still require the Save button',async({page})=>{
+  await page.addInitScript(()=>localStorage.clear());
+  await page.goto(`file:///${path.resolve(__dirname,'..','index.html').replaceAll('\\','/')}`);
+  await page.getByRole('button',{name:'档案'}).click();
+  await page.getByRole('button',{name:'参考文献'}).click();
+  await page.getByRole('button',{name:'＋ 添加参考文献'}).click();
+  await expect(page.locator('.reference-autosave-status')).toContainText('点击“保存”');
+  await page.locator('#referenceForm [name="title"]').fill('New manual reference');
+  await page.locator('#referenceForm [name="summary"]').fill('A complete summary');
+  await page.waitForTimeout(900);
+  expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('phd-reference-library')||'[]').length)).toBe(0);
+  await page.locator('#referenceForm').getByRole('button',{name:'保存'}).click();
+  expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('phd-reference-library')).length)).toBe(1);
+});
+
 test('desktop reference library can scroll the final entry above the fixed navigation',async({page})=>{
   await page.setViewportSize({width:430,height:720});
   await page.addInitScript(()=>{
