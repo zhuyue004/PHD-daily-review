@@ -60,6 +60,20 @@ async function exercise(browser,desktop){
   const timelineState={inline:await page.locator(`${timeline} .note-inline-image-slot img`).count(),trailing:await page.locator(`${timeline} .timeline-images img`).count()};
   assert.deepEqual(timelineState,{inline:1,trailing:0},'随手记模块应只在正文原位置显示图片');
 
+  // 旧记录可能只有图片库数据和正文标记，没有 images 元数据。重新编辑保存时
+  // 必须从图片库恢复元数据，不能留下只有空白占位的图片框。
+  await page.evaluate(id=>{let note=notes.find(item=>item.id===id);delete note.images;saveNotes();openArchiveNoteEditor(note)},noteId);
+  await page.locator('#existingNoteImages .existing-note-image').waitFor();
+  await page.locator('#saveNote').click();
+  await page.locator('#noteModal').waitFor({state:'hidden'});
+  await page.evaluate(()=>window.page('archive'));
+  await page.locator(`${archive} .note-inline-image-slot img`).waitFor();
+  const repaired=await page.evaluate(async id=>({metadata:notes.find(note=>note.id===id)?.images||[],stored:(await getNoteImages(id)).map(image=>image.id)}),noteId);
+  assert.equal(repaired.metadata.length,1,'编辑保存旧记录时应恢复图片元数据');
+  assert.deepEqual(repaired.metadata,repaired.stored,'恢复后的图片元数据必须与图片库一致');
+  await page.evaluate(id=>{notes.find(note=>note.id===id).images=[];archive()},noteId);
+  await page.locator(`${archive} .note-inline-image-slot img`).waitFor();
+
   await page.evaluate(id=>openArchiveNoteEditor(notes.find(note=>note.id===id)),noteId);
   await page.locator('#existingNoteImages .remove-existing-note-image').waitFor();
   await page.locator('#existingNoteImages .remove-existing-note-image').click();
