@@ -1,16 +1,19 @@
 const noteModal=$('#noteModal'),noteInput=$('#noteInput'),noteImagesInput=$('#noteImages'),noteCameraInput=$('#noteCamera'),notePreview=$('#noteImagePreview');
+noteInput.spellcheck=false;noteInput.autocomplete='off';noteInput.setAttribute('autocorrect','off');noteInput.setAttribute('autocapitalize','off');
 let pendingNoteImages=[],cropSelectedImage=false;
 window.noteEditorImages=[];
 const NOTE_DRAFTS_KEY='phd-quick-note-drafts';
-let noteDraftTimer;
+const NOTE_DRAFT_DELAY=900;
+let noteDraftTimer,noteDraftIdleHandle,noteDraftCache;
 let noteDraftStatusTimer;
 function showNoteDraftStatus(text,settled=false){let status=$('#noteDraftStatus');if(!status){status=document.createElement('p');status.id='noteDraftStatus';status.className='local-draft-status';noteInput.insertAdjacentElement('afterend',status)}clearTimeout(noteDraftStatusTimer);status.textContent=text;status.classList.toggle('settled',settled);if(settled)noteDraftStatusTimer=setTimeout(()=>{status.textContent=''},1600)}
-function noteDrafts(){try{return JSON.parse(localStorage.getItem(NOTE_DRAFTS_KEY)||'{}')}catch{return {}}}
+function noteDrafts(){if(noteDraftCache)return noteDraftCache;try{return noteDraftCache=JSON.parse(localStorage.getItem(NOTE_DRAFTS_KEY)||'{}')}catch{return noteDraftCache={}}}
 function noteDraftKey(noteId=''){return noteId?`edit:${noteId}`:'new'}
-function saveNoteDraftNow(key=noteDraftKey(typeof archiveEditingNote==='undefined'?'':archiveEditingNote?.id)){if(noteModal.classList.contains('hidden'))return;let drafts=noteDrafts();drafts[key]={text:noteInput.value,template:selectedNoteTemplate||'',createdAt:$('#editNoteCreatedAt')?.hidden?undefined:$('#editNoteCreatedAt input')?.value,updatedAt:new Date().toISOString()};localStorage.setItem(NOTE_DRAFTS_KEY,JSON.stringify(drafts));showNoteDraftStatus('草稿已保存到本机',true)}
-function queueNoteDraft(key=noteDraftKey(typeof archiveEditingNote==='undefined'?'':archiveEditingNote?.id)){clearTimeout(noteDraftTimer);showNoteDraftStatus('正在自动保存本地…');noteDraftTimer=setTimeout(()=>saveNoteDraftNow(key),350)}
+function cancelQueuedNoteDraft(){clearTimeout(noteDraftTimer);noteDraftTimer=undefined;if(noteDraftIdleHandle!==undefined){if('cancelIdleCallback' in window)cancelIdleCallback(noteDraftIdleHandle);else clearTimeout(noteDraftIdleHandle);noteDraftIdleHandle=undefined}}
+function saveNoteDraftNow(key=noteDraftKey(typeof archiveEditingNote==='undefined'?'':archiveEditingNote?.id)){if(noteModal.classList.contains('hidden'))return;cancelQueuedNoteDraft();let drafts=noteDrafts();drafts[key]={text:noteInput.value,template:selectedNoteTemplate||'',createdAt:$('#editNoteCreatedAt')?.hidden?undefined:$('#editNoteCreatedAt input')?.value,updatedAt:new Date().toISOString()};localStorage.setItem(NOTE_DRAFTS_KEY,JSON.stringify(drafts));showNoteDraftStatus('草稿已保存到本机',true)}
+function queueNoteDraft(key=noteDraftKey(typeof archiveEditingNote==='undefined'?'':archiveEditingNote?.id)){cancelQueuedNoteDraft();noteDraftTimer=setTimeout(()=>{noteDraftTimer=undefined;let save=()=>{noteDraftIdleHandle=undefined;saveNoteDraftNow(key)};noteDraftIdleHandle='requestIdleCallback' in window?requestIdleCallback(save,{timeout:1200}):setTimeout(save,0)},NOTE_DRAFT_DELAY)}
 function restoreNoteDraft(key='new'){let saved=noteDrafts()[key];if(!saved)return false;noteInput.value=saved.text||'';selectedNoteTemplate=saved.template||'';let time=$('#editNoteCreatedAt input');if(time&&saved.createdAt)time.value=saved.createdAt;renderNoteTemplates();return true}
-function clearNoteDraft(key=noteDraftKey(typeof archiveEditingNote==='undefined'?'':archiveEditingNote?.id)){clearTimeout(noteDraftTimer);let drafts=noteDrafts();if(!(key in drafts))return;delete drafts[key];localStorage.setItem(NOTE_DRAFTS_KEY,JSON.stringify(drafts))}
+function clearNoteDraft(key=noteDraftKey(typeof archiveEditingNote==='undefined'?'':archiveEditingNote?.id)){cancelQueuedNoteDraft();let drafts=noteDrafts();if(!(key in drafts))return;delete drafts[key];localStorage.setItem(NOTE_DRAFTS_KEY,JSON.stringify(drafts))}
 const noteTemplates={
   '小循环':'【小循环】\n问题：\n尝试：\n结果：\n不确定：\n下一步：',
   '问题':'【问题】\n现象：\n我猜：\n已有证据：\n下一步：',
@@ -114,7 +117,7 @@ function noteEditorLineBreak(line,{shiftKey=false}={}){
   return {insert:`\n${leading}`};
 }
 window.noteEditorLineBreak=noteEditorLineBreak;
-noteInput.addEventListener('keydown',event=>{if(event.key!=='Enter'||event.isComposing)return;let start=noteInput.selectionStart,end=noteInput.selectionEnd,before=noteInput.value.slice(0,start),lineStart=before.lastIndexOf('\n')+1,line=before.slice(lineStart),action=noteEditorLineBreak(line,{shiftKey:event.shiftKey});if(event.shiftKey)return;event.preventDefault();if(action.exit){noteInput.setRangeText(action.leading,lineStart,start,'end')}else noteInput.setRangeText(action.insert,start,end,'end');noteInput.dispatchEvent(new Event('input',{bubbles:true}));});
+noteInput.addEventListener('keydown',event=>{if(event.key!=='Enter'||event.isComposing)return;let start=noteInput.selectionStart,end=noteInput.selectionEnd,value=noteInput.value,lineStart=value.lastIndexOf('\n',Math.max(0,start-1))+1,line=value.slice(lineStart,start),action=noteEditorLineBreak(line,{shiftKey:event.shiftKey});if(event.shiftKey)return;event.preventDefault();if(action.exit){noteInput.setRangeText(action.leading,lineStart,start,'end')}else noteInput.setRangeText(action.insert,start,end,'end');noteInput.dispatchEvent(new Event('input',{bubbles:true}));});
 function syncNoteEditorImages(){let existing=(window.noteEditorImages||[]).filter(image=>!image.pending);window.noteEditorImages=[...existing,...pendingNoteImages.map(entry=>({id:entry.id,file:entry.file,pending:true}))]}
 function renderPendingNoteImages(){notePreview.innerHTML=pendingNoteImages.map((entry,index)=>`<div><img src="${URL.createObjectURL(entry.file)}" alt="待上传图片 ${index+1}">${entry.inline?'<small>文中</small>':''}<button data-index="${index}" aria-label="移除图片">×</button></div>`).join('');$$('#noteImagePreview button').forEach(button=>button.onclick=()=>{let [removed]=pendingNoteImages.splice(+button.dataset.index,1);if(removed?.inline){let marker=`[[图片::${removed.id}]]`;noteInput.value=noteInput.value.replace(new RegExp(`(^|\\n)${marker.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}(?=\\n|$)`),'$1').replace(/\n{3,}/g,'\n\n');noteInput.dispatchEvent(new Event('input',{bubbles:true}))}syncNoteEditorImages();renderPendingNoteImages()});syncNoteEditorImages()}
 function addPendingNoteImages(files,{inline=false,ids=[]}={}){let added=[...files].filter(file=>file?.type?.startsWith('image/')).map((file,index)=>({file,id:ids[index]||crypto.randomUUID(),inline}));pendingNoteImages.push(...added);renderPendingNoteImages();return added}
@@ -126,8 +129,9 @@ window.smartPasteNoteClipboard=smartPasteNoteClipboard;
 window.noteClipboardInsertion=noteClipboardInsertion;
 noteInput.addEventListener('paste',event=>{let transfer=event.clipboardData,html=transfer?.getData('text/html')||'',hasImage=[...(transfer?.items||[]),...(transfer?.files||[])].some(item=>(item.kind==='file'||item instanceof File)&&item.type.startsWith('image/')),hasRichMath=/<\/?(?:sub|sup)\b/i.test(html),hasRichTable=/<table\b/i.test(html);if(!/<img\b/i.test(html)&&!hasImage&&!hasRichMath&&!hasRichTable)return;event.preventDefault();smartPasteNoteClipboard(transfer)});
 $('#quickNote').onclick=()=>{noteInput.value='';pendingNoteImages=[];window.noteEditorImages=[];resetNoteTemplate();restoreNoteDraft();renderPendingNoteImages();noteModal.classList.remove('hidden');setTimeout(()=>noteInput.focus(),50)};
-$('#closeNote').onclick=()=>noteModal.classList.add('hidden');
-noteModal.onclick=e=>{if(e.target===noteModal)noteModal.classList.add('hidden')};
+function closeNoteEditor(){saveNoteDraftNow();noteModal.classList.add('hidden')}
+$('#closeNote').onclick=closeNoteEditor;
+noteModal.onclick=e=>{if(e.target===noteModal)closeNoteEditor()};
 $('#takeNotePhoto').onclick=()=>noteCameraInput.click();
 $('#chooseNoteImage').onclick=()=>noteImagesInput.click();
 noteCameraInput.onchange=event=>{addPendingNoteImages(event.target.files);event.target.value=''};
