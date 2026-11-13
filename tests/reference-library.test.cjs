@@ -6,8 +6,8 @@ test('iPhone reference library can create, search and reopen an entry',async({pa
   await page.goto(`file:///${path.resolve(__dirname,'..','index.html').replaceAll('\\','/')}`);
   await page.getByRole('button',{name:'档案'}).click();
   await page.getByRole('button',{name:'参考文献'}).click();
-  await expect(page.getByRole('button',{name:'＋ 添加参考文献'})).toBeVisible();
-  await page.getByRole('button',{name:'＋ 添加参考文献'}).click();
+  await expect(page.getByRole('button',{name:'添加',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'添加',exact:true}).click();
   await page.locator('#referenceForm [name="title"]').fill('A taxonomy of site response complexity');
   await page.locator('#referenceForm [name="authors"]').fill('Thompson et al.');
   await page.locator('#referenceForm [name="institutions"]').fill('University of Example');
@@ -51,6 +51,36 @@ test('reference library sorts permanent reference numbers in both directions',as
   await expect(page.locator('.reference-number').evaluateAll(nodes=>nodes.map(node=>node.textContent))).resolves.toEqual(['REF-0002','REF-0001']);
 });
 
+test('reference library exports every record to its own Excel workbook regardless of filters',async({page})=>{
+  await page.addInitScript(()=>{
+    localStorage.clear();
+    localStorage.setItem('phd-reference-library',JSON.stringify([
+      {id:'ref-2',referenceNumber:'REF-0002',title:'Filtered paper',translatedTitle:'筛选论文',authors:'Author B',institutions:'Institute B',year:'2025',journal:'Journal B',summary:'Second summary',methods:'Method B',findings:'Finding B',relevance:'Value B',limitations:'Limit B',status:'已读',indexing:'SCI',jcr:'Q1',cas:'1区',tags:['basin']},
+      {id:'ref-1',referenceNumber:'REF-0001',title:'Hidden paper',translatedTitle:'隐藏论文',authors:'Author A',institutions:'Institute A',year:'2024',journal:'Journal A',summary:'First summary',status:'待读',tags:['site response']}
+    ]));
+  });
+  await page.goto(`file:///${path.resolve(__dirname,'..','index.html').replaceAll('\\','/')}`);
+  await page.getByRole('button',{name:'档案'}).click();
+  await page.getByRole('button',{name:'参考文献'}).click();
+  await expect(page.locator('.reference-primary-actions > button')).toHaveCount(2);
+  const actionWidths=await page.locator('.reference-primary-actions > button').evaluateAll(buttons=>buttons.map(button=>button.getBoundingClientRect().width));
+  expect(Math.abs(actionWidths[0]-actionWidths[1])).toBeLessThanOrEqual(1);
+  await page.locator('#search').fill('Filtered paper');
+  await expect(page.locator('.reference-card')).toHaveCount(1);
+  await page.evaluate(()=>{
+    window.__referenceExportCapture=null;
+    XLSX.writeFile=(workbook,filename)=>{
+      window.__referenceExportCapture={filename,rows:XLSX.utils.sheet_to_json(workbook.Sheets['参考文献'],{defval:''})};
+    };
+  });
+  await page.getByRole('button',{name:'导出',exact:true}).click();
+  const exported=await page.evaluate(()=>window.__referenceExportCapture);
+  expect(exported.filename).toMatch(/^日迹参考文献_\d{8}_\d{6}\.xlsx$/);
+  expect(exported.rows).toHaveLength(2);
+  expect(exported.rows.map(row=>row['文献编号'])).toEqual(['REF-0001','REF-0002']);
+  expect(exported.rows[1]).toEqual(expect.objectContaining({'论文题目':'Filtered paper','中文译名':'筛选论文','作者单位':'Institute B','主要方法':'Method B','主要结论':'Finding B','对我的课题有什么用':'Value B','适用范围或局限':'Limit B','JCR分区':'Q1','中科院分区':'1区'}));
+});
+
 test('reference library removes evidence UI while preserving original paper fields',async({page})=>{
   await page.addInitScript(()=>{localStorage.clear();localStorage.setItem('phd-reference-library',JSON.stringify([{
     id:'ref-original',referenceNumber:'REF-0008',title:'Original reference',authors:'Author',institutions:'Original University',year:'2026',journal:'Original Journal',summary:'这篇论文讲了什么',methods:'主要方法',findings:'主要结论',relevance:'对我的课题有什么用',limitations:'适用范围或局限',indexing:'SCI',jcr:'Q1',primaryTheme:'B',progressLevel:'L3',evidenceStatus:'已确认'
@@ -81,7 +111,7 @@ test('existing references receive permanent unique numbers and deleted numbers a
   await page.evaluate(()=>window.applyReferencesFromCloud([{id:'old-a',referenceNumber:'REF-0001',title:'Older',summary:'A',createdAt:'2026-01-01T00:00:00Z'}]));
   await page.getByRole('button',{name:'档案'}).click();
   await page.getByRole('button',{name:'参考文献'}).click();
-  await page.getByRole('button',{name:'＋ 添加参考文献'}).click();
+  await page.getByRole('button',{name:'添加',exact:true}).click();
   await page.locator('#referenceForm [name="title"]').fill('Third');
   await page.locator('#referenceForm [name="summary"]').fill('C');
   await page.locator('#referenceForm').getByRole('button',{name:'保存'}).click();
@@ -157,7 +187,7 @@ test('new references still require the Save button',async({page})=>{
   await page.goto(`file:///${path.resolve(__dirname,'..','index.html').replaceAll('\\','/')}`);
   await page.getByRole('button',{name:'档案'}).click();
   await page.getByRole('button',{name:'参考文献'}).click();
-  await page.getByRole('button',{name:'＋ 添加参考文献'}).click();
+  await page.getByRole('button',{name:'添加',exact:true}).click();
   await expect(page.locator('.reference-autosave-status')).toContainText('点击“保存”');
   await page.locator('#referenceForm [name="title"]').fill('New manual reference');
   await page.locator('#referenceForm [name="summary"]').fill('A complete summary');
@@ -184,7 +214,7 @@ test('English reference titles can show a Chinese translated title while Chinese
   await page.locator('.reference-swipe[data-reference-id="ref-english"] .reference-card').click();
   await expect(page.locator('.reference-detail-translated-title')).toHaveText('复杂盆地中的场地反应');
   await page.locator('#close').click();
-  await page.getByRole('button',{name:'＋ 添加参考文献'}).click();
+  await page.getByRole('button',{name:'添加',exact:true}).click();
   await expect(page.locator('.reference-translated-title-field')).toHaveClass(/hidden/);
   await page.locator('#referenceForm [name="title"]').fill('An English paper title');
   await expect(page.locator('.reference-translated-title-field')).not.toHaveClass(/hidden/);
