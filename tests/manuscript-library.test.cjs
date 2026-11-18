@@ -75,6 +75,35 @@ test('manuscripts participate in backup and Excel data sources',async({page})=>{
   await expect(page.evaluate(()=>window.manuscriptExportRows()[0]['文稿标题'])).resolves.toBe('备份文稿');
 });
 
+test('pasted escaped Markdown table renders responsively in Archive manuscript',async({page})=>{
+  await page.setViewportSize({width:390,height:844});
+  await page.addInitScript(()=>localStorage.clear());
+  await page.goto(url);
+  await page.getByRole('button',{name:'档案'}).click();
+  await page.getByRole('button',{name:'文稿',exact:true}).click();
+  await page.getByRole('button',{name:'＋ 新建文稿'}).click();
+  await page.locator('#manuscriptForm [name="title"]').fill('研究方案复核表');
+  const pasted=[
+    '| 复核顺序 | V2.6章节 | 最需要思考的问题 |\\',
+    '\\| --- | --- | --- |\\',
+    '\\| 1 | 第一部分、6.1、6.2 | 研究目标和三个拟创新点是否真正体现你想解决的问题？ |'
+  ].join('\n');
+  await page.locator('#manuscriptForm [name="content"]').fill(pasted);
+  await expect(page.getByRole('button',{name:'＋ 插入表格'})).toHaveCount(0);
+  await page.locator('#manuscriptForm').getByRole('button',{name:'保存'}).click();
+  await page.locator('.manuscript-card').click();
+  const table=page.locator('.manuscript-detail-body .note-table');
+  await expect(table).toHaveCount(1);
+  await expect(table.locator('th')).toHaveCount(3);
+  await expect(table.locator('td')).toHaveCount(3);
+  await expect(table).toContainText('复核顺序');
+  await expect(table).toContainText('V2.6章节');
+  await expect(table).toContainText('研究目标和三个拟创新点是否真正体现你想解决的问题？');
+  const scrolling=await page.locator('.manuscript-detail-body .note-table-wrap').evaluate(node=>({overflowX:getComputedStyle(node).overflowX,scrollWidth:node.scrollWidth,clientWidth:node.clientWidth}));
+  expect(scrolling.overflowX).toBe('auto');
+  expect(scrolling.scrollWidth).toBeGreaterThan(scrolling.clientWidth);
+});
+
 test('desktop archive cache keeps daily records, references and manuscripts isolated',async({page})=>{
   await page.addInitScript(()=>{
     localStorage.clear();
