@@ -65,7 +65,8 @@ test('fenced Mermaid blocks render while ordinary code blocks stay as code',asyn
 test('the same note flowchart renders in Archive and the notes timeline',async({page})=>{
   await page.addInitScript(()=>{
     localStorage.clear();
-    localStorage.setItem('phd-quick-notes',JSON.stringify([{id:'diagram-note',date:'2026-11-18',createdAt:'2026-11-18T08:00:00.000Z',updatedAt:'2026-11-18T08:00:00.000Z',text:'```mermaid\nflowchart TB\nA[研究基础] --> B[联合模型选择]\n```',images:[]}]))
+    const now=new Date(),pad=value=>String(value).padStart(2,'0'),date=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`,stamp=now.toISOString();
+    localStorage.setItem('phd-quick-notes',JSON.stringify([{id:'diagram-note',date,createdAt:stamp,updatedAt:stamp,text:'```mermaid\nflowchart TB\nA[研究基础] --> B[联合模型选择]\n```',images:[]}]))
   });
   await page.goto(pageUrl);
   await page.getByRole('button',{name:'档案'}).click();
