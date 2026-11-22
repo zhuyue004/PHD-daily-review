@@ -1,7 +1,7 @@
-const CLOUD_CONFIG_KEY='phd-cloud-config',CLOUD_IMAGE_BUCKET='phd-note-images',CLOUD_IMAGE_MODE_KEY='phd-cloud-image-mode',CLOUD_EMAIL_KEY='phd-cloud-email',CLOUD_IMAGE_LIMIT=500*1024,CLOUD_DELETIONS_KEY='phd-cloud-deletions',CLOUD_RESTORE_PENDING_KEY='phd-cloud-restore-pending',CLOUD_CLEANUP_LAST_KEY='phd-cloud-cleanup-last',CLOUD_SKIPPED_IMAGES_KEY='phd-cloud-skipped-images',CLOUD_CLEANUP_INTERVAL=7*24*60*60*1000,CLOUD_IMAGE_CONCURRENCY=2,CLOUD_REQUEST_TIMEOUT=30000,CLOUD_IMAGE_REQUEST_TIMEOUT=45000,CLOUD_IMAGE_PROCESS_TIMEOUT=15000;
+const CLOUD_CONFIG_KEY='phd-cloud-config',CLOUD_IMAGE_BUCKET='phd-note-images',CLOUD_IMAGE_MODE_KEY='phd-cloud-image-mode',CLOUD_EMAIL_KEY='phd-cloud-email',CLOUD_IMAGE_LIMIT=500*1024,CLOUD_DELETIONS_KEY='phd-cloud-deletions',CLOUD_RESTORE_PENDING_KEY='phd-cloud-restore-pending',CLOUD_CLEANUP_LAST_KEY='phd-cloud-cleanup-last',CLOUD_SKIPPED_IMAGES_KEY='phd-cloud-skipped-images',CLOUD_REMOTE_STATE_PREFIX='phd-cloud-remote-state:',CLOUD_CLEANUP_INTERVAL=7*24*60*60*1000,CLOUD_AUTO_SYNC_INTERVAL=15*60*1000,CLOUD_IMAGE_CONCURRENCY=2,CLOUD_REQUEST_TIMEOUT=30000,CLOUD_IMAGE_REQUEST_TIMEOUT=45000,CLOUD_IMAGE_PROCESS_TIMEOUT=15000;
 // Publishable key: this is intentionally public client configuration, not a secret.
 const CLOUD_DEFAULT_CONFIG=Object.freeze({url:'https://vyabmqgisuoiqvyzbpwf.supabase.co',key:'sb_publishable_mQFR2_NI6wrON63ccrysEQ_lYSUqWy7'});
-let cloudClient=null,cloudUser=null,cloudTimer=null,cloudSyncing=false,cloudSyncQueued=false,cloudQueuedPullFirst=false,cloudPasswordRecovery=false,cloudRemoteImageIds=new Set(),cloudRemoteImageTypes=new Map(),cloudRemotePayload=null,cloudRemoteUpdatedAt=null,cloudProblemImage=null;
+let cloudClient=null,cloudUser=null,cloudTimer=null,cloudSyncing=false,cloudSyncQueued=false,cloudQueuedPullFirst=false,cloudQueuedManual=false,cloudPasswordRecovery=false,cloudRemoteImageIds=new Set(),cloudRemoteImageTypes=new Map(),cloudRemoteImageManifest=[],cloudRemotePayload=null,cloudRemoteUpdatedAt=null,cloudRemoteFingerprint='',cloudProblemImage=null,cloudAutoSyncPaused=false;
 
 function cloudConfig(){return CLOUD_DEFAULT_CONFIG}
 function cloudImageMode(){return localStorage.getItem(CLOUD_IMAGE_MODE_KEY)||'compressed'}
@@ -17,7 +17,9 @@ function cloudSizeText(bytes){return `${(bytes/1024/1024).toFixed(bytes<1024*102
 function cloudTransferSize(bytes=null){let target=$('#cloudTransferSize');if(target)target.textContent=bytes===null?'（本次同步待开始）':`（本次同步 ${cloudSizeText(bytes)}）`}
 function cloudWait(ms){return new Promise(resolve=>setTimeout(resolve,ms))}
 async function cloudTimed(task,timeout,label){let timer;try{return await Promise.race([Promise.resolve().then(task),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(`${label}超时，请检查网络后重试`)),timeout)})])}finally{clearTimeout(timer)}}
-async function cloudOperation(task,label,{timeout=CLOUD_REQUEST_TIMEOUT,retries=1}={}){let lastError;for(let attempt=0;attempt<=retries;attempt++){try{let result=await cloudTimed(task,timeout,label);if(result?.error)throw result.error;return result}catch(error){lastError=error;if(attempt<retries){cloudStatus(`${label}未完成，正在重试…`);await cloudWait(500*(attempt+1))}}}let message=lastError?.message||String(lastError||'未知错误');throw new Error(message.startsWith(label)?message:`${label}失败：${message}`)}
+function cloudQuotaFailure(error){let message=String(error?.message||error||'');return error?.name==='QuotaExceededError'||/quota|resource.*exhausted|usage.*limit|bandwidth.*limit|egress.*limit/i.test(message)}
+function cloudFriendlyError(error){if(!cloudQuotaFailure(error))return error instanceof Error?error:new Error(String(error||'未知错误'));let result=new Error('同步服务流量或本机存储额度已满，已暂停后台自动同步。请等待额度恢复或升级后，再点击“立即同步”。');result.cloudQuota=true;return result}
+async function cloudOperation(task,label,{timeout=CLOUD_REQUEST_TIMEOUT,retries=1}={}){let lastError;for(let attempt=0;attempt<=retries;attempt++){try{let result=await cloudTimed(task,timeout,label);if(result?.error)throw result.error;return result}catch(error){lastError=error;if(cloudQuotaFailure(error))throw cloudFriendlyError(error);if(attempt<retries){cloudStatus(`${label}未完成，正在重试…`);await cloudWait(500*(attempt+1))}}}let message=lastError?.message||String(lastError||'未知错误'),result=new Error(message.startsWith(label)?message:`${label}失败：${message}`);if(lastError?.cloudImage)result.cloudImage=lastError.cloudImage;throw result}
 function cloudHasContent(){let plans=window.getInsightPlansForSync?.(),summaries=window.getInsightSummariesForSync?.();return records.length||notes.length||diaries.length||observations.length||cloudReferences().length||cloudManuscripts().length||Object.keys(plans?.week||{}).length||Object.keys(plans?.month||{}).length||Object.keys(summaries||{}).length}
 function cloudRestorePending(){return !!localStorage.getItem(CLOUD_RESTORE_PENDING_KEY)}
 function markCloudRestorePending(){localStorage.setItem(CLOUD_RESTORE_PENDING_KEY,new Date().toISOString());refreshCloudDeleteWatch()}
@@ -100,7 +102,7 @@ function ensureCloudSettings(){
   $('#cloudRegister').onclick=()=>passwordCloudLogin(true);
   $('#cloudLogin').onclick=sendCloudLogin;
   $('#cloudUpdatePassword').onclick=updateCloudPassword;
-  $('#cloudSyncNow').onclick=()=>syncCloud(true,true);
+  $('#cloudSyncNow').onclick=()=>syncCloud(true,true,true);
   $('#cloudSignOut').onclick=signOutCloud;
   $('#cloudLocateProblem').onclick=locateCloudProblem;
   $('#cloudSkipProblem').onclick=skipCloudProblem;
@@ -116,8 +118,8 @@ async function connectCloud(){
   localStorage.setItem(CLOUD_CONFIG_KEY,JSON.stringify({url,key}));
   saveDesktopSyncSettings();
   cloudClient=window.supabase.createClient(url,key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
-  cloudClient.auth.onAuthStateChange((event,session)=>{cloudUser=session?.user||null;if(event==='PASSWORD_RECOVERY'&&cloudUser)cloudPasswordRecovery=true;if(event==='SIGNED_OUT')cloudPasswordRecovery=false;renderCloudSettings();if(cloudUser&&!cloudPasswordRecovery&&['INITIAL_SESSION','SIGNED_IN','USER_UPDATED'].includes(event))syncCloud(true)});
-  let {data:{session}}=await cloudClient.auth.getSession();cloudUser=session?.user||null;
+  cloudClient.auth.onAuthStateChange((event,session)=>{let previousUserId=cloudUser?.id;cloudUser=session?.user||null;if(cloudUser?.id&&cloudUser.id!==previousUserId)restoreCloudRemoteState();if(!cloudUser)clearCloudRemoteState();if(event==='PASSWORD_RECOVERY'&&cloudUser)cloudPasswordRecovery=true;if(event==='SIGNED_OUT'){cloudPasswordRecovery=false;cloudAutoSyncPaused=false}renderCloudSettings();if(cloudUser&&!cloudPasswordRecovery&&['INITIAL_SESSION','SIGNED_IN','USER_UPDATED'].includes(event))syncCloud(true)});
+  let {data:{session}}=await cloudClient.auth.getSession();cloudUser=session?.user||null;if(cloudUser)restoreCloudRemoteState();
   renderCloudSettings();
 }
 
@@ -189,7 +191,7 @@ async function passwordCloudLogin(register){
 
 async function signOutCloud(){
   if(cloudClient)await cloudClient.auth.signOut();
-  cloudUser=null;renderCloudSettings();cloudStatus('已退出登录。本机记录仍会保留。');
+  clearCloudRemoteState();cloudUser=null;cloudAutoSyncPaused=false;renderCloudSettings();cloudStatus('已退出登录。本机记录仍会保留。');
 }
 
 function cloudSnapshot(images=[],skipped=new Set()){
@@ -201,23 +203,29 @@ function stableCloudValue(value){if(Array.isArray(value))return value.map(stable
 function cloudComparablePayload(payload){if(!payload)return null;let sorted=(items,key)=>[...(items||[])].sort((a,b)=>String(key(a)).localeCompare(String(key(b))));return {version:payload.version||2,records:sorted(payload.records,item=>item.id||item.date),notes:sorted(payload.notes,item=>item.id),diaries:sorted(payload.diaries,item=>item.id||item.date),observations:sorted(payload.observations,item=>item.id),references:sorted(payload.references,item=>item.id),manuscripts:sorted(payload.manuscripts,item=>item.id),plans:payload.plans||{},summaries:payload.summaries||{},deleted:sorted(payload.deleted,item=>`${item.kind}:${item.id}`),images:sorted(payload.images,item=>item.id)}}
 function cloudPayloadSignature(payload){return payload?JSON.stringify(stableCloudValue(cloudComparablePayload(payload))):''}
 function cloudPayloadEqual(left,right){return !!left&&!!right&&cloudPayloadSignature(left)===cloudPayloadSignature(right)}
+function cloudPayloadFingerprint(payload){let value=cloudPayloadSignature(payload),first=2166136261,second=5381;for(let index=0;index<value.length;index++){let code=value.charCodeAt(index);first=Math.imul(first^code,16777619);second=Math.imul(second,33)^code}return `${value.length}:${(first>>>0).toString(36)}:${(second>>>0).toString(36)}`}
+function cloudRemoteStateKey(){return cloudUser?.id?`${CLOUD_REMOTE_STATE_PREFIX}${cloudUser.id}`:''}
+function persistCloudRemoteState(){let key=cloudRemoteStateKey();if(!key)return;let state={updatedAt:cloudRemoteUpdatedAt||'',fingerprint:cloudRemoteFingerprint||'',images:cloudRemoteImageManifest||[]};try{localStorage.setItem(key,JSON.stringify(state))}catch{}}
+function restoreCloudRemoteState(){let key=cloudRemoteStateKey(),state=null;try{state=key?JSON.parse(localStorage.getItem(key)||'null'):null}catch{}cloudRemoteUpdatedAt=state?.updatedAt||null;cloudRemoteFingerprint=state?.fingerprint||'';cloudRemoteImageManifest=Array.isArray(state?.images)?state.images:[];cloudRemoteImageIds=new Set(cloudRemoteImageManifest.map(image=>image.id));cloudRemoteImageTypes=new Map(cloudRemoteImageManifest.map(image=>[image.id,image.type]));cloudRemotePayload=null}
+function clearCloudRemoteState({forget=false}={}){let key=cloudRemoteStateKey();if(forget&&key)localStorage.removeItem(key);cloudRemoteUpdatedAt=null;cloudRemoteFingerprint='';cloudRemoteImageManifest=[];cloudRemoteImageIds.clear();cloudRemoteImageTypes.clear();cloudRemotePayload=null}
+function rememberCloudRemotePayload(payload,updatedAt){cloudRemotePayload=payload||null;cloudRemoteUpdatedAt=updatedAt||null;cloudRemoteFingerprint=payload?cloudPayloadFingerprint(payload):'';cloudRemoteImageManifest=[...(payload?.images||[])];cloudRemoteImageIds=new Set(cloudRemoteImageManifest.map(image=>image.id));cloudRemoteImageTypes=new Map(cloudRemoteImageManifest.map(image=>[image.id,image.type]));persistCloudRemoteState()}
+function cloudPayloadMatchesRemote(payload){return cloudRemotePayload?cloudPayloadEqual(payload,cloudRemotePayload):!!cloudRemoteFingerprint&&cloudPayloadFingerprint(payload)===cloudRemoteFingerprint}
 function cloudLocalSignature(){return cloudPayloadSignature({version:2,records,notes,diaries,observations,references:cloudReferences(),manuscripts:cloudManuscripts(),plans:window.getInsightPlansForSync?.()||{},summaries:window.getInsightSummariesForSync?.()||{},deleted:cloudDeletions(),images:[]})}
 function cloudCleanupDue(){let last=Number(localStorage.getItem(CLOUD_CLEANUP_LAST_KEY)||0);if(!last){localStorage.setItem(CLOUD_CLEANUP_LAST_KEY,String(Date.now()));return false}return Date.now()-last>=CLOUD_CLEANUP_INTERVAL}
 function cloudConflictError(){let error=new Error('检测到另一台设备刚刚更新了数据');error.cloudConflict=true;return error}
 async function saveCloudPayload(payload){
   let updatedAt=new Date().toISOString();
   if(cloudRemoteUpdatedAt){
-    let result=await cloudOperation(()=>cloudClient.from('phd_sync_data').update({payload,updated_at:updatedAt}).eq('user_id',cloudUser.id).eq('updated_at',cloudRemoteUpdatedAt).select('payload,updated_at').maybeSingle(),'保存同步记录');
+    let result=await cloudOperation(()=>cloudClient.from('phd_sync_data').update({payload,updated_at:updatedAt}).eq('user_id',cloudUser.id).eq('updated_at',cloudRemoteUpdatedAt).select('updated_at').maybeSingle(),'保存同步记录');
     if(!result.data)throw cloudConflictError();
-    if(!cloudPayloadEqual(result.data.payload,payload))throw cloudConflictError();
-    cloudRemoteUpdatedAt=result.data.updated_at||updatedAt;
-    return result.data.payload;
+    rememberCloudRemotePayload(payload,result.data.updated_at||updatedAt);
+    return payload;
   }
   try{
-    let result=await cloudOperation(()=>cloudClient.from('phd_sync_data').insert({user_id:cloudUser.id,payload,updated_at:updatedAt}).select('payload,updated_at').maybeSingle(),'创建同步记录',{retries:0});
-    if(!result.data||!cloudPayloadEqual(result.data.payload,payload))throw cloudConflictError();
-    cloudRemoteUpdatedAt=result.data.updated_at||updatedAt;
-    return result.data.payload;
+    let result=await cloudOperation(()=>cloudClient.from('phd_sync_data').insert({user_id:cloudUser.id,payload,updated_at:updatedAt}).select('updated_at').maybeSingle(),'创建同步记录',{retries:0});
+    if(!result.data)throw cloudConflictError();
+    rememberCloudRemotePayload(payload,result.data.updated_at||updatedAt);
+    return payload;
   }catch(error){if(error.cloudConflict||/duplicate|unique|23505/i.test(error.message))throw cloudConflictError();throw error}
 }
 
@@ -263,25 +271,32 @@ async function removeOrphanCloudImages(activeImages){
 }
 
 async function downloadCloudImages(images){
-  let existing=new Set(await allNoteImageIds()),missing=[];
-  let pending=(images||[]).filter(meta=>!existing.has(meta.id)),cursor=0,completed=0;
-  let firstError=null,stopped=false;
-  async function worker(){while(!stopped&&cursor<pending.length){let meta=pending[cursor++];try{let {data}=await cloudOperation(()=>cloudClient.storage.from(CLOUD_IMAGE_BUCKET).download(`${cloudUser.id}/${meta.id}`),`图片 ${meta.name||meta.id} 下载`,{timeout:CLOUD_IMAGE_REQUEST_TIMEOUT,retries:1});if(!data)throw new Error(`图片 ${meta.name||meta.id} 下载失败`);missing.push({...meta,blob:data});completed++;cloudStatus(`正在下载图片 ${completed}/${pending.length}…`)}catch(error){firstError=firstError||error;stopped=true}}}
-  await Promise.all(Array.from({length:Math.min(CLOUD_IMAGE_CONCURRENCY,pending.length)},()=>worker()));
-  if(firstError)throw firstError;
-  if(missing.length)await restoreNoteImages(missing);
-  return missing.length;
+  let existing=new Set(await allNoteImageIds()),pending=(images||[]).filter(meta=>!existing.has(meta.id)),completed=0;
+  for(let meta of pending){
+    let {data}=await cloudOperation(()=>cloudClient.storage.from(CLOUD_IMAGE_BUCKET).download(`${cloudUser.id}/${meta.id}`),`图片 ${meta.name||meta.id} 下载`,{timeout:CLOUD_IMAGE_REQUEST_TIMEOUT,retries:1});
+    if(!data)throw new Error(`图片 ${meta.name||meta.id} 下载失败`);
+    try{await restoreNoteImages([{...meta,blob:data}])}catch(error){let friendly=cloudFriendlyError(error);friendly.cloudImage=cloudImageContext(meta);throw friendly}
+    completed++;cloudStatus(`正在下载图片 ${completed}/${pending.length}…`);
+  }
+  return completed;
 }
 
 async function pullCloudData(){
   let localBefore=cloudLocalSignature();
-  let {data}=await cloudOperation(()=>cloudClient.from('phd_sync_data').select('payload,updated_at').eq('user_id',cloudUser.id).maybeSingle(),'检查云端更新');
-  if(!data?.payload){cloudRemoteImageIds.clear();cloudRemoteImageTypes.clear();cloudRemotePayload=null;cloudRemoteUpdatedAt=null;return {found:false,changed:false}}
+  let {data:revision}=await cloudOperation(()=>cloudClient.from('phd_sync_data').select('updated_at').eq('user_id',cloudUser.id).maybeSingle(),'检查云端更新');
+  if(!revision){clearCloudRemoteState({forget:true});return {found:false,changed:false}}
+  if(revision.updated_at&&revision.updated_at===cloudRemoteUpdatedAt&&cloudRemoteFingerprint){
+    let localProbe=cloudSnapshot(cloudRemoteImageManifest,cloudSkippedImages());
+    if(cloudPayloadFingerprint(localProbe)===cloudRemoteFingerprint){
+      let deletedIds=deletionSet(cloudDeletions()),downloadedImages=await downloadCloudImages(cloudRemoteImageManifest.filter(image=>!deletedIds.has(`note:${image.noteId}`)&&!deletedIds.has(`diary:${image.noteId}`)));
+      if(downloadedImages)window.desktopDataChanged?.('all');
+      return {found:true,changed:downloadedImages>0,downloadedImages,skippedPayload:true};
+    }
+  }
+  let {data}=await cloudOperation(()=>cloudClient.from('phd_sync_data').select('payload,updated_at').eq('user_id',cloudUser.id).maybeSingle(),'读取云端更新');
+  if(!data?.payload){clearCloudRemoteState({forget:true});return {found:false,changed:false}}
   let remote=data.payload,deleted=saveCloudDeletions(keepRestoredItems([...cloudDeletions(),...(remote.deleted||[])]));
-  cloudRemotePayload=remote;
-  cloudRemoteUpdatedAt=data.updated_at||null;
-  cloudRemoteImageIds=new Set((remote.images||[]).map(image=>image.id));
-  cloudRemoteImageTypes=new Map((remote.images||[]).map(image=>[image.id,image.type]));
+  rememberCloudRemotePayload(remote,data.updated_at||null);
   records=mergeCloudList(records,remote.records||[],'date');
   notes=mergeCloudList(notes,remote.notes||[],'id');
   diaries=mergeCloudList(diaries,remote.diaries||[],'date');
@@ -312,26 +327,28 @@ async function pushCloudData(cleanOrphans=false){
   if(images.length!==pendingIds.length)throw new Error('本机图片索引不完整，请重新打开应用后再同步');
   let removedImages=await removeDeletedCloudImages();
   let {cloudImageTypes,uploadedBytes}=await uploadCloudImages(images);
-  let remoteImages=new Map((cloudRemotePayload?.images||[]).map(image=>[image.id,image])),newImages=new Map(images.map(image=>[image.id,image]));
+  let remoteImages=new Map((cloudRemotePayload?.images||cloudRemoteImageManifest||[]).map(image=>[image.id,image])),newImages=new Map(images.map(image=>[image.id,image]));
   let imageManifest=localImageIds.map(id=>{let source=newImages.get(id)||remoteImages.get(id);if(!source)throw new Error(`图片 ${id} 的同步信息缺失`);return {id,noteId:source.noteId,name:source.name,type:cloudImageTypes.get(id)||cloudRemoteImageTypes.get(id)||source.type||source.blob?.type||'image/jpeg'}});
   let payload=cloudSnapshot(imageManifest,skipped);
-  let payloadChanged=!cloudPayloadEqual(payload,cloudRemotePayload),payloadBytes=0,removedOrphans=0;
-  if(payloadChanged){cloudStatus(uploadedBytes?'正在保存记录…':'正在同步文字记录…');cloudRemotePayload=await saveCloudPayload(payload);payloadBytes=new Blob([JSON.stringify(payload)]).size;cloudRemoteImageIds=new Set(imageManifest.map(image=>image.id));cloudRemoteImageTypes=new Map(imageManifest.map(image=>[image.id,image.type]))}
+  let payloadChanged=!cloudPayloadMatchesRemote(payload),payloadBytes=0,removedOrphans=0;
+  if(payloadChanged){cloudStatus(uploadedBytes?'正在保存记录…':'正在同步文字记录…');await saveCloudPayload(payload);payloadBytes=new Blob([JSON.stringify(payload)]).size}
   if(cleanOrphans){cloudStatus('正在整理云端图片…');removedOrphans=await removeOrphanCloudImages(localImageIds.map(id=>({id})));localStorage.setItem(CLOUD_CLEANUP_LAST_KEY,String(Date.now()))}
-  if(!cloudPayloadEqual(payload,cloudRemotePayload))throw cloudConflictError();
+  if(!cloudPayloadMatchesRemote(payload))throw cloudConflictError();
   return {bytes:uploadedBytes+payloadBytes,changed:payloadChanged||uploadedBytes>0||removedImages>0||removedOrphans>0,verified:true};
 }
 
-async function syncCloud(pullFirst=false,queueIfBusy=false){
+async function syncCloud(pullFirst=false,queueIfBusy=false,manual=false){
   if(!cloudClient||!cloudUser)return;
-  if(cloudSyncing){if(queueIfBusy){cloudSyncQueued=true;cloudQueuedPullFirst=cloudQueuedPullFirst||pullFirst;cloudStatus('当前同步结束后将继续保存新修改…')}return}
+  if(cloudAutoSyncPaused&&!manual)return;
+  if(manual)cloudAutoSyncPaused=false;
+  if(cloudSyncing){if(queueIfBusy){cloudSyncQueued=true;cloudQueuedPullFirst=cloudQueuedPullFirst||pullFirst;cloudQueuedManual=cloudQueuedManual||manual;cloudStatus('当前同步结束后将继续保存新修改…')}return}
   cloudSyncing=true;setCloudProblem(null);cloudStatus('正在同步…');cloudTransferSize(null);
-  try{let restored=cloudRestorePending(),pulled={changed:false},pushed=null;for(let attempt=0;attempt<3;attempt++){if(pullFirst||attempt){cloudStatus(attempt?'检测到其他设备更新，正在重新合并…':'正在检查云端更新…');let nextPull=await pullCloudData();pulled.changed=pulled.changed||nextPull.changed}try{pushed=await pushCloudData(cloudCleanupDue());break}catch(error){if(!error.cloudConflict||attempt===2)throw error;await cloudWait(300*(attempt+1))}}if(!pushed?.verified)throw new Error('同步完整性校验未通过，请重试');if(restored){localStorage.removeItem(CLOUD_RESTORE_PENDING_KEY);refreshCloudDeleteWatch()}cloudTransferSize(pushed.bytes);cloudStatus(pulled.changed||pushed.changed?`已同步并校验：${new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}`:'数据已是最新（已校验）')}catch(error){setCloudProblem(error.cloudImage);cloudStatus(`同步失败：${error.message}`)}finally{cloudSyncing=false;if(cloudSyncQueued){let nextPull=cloudQueuedPullFirst;cloudSyncQueued=false;cloudQueuedPullFirst=false;setTimeout(()=>syncCloud(nextPull),0)}}
+  try{let restored=cloudRestorePending(),pulled={changed:false},pushed=null;for(let attempt=0;attempt<3;attempt++){if(pullFirst||attempt){cloudStatus(attempt?'检测到其他设备更新，正在重新合并…':'正在检查云端更新…');let nextPull=await pullCloudData();pulled.changed=pulled.changed||nextPull.changed}try{pushed=await pushCloudData(cloudCleanupDue());break}catch(error){if(!error.cloudConflict||attempt===2)throw error;await cloudWait(300*(attempt+1))}}if(!pushed?.verified)throw new Error('同步完整性校验未通过，请重试');if(restored){localStorage.removeItem(CLOUD_RESTORE_PENDING_KEY);refreshCloudDeleteWatch()}cloudTransferSize(pushed.bytes);cloudStatus(pulled.changed||pushed.changed?`已同步并校验：${new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}`:'数据已是最新（已校验）')}catch(error){let friendly=cloudFriendlyError(error);if(friendly.cloudQuota)cloudAutoSyncPaused=true;setCloudProblem(friendly.cloudImage||error.cloudImage);cloudStatus(`同步失败：${friendly.message}`)}finally{cloudSyncing=false;if(cloudSyncQueued){let nextPull=cloudQueuedPullFirst,nextManual=cloudQueuedManual;cloudSyncQueued=false;cloudQueuedPullFirst=false;cloudQueuedManual=false;setTimeout(()=>syncCloud(nextPull,false,nextManual),0)}}
 }
 
 window.scheduleCloudSync=()=>{
   watchCloudDeletes();
-  if(!cloudClient||!cloudUser)return;
+  if(!cloudClient||!cloudUser||cloudAutoSyncPaused)return;
   clearTimeout(cloudTimer);cloudTimer=setTimeout(()=>syncCloud(true,true),1200);
 };
 
@@ -344,7 +361,7 @@ async function restoreDesktopSyncSettings(){try{let saved=await window.phdDeskto
 restoreDesktopSyncSettings();
 window.addEventListener('online',()=>syncCloud(true));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncCloud(true)});
-setInterval(()=>syncCloud(true),300000);
+setInterval(()=>syncCloud(true),CLOUD_AUTO_SYNC_INTERVAL);
 
 // iOS Safari can occasionally discard Local Storage while keeping IndexedDB.
 // Keep a second, local-only copy of the non-sensitive sync settings so that

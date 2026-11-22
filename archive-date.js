@@ -278,7 +278,7 @@ if(window.phdDesktop){
   // The Supabase browser SDK is bundled with the app so syncing never needs
   // to fetch executable code from a third-party CDN at runtime.
   let planScript=document.createElement('script');planScript.src='insight-plans.js';planScript.async=false;document.body.append(planScript);
-  let sync=document.createElement('script');sync.src='sync-ui.js';sync.async=false;document.body.append(sync);
+  let sync=document.createElement('script');sync.src='sync-ui.js?v=202611221747';sync.async=false;document.body.append(sync);
   let loading=null;
   window.loadSupabaseSdk=()=>{
     if(window.supabase)return Promise.resolve(window.supabase);
